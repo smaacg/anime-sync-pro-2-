@@ -8,7 +8,9 @@
  * Text Domain:       anime-sync-pro
  */
 
-if ( ! defined( 'ABSPATH' ) ) exit;
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
 
 // ============================================================
 // 1. 常數定義
@@ -22,24 +24,32 @@ define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
 // 2. Autoloader
 // ============================================================
 spl_autoload_register( function ( $class ) {
-    if ( strpos( $class, 'Anime_Sync_' ) !== 0 ) return;
-    $file_name = 'class-' . strtolower( str_replace( [ 'Anime_Sync_', '_' ], [ '', '-' ], $class ) ) . '.php';
-    $sources   = [
+    if ( strpos( $class, 'Anime_Sync_' ) !== 0 ) {
+        return;
+    }
+    $file_name = 'class-' . strtolower(
+        str_replace( [ 'Anime_Sync_', '_' ], [ '', '-' ], $class )
+    ) . '.php';
+    $sources = [
         ANIME_SYNC_PRO_DIR . 'includes/',
         ANIME_SYNC_PRO_DIR . 'admin/',
         ANIME_SYNC_PRO_DIR . 'public/',
     ];
     foreach ( $sources as $source ) {
         $file = $source . $file_name;
-        if ( file_exists( $file ) ) { require_once $file; return; }
+        if ( file_exists( $file ) ) {
+            require_once $file;
+            return;
+        }
     }
 } );
 
 // ============================================================
 // 3. 註冊 Post Type 與 Taxonomy
 // ============================================================
-add_action( 'init', function() {
+add_action( 'init', function () {
 
+    // Post Type: anime
     register_post_type( 'anime', [
         'labels' => [
             'name'          => '動畫',
@@ -64,7 +74,7 @@ add_action( 'init', function() {
         'rewrite'         => [ 'slug' => 'anime', 'with_front' => false ],
     ] );
 
-    // genre | URL: /genre/action/
+    // Taxonomy: genre | URL: /genre/action/
     register_taxonomy( 'genre', [ 'anime', 'manga', 'novel' ], [
         'labels' => [
             'name'          => '類型',
@@ -80,7 +90,7 @@ add_action( 'init', function() {
         'rewrite'           => [ 'slug' => 'genre', 'with_front' => false ],
     ] );
 
-    // anime_season_tax | URL: /season/2025-spring/
+    // Taxonomy: anime_season_tax | URL: /season/2025-spring/
     register_taxonomy( 'anime_season_tax', [ 'anime' ], [
         'labels' => [
             'name'          => '播出季度',
@@ -96,7 +106,7 @@ add_action( 'init', function() {
         'rewrite'           => [ 'slug' => 'season', 'with_front' => false ],
     ] );
 
-    // anime_format_tax | URL: /format/tv/
+    // Taxonomy: anime_format_tax | URL: /format/tv/
     register_taxonomy( 'anime_format_tax', [ 'anime' ], [
         'labels' => [
             'name'          => '動畫格式',
@@ -115,52 +125,121 @@ add_action( 'init', function() {
 }, 10 );
 
 // ============================================================
-// 4. 啟動 Hook（✅ Bug I 修正：補上 Installer 執行）
+// 4. 啟用 Hook
+// ✅ Bug I 修正：補上 Installer 執行
+// ✅ 新增：Cron Manager 排程啟用
 // ============================================================
-register_activation_hook( __FILE__, function() {
-    $installer_file = plugin_dir_path( __FILE__ ) . 'includes/class-installer.php';
-    if ( ! class_exists( 'Anime_Sync_Installer' ) && file_exists( $installer_file ) ) {
-        require_once $installer_file;
+register_activation_hook( __FILE__, function () {
+
+    // 4-1. 執行 Installer（建表、預設選項、上傳目錄）
+    if ( ! class_exists( 'Anime_Sync_Installer' ) ) {
+        $installer_file = ANIME_SYNC_PRO_DIR . 'includes/class-installer.php';
+        if ( file_exists( $installer_file ) ) {
+            require_once $installer_file;
+        }
     }
     if ( class_exists( 'Anime_Sync_Installer' ) ) {
         ( new Anime_Sync_Installer() )->activate();
     }
+
+    // 4-2. 啟用 Cron Manager 排程
+    // ✅ 新增：註冊所有 WP-Cron 排程事件
+    if ( ! class_exists( 'Anime_Sync_Cron_Manager' ) ) {
+        $cron_file = ANIME_SYNC_PRO_DIR . 'includes/class-cron-manager.php';
+        if ( file_exists( $cron_file ) ) {
+            require_once $cron_file;
+        }
+    }
+    if ( class_exists( 'Anime_Sync_Cron_Manager' ) ) {
+        Anime_Sync_Cron_Manager::activate();
+    }
+
     flush_rewrite_rules();
 } );
 
 // ============================================================
-// 5. 載入外掛核心
+// 5. 停用 Hook
+// ✅ 新增：Cron Manager 排程停用（清除所有排程事件）
 // ============================================================
-add_action( 'plugins_loaded', function() {
+register_deactivation_hook( __FILE__, function () {
 
-    if ( ! class_exists( 'ACF' ) ) return;
+    // 5-1. 清除所有 Cron 排程事件
+    if ( class_exists( 'Anime_Sync_Cron_Manager' ) ) {
+        Anime_Sync_Cron_Manager::deactivate();
+    }
 
+    // 5-2. 原有的 Installer 停用邏輯
+    if ( class_exists( 'Anime_Sync_Installer' ) ) {
+        ( new Anime_Sync_Installer() )->deactivate();
+    }
+
+    flush_rewrite_rules();
+} );
+
+// ============================================================
+// 6. 載入外掛核心（plugins_loaded）
+// ============================================================
+add_action( 'plugins_loaded', function () {
+
+    // 6-1. ACF 相依性檢查
+    if ( ! class_exists( 'ACF' ) ) {
+        // 在後台顯示缺少 ACF 的警告
+        if ( is_admin() ) {
+            add_action( 'admin_notices', function () {
+                echo '<div class="notice notice-error"><p>';
+                echo '<strong>Anime Sync Pro</strong> 需要安裝並啟用 <a href="https://www.advancedcustomfields.com/" target="_blank">Advanced Custom Fields</a> 才能正常運作。';
+                echo '</p></div>';
+            } );
+        }
+        return;
+    }
+
+    // 6-2. 初始化 ACF 欄位組
     if ( class_exists( 'Anime_Sync_ACF_Fields' ) ) {
         new Anime_Sync_ACF_Fields();
     }
 
-    // ✅ Bug F 修正：Frontend 不限 is_admin，前台也需要載入（模板、REST、Shortcode）
+    // 6-3. 初始化前台（Frontend 不限 is_admin，前台模板、REST、Shortcode 皆需要）
+    // ✅ Bug F 修正說明：Frontend 在前台與後台都需要初始化
     if ( class_exists( 'Anime_Sync_Frontend' ) ) {
         new Anime_Sync_Frontend();
     }
 
+    // 6-4. 後台 + Cron 環境：初始化核心元件
     if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
-        $id_mapper      = new Anime_Sync_ID_Mapper();
-        $converter      = new Anime_Sync_CN_Converter();
-        $api_handler    = new Anime_Sync_API_Handler( $id_mapper, $converter );
-        $import_manager = new Anime_Sync_Import_Manager( $api_handler );
 
-        if ( class_exists( 'Anime_Sync_Admin' ) ) {
+        // 建立共用核心物件
+        $id_mapper      = class_exists( 'Anime_Sync_ID_Mapper' )    ? new Anime_Sync_ID_Mapper()                        : null;
+        $converter      = class_exists( 'Anime_Sync_CN_Converter' ) ? new Anime_Sync_CN_Converter()                     : null;
+        $api_handler    = class_exists( 'Anime_Sync_API_Handler' )  ? new Anime_Sync_API_Handler( $id_mapper, $converter ) : null;
+        $import_manager = ( $api_handler && class_exists( 'Anime_Sync_Import_Manager' ) )
+                          ? new Anime_Sync_Import_Manager( $api_handler )
+                          : null;
+
+        // 後台管理介面
+        if ( is_admin() && $import_manager && class_exists( 'Anime_Sync_Admin' ) ) {
             new Anime_Sync_Admin( $import_manager );
+        }
+
+        // ✅ 新增：Cron Manager 初始化（後台 + Cron 環境皆需要）
+        // 綁定排程 Hook 到對應的處理方法
+        if ( $import_manager && class_exists( 'Anime_Sync_Cron_Manager' ) ) {
+            new Anime_Sync_Cron_Manager( $import_manager );
+        }
+
+        // ✅ 新增：後台列表欄位（Custom Post Type 擴充）
+        if ( is_admin() && class_exists( 'Anime_Sync_Custom_Post_Type' ) ) {
+            new Anime_Sync_Custom_Post_Type();
         }
     }
 
 } );
 
 // ============================================================
-// 6. Rewrite Rules 刷新
+// 7. Rewrite Rules 刷新
+// ✅ Bug A 修正：Installer activate() 設定旗標後，在 init 執行刷新
 // ============================================================
-add_action( 'init', function() {
+add_action( 'init', function () {
     if ( get_option( 'anime_sync_flush_rewrite' ) ) {
         flush_rewrite_rules();
         delete_option( 'anime_sync_flush_rewrite' );
