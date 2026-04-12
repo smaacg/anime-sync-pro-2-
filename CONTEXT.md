@@ -275,3 +275,25 @@ AniList ID	MAL ID	Bangumi ID	標題	Layer 預測結果
 現在的問題只剩一個： Bug AO 修正方向 和 輸出指令 都已確認，但 Bug AL 的 name_cn 繁化路徑 需要再釐清一點——
 
 現行 class-api-handler.php 在 anime_title_chinese 已走 $this->convert_text($bgm_data['name_cn']) 沒問題。但 name_cache.json 裡的 name_cn 是在 class-id-mapper.php 的 download_and_cache_map() 內建立的，那個時候沒有 api_handler 的 converter 實例。已確認改用 Anime_Sync_CN_Converter::static_convert() 靜態方法，可以直接在 id_mapper 內呼叫，無需注入。這樣 Bug AL 就完全解決了。
+
+好，全部檔案確認完畢。現在交叉比對實際程式碼，發現 CONTEXT.md v7.0 還需要補幾個重要發現，不輸出程式碼：
+
+讀完全部檔案後，新發現的問題：
+
+Bug AS（新）— class-security.php 的 sanitize_year() 使用 date() 而非 gmdate() 第 38 行：$now = (int) date('Y'); 應改為 gmdate('Y')，與 Bug AA 同類問題。
+
+Bug AT（新）— class-acf-fields.php 已有 anime_animethemes_id 欄位，但 class-import-manager.php 完全沒有寫入這個 meta ACF 定義了 field_anime_animethemes_id（name: anime_animethemes_id），但 save_post_meta() 的 $fields 陣列裡沒有這個 key，AnimeThemes 整合準備好後需要一起補上。
+
+Bug AU（新）— class-cron-manager.php 的 run_update_map() 會在重寫後失效 run_update_map() 直接 new Anime_Sync_ID_Mapper() 並呼叫 download_and_cache_map()，這個沒問題。但重寫後 download_and_cache_map() 會多建立 mal_index.json、name_cache.json、anime_map_meta.json，所以 cron 這裡不需要改，只要確保 download_and_cache_map() 返回值仍是 int|false（bytes written）就好。✅ 確認不影響。
+
+Bug AV（新）— settings.php 的 Map 狀態顯示需配合新格式更新 settings.php 顯示 $map_status['entry_count'] 和 $map_status['file_size']，重寫後 get_map_status() 需要改為讀取 anime_map_meta.json 的 entry_count 與 mal_count，而不是直接 count(json_decode(...)))（因為 anime_map.json 是陣列格式，23206 筆，每次 count 都要解析 4MB JSON，效能很差）。→ 這正是 anime_map_meta.json 存在的原因，get_map_status() 改讀 meta 檔即可。
+
+Bug AW（新）— class-import-manager.php 的 save_post_meta() 寫入 anime_season 為小寫，但 class-custom-post-type.php 的 render_admin_columns() 用大寫 key 做 $season_map 比對 save_post_meta() 寫入 anime_season => $data['anime_season']，而 class-api-handler.php 回傳的是 strtolower($al['season']) → 小寫（如 spring）。但 class-custom-post-type.php 的 season_map 用大寫 key ['WINTER'=>'冬', 'SPRING'=>'春'...] 比對，導致後台列表季度欄永遠顯示 —。需要在 render_admin_columns() 改為 strtoupper($season) 後再查 map，或 save_post_meta() 改存大寫。
+
+CONTEXT.md v7.0 最終版需補上的內容確認：
+
+Bug	位置	嚴重度	說明
+AS	class-security.php sanitize_year()	🟡 Low	date() 應改 gmdate()
+AT	class-import-manager.php save_post_meta()	🟠 Medium	anime_animethemes_id 欄位未寫入（AnimeThemes 整合時補）
+AV	class-id-mapper.php get_map_status()	🟠 Medium	改為讀 anime_map_meta.json，避免每次解析 4MB JSON
+AW	class-custom-post-type.php render_admin_columns()	🟠 Medium	anime_season 大小寫不一致，後台季度欄永遠顯示 —
