@@ -17,11 +17,14 @@ class Anime_Sync_Admin {
 
         // ── AJAX handlers ──────────────────────────────────
         add_action( 'wp_ajax_anime_sync_import_single', [ $this, 'handle_ajax_import_single' ] );
-        add_action( 'wp_ajax_anime_sync_query_season',  [ $this, 'handle_ajax_query_season'  ] ); // ✅
-        add_action( 'wp_ajax_anime_sync_update_map',    [ $this, 'handle_ajax_update_map'    ] ); // ✅
-        add_action( 'wp_ajax_anime_sync_clear_cache',   [ $this, 'handle_ajax_clear_cache'   ] ); // ✅
-        add_action( 'wp_ajax_anime_sync_clear_logs',    [ $this, 'handle_ajax_clear_logs'    ] ); // ✅
-        add_action( 'wp_ajax_anime_clear_old_logs',     [ $this, 'handle_ajax_clear_logs'    ] ); // 舊名相容
+        add_action( 'wp_ajax_anime_sync_query_season',  [ $this, 'handle_ajax_query_season'  ] );
+        add_action( 'wp_ajax_anime_sync_update_map',    [ $this, 'handle_ajax_update_map'    ] );
+        add_action( 'wp_ajax_anime_sync_clear_cache',   [ $this, 'handle_ajax_clear_cache'   ] );
+        add_action( 'wp_ajax_anime_sync_clear_logs',    [ $this, 'handle_ajax_clear_logs'    ] );
+        add_action( 'wp_ajax_anime_clear_old_logs',     [ $this, 'handle_ajax_clear_logs'    ] );
+        // ✅ Bug D 修正：補上審核佇列批次操作 handler
+        add_action( 'wp_ajax_anime_sync_bulk_action',      [ $this, 'handle_ajax_bulk_action'      ] );
+        add_action( 'wp_ajax_anime_sync_save_bangumi_id',  [ $this, 'handle_ajax_save_bangumi_id'  ] );
     }
 
     // ── 選單 ───────────────────────────────────────────────
@@ -118,6 +121,77 @@ class Anime_Sync_Admin {
         wp_send_json_success( [ 'list' => $list, 'total' => count( $list ) ] );
     }
 
+    // ── AJAX：批次操作（Bug D 新增）────────────────────────
+    public function handle_ajax_bulk_action(): void {
+        check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
+
+        $action   = sanitize_text_field( $_POST['bulk'] ?? '' );
+        $post_ids = array_map( 'intval', (array) ( $_POST['post_ids'] ?? [] ) );
+
+        if ( empty( $action ) || empty( $post_ids ) ) {
+            wp_send_json_error( '參數錯誤' );
+        }
+
+        $allowed_actions = [ 'publish', 'draft', 'delete', 'refetch' ];
+        if ( ! in_array( $action, $allowed_actions, true ) ) {
+            wp_send_json_error( '不允許的操作' );
+        }
+
+        $count = 0;
+        foreach ( $post_ids as $post_id ) {
+            if ( ! $post_id || get_post_type( $post_id ) !== 'anime' ) continue;
+
+            switch ( $action ) {
+                case 'publish':
+                    $result = wp_update_post( [ 'ID' => $post_id, 'post_status' => 'publish' ] );
+                    if ( $result && ! is_wp_error( $result ) ) $count++;
+                    break;
+
+                case 'draft':
+                    $result = wp_update_post( [ 'ID' => $post_id, 'post_status' => 'draft' ] );
+                    if ( $result && ! is_wp_error( $result ) ) $count++;
+                    break;
+
+                case 'delete':
+                    $result = wp_delete_post( $post_id, true );
+                    if ( $result ) $count++;
+                    break;
+
+                case 'refetch':
+                    $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
+                    if ( $anilist_id ) {
+                        $result = $this->import_manager->import_single( $anilist_id );
+                        if ( ! empty( $result['success'] ) ) $count++;
+                    }
+                    break;
+            }
+        }
+
+        wp_send_json_success( [
+            'count'   => $count,
+            'message' => "已完成 {$count} 筆操作",
+        ] );
+    }
+
+    // ── AJAX：儲存 Bangumi ID（Bug D 新增）─────────────────
+    public function handle_ajax_save_bangumi_id(): void {
+        check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
+
+        $post_id    = intval( $_POST['post_id']    ?? 0 );
+        $bangumi_id = intval( $_POST['bangumi_id'] ?? 0 );
+
+        if ( ! $post_id || ! $bangumi_id ) wp_send_json_error( '參數錯誤' );
+        if ( get_post_type( $post_id ) !== 'anime' ) wp_send_json_error( '文章類型錯誤' );
+
+        update_post_meta( $post_id, 'anime_bangumi_id', $bangumi_id );
+        update_post_meta( $post_id, 'bangumi_id',       $bangumi_id );
+        delete_post_meta( $post_id, '_bangumi_id_pending' );
+
+        wp_send_json_success( [ 'bangumi_id' => $bangumi_id ] );
+    }
+
     // ── AJAX：更新 ID 對照表 ───────────────────────────────
     public function handle_ajax_update_map(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
@@ -141,7 +215,6 @@ class Anime_Sync_Admin {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
 
-        // 清除所有 anime_sync 相關的 transient
         global $wpdb;
         $count = $wpdb->query(
             "DELETE FROM {$wpdb->options}
@@ -159,7 +232,7 @@ class Anime_Sync_Admin {
 
         if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
             $logger = new Anime_Sync_Error_Logger();
-            $count  = $logger->delete_old_logs( 0 ); // 0 = 清除全部
+            $count  = $logger->delete_old_logs( 0 );
             wp_send_json_success( [ 'count' => $count, 'message' => '已清除 ' . $count . ' 筆日誌' ] );
         } else {
             wp_send_json_error( '找不到 Logger 類別' );
