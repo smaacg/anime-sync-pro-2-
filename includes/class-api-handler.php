@@ -66,7 +66,10 @@ class Anime_Sync_API_Handler {
             'anime_score_bangumi'    => $bgm_data['rating']['score']    ?? 0,
             'anime_cover_image'      => $al['coverImage']['extraLarge'] ?? '',
             'anime_banner_image'     => $al['bannerImage']              ?? '',
-            'anime_synopsis_chinese' => $this->convert_text( $al['description'] ?? '' ),
+            // ✅ Bug 3 修正：清理 synopsis HTML 標籤與 AniList spoiler 標記
+            'anime_synopsis_chinese' => $this->clean_synopsis(
+                $this->convert_text( $al['description'] ?? '' )
+            ),
             'anime_staff_json'       => json_encode( $this->get_bgm_staff( $bgm_id ), JSON_UNESCAPED_UNICODE ),
             'anime_cast_json'        => json_encode( $this->get_bgm_chars( $bgm_id ), JSON_UNESCAPED_UNICODE ),
             'anime_relations_json'   => json_encode( $relations, JSON_UNESCAPED_UNICODE ),
@@ -76,21 +79,52 @@ class Anime_Sync_API_Handler {
     }
 
     // ============================================================
+    // Bug 3 修正：清理 AniList synopsis
+    // 處理：~!spoiler!~ 標記、HTML 標籤、來源備註、多餘空白
+    // ============================================================
+    private function clean_synopsis( string $text ): string {
+        if ( empty( $text ) ) return '';
+
+        // 1. 移除 AniList spoiler 標記區塊：~!...!~
+        $text = preg_replace( '/~!.*?!~/s', '', $text );
+
+        // 2. 移除來源備註（AniList 常見格式）
+        foreach ( [ '[Written by MAL Rewrite]', '[Source:', '(Source:', 'Source:', '[Written by' ] as $marker ) {
+            $pos = strpos( $text, $marker );
+            if ( $pos !== false ) {
+                $text = substr( $text, 0, $pos );
+            }
+        }
+
+        // 3. 將 <br> / <br /> 換成換行，保留段落結構
+        $text = preg_replace( '/<br\s*\/?>/i', "\n", $text );
+
+        // 4. 移除所有其他 HTML 標籤（保留純文字）
+        $text = wp_strip_all_tags( $text );
+
+        // 5. 清理多餘空白與換行
+        $text = preg_replace( '/\n{3,}/', "\n\n", $text );
+        $text = trim( $text );
+
+        return $text;
+    }
+
+    // ============================================================
     // 解析關聯作品
     // ============================================================
     private function parse_relations( array $edges ): array {
         $allowed_types = [
-            'PREQUEL'        => '前傳',
-            'SEQUEL'         => '續集',
-            'SIDE_STORY'     => '外傳',
-            'ALTERNATIVE'    => '替代版本',
-            'SPIN_OFF'       => '衍生作品',
-            'ADAPTATION'     => '改編原作',
-            'SOURCE'         => '原作',
-            'SUMMARY'        => '總集篇',
-            'PARENT'         => '主線作品',
-            'CHARACTER'      => '角色客串',
-            'OTHER'          => '其他相關',
+            'PREQUEL'     => '前傳',
+            'SEQUEL'      => '續集',
+            'SIDE_STORY'  => '外傳',
+            'ALTERNATIVE' => '替代版本',
+            'SPIN_OFF'    => '衍生作品',
+            'ADAPTATION'  => '改編原作',
+            'SOURCE'      => '原作',
+            'SUMMARY'     => '總集篇',
+            'PARENT'      => '主線作品',
+            'CHARACTER'   => '角色客串',
+            'OTHER'       => '其他相關',
         ];
 
         $relations = [];
@@ -98,26 +132,29 @@ class Anime_Sync_API_Handler {
             $type = $edge['relationType'] ?? '';
             if ( ! isset( $allowed_types[ $type ] ) ) continue;
 
-            $node = $edge['node'] ?? [];
+            $node        = $edge['node'] ?? [];
             $relations[] = [
-                'relation_type'    => $type,
-                'relation_label'   => $allowed_types[ $type ],
-                'anilist_id'       => $node['id']                        ?? 0,
-                'title_chinese'    => $this->convert_text(
+                'relation_type'  => $type,
+                'relation_label' => $allowed_types[ $type ],
+                'anilist_id'     => $node['id']                        ?? 0,
+                'title_chinese'  => $this->convert_text(
                     $node['title']['native'] ?? $node['title']['romaji'] ?? ''
                 ),
-                'title_romaji'     => $node['title']['romaji']           ?? '',
-                'title_native'     => $node['title']['native']           ?? '',
-                'format'           => $node['format']                    ?? '',
-                'status'           => $node['status']                    ?? '',
-                'cover_image'      => $node['coverImage']['large']       ?? '',
-                'episodes'         => $node['episodes']                  ?? 0,
-                'season_year'      => $node['seasonYear']                ?? 0,
+                'title_romaji'   => $node['title']['romaji']           ?? '',
+                'title_native'   => $node['title']['native']           ?? '',
+                'format'         => $node['format']                    ?? '',
+                'status'         => $node['status']                    ?? '',
+                'cover_image'    => $node['coverImage']['large']       ?? '',
+                'episodes'       => $node['episodes']                  ?? 0,
+                'season_year'    => $node['seasonYear']                ?? 0,
             ];
         }
 
         // 排序優先顯示：前傳、續集、外傳
-        $priority = [ 'PREQUEL' => 1, 'SEQUEL' => 2, 'SIDE_STORY' => 3, 'SPIN_OFF' => 4, 'ADAPTATION' => 5, 'SOURCE' => 6 ];
+        $priority = [
+            'PREQUEL'    => 1, 'SEQUEL'     => 2, 'SIDE_STORY'  => 3,
+            'SPIN_OFF'   => 4, 'ADAPTATION' => 5, 'SOURCE'      => 6,
+        ];
         usort( $relations, function( $a, $b ) use ( $priority ) {
             $pa = $priority[ $a['relation_type'] ] ?? 99;
             $pb = $priority[ $b['relation_type'] ] ?? 99;
@@ -150,7 +187,7 @@ class Anime_Sync_API_Handler {
                 status
                 format
                 episodes
-                description
+                description(asHtml: false)
                 season
                 seasonYear
                 averageScore
