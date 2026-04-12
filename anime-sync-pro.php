@@ -53,15 +53,15 @@ add_action( 'init', function() {
             'all_items'     => '所有動畫',
             'menu_name'     => '動畫',
         ],
-        'public'            => true,
-        'has_archive'       => 'anime',
-        'show_in_rest'      => true,
-        'menu_icon'         => 'dashicons-format-video',
-        'menu_position'     => 5,
-        'supports'          => [ 'title', 'editor', 'thumbnail', 'custom-fields', 'comments' ],
-        'capability_type'   => 'post',
-        'map_meta_cap'      => true,
-        'rewrite'           => [ 'slug' => 'anime', 'with_front' => false ],
+        'public'          => true,
+        'has_archive'     => 'anime',
+        'show_in_rest'    => true,
+        'menu_icon'       => 'dashicons-format-video',
+        'menu_position'   => 5,
+        'supports'        => [ 'title', 'editor', 'thumbnail', 'custom-fields', 'comments' ],
+        'capability_type' => 'post',
+        'map_meta_cap'    => true,
+        'rewrite'         => [ 'slug' => 'anime', 'with_front' => false ],
     ] );
 
     // genre | URL: /genre/action/
@@ -115,19 +115,15 @@ add_action( 'init', function() {
 }, 10 );
 
 // ============================================================
-// 4. 啟動 Hook（Bug I 修正：補上 Installer 執行）
+// 4. 啟動 Hook（✅ Bug I 修正：補上 Installer 執行）
 // ============================================================
 register_activation_hook( __FILE__, function() {
-    // ✅ Bug I 修正：實例化 Installer，建立資料表、預設選項、上傳目錄
+    $installer_file = plugin_dir_path( __FILE__ ) . 'includes/class-installer.php';
+    if ( ! class_exists( 'Anime_Sync_Installer' ) && file_exists( $installer_file ) ) {
+        require_once $installer_file;
+    }
     if ( class_exists( 'Anime_Sync_Installer' ) ) {
         ( new Anime_Sync_Installer() )->activate();
-    } else {
-        // Autoloader 尚未掛載時的 fallback
-        $installer_file = plugin_dir_path( __FILE__ ) . 'includes/class-installer.php';
-        if ( file_exists( $installer_file ) ) {
-            require_once $installer_file;
-            ( new Anime_Sync_Installer() )->activate();
-        }
     }
     flush_rewrite_rules();
 } );
@@ -137,21 +133,17 @@ register_activation_hook( __FILE__, function() {
 // ============================================================
 add_action( 'plugins_loaded', function() {
 
-    // 需要 ACF 才能運作
     if ( ! class_exists( 'ACF' ) ) return;
 
-    // ACF 欄位定義
     if ( class_exists( 'Anime_Sync_ACF_Fields' ) ) {
         new Anime_Sync_ACF_Fields();
     }
 
-    // 前台載入 Frontend（模板覆蓋、REST API、Shortcode）
-    // ✅ Bug F 修正：Frontend 不限制 is_admin，前台也需要載入
+    // ✅ Bug F 修正：Frontend 不限 is_admin，前台也需要載入（模板、REST、Shortcode）
     if ( class_exists( 'Anime_Sync_Frontend' ) ) {
         new Anime_Sync_Frontend();
     }
 
-    // 後台 / Cron 才載入完整匯入功能
     if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
         $id_mapper      = new Anime_Sync_ID_Mapper();
         $converter      = new Anime_Sync_CN_Converter();
