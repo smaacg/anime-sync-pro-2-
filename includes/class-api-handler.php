@@ -3,8 +3,8 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class Anime_Sync_API_Handler {
 
-    const ANILIST_ENDPOINT  = 'https://graphql.anilist.co';   // ✅ 修正：原本是 anilist.co（錯誤）
-    const BANGUMI_ENDPOINT  = 'https://api.bgm.tv';           // ✅ 修正：原本是 bgm.tv（錯誤）
+    const ANILIST_ENDPOINT = 'https://graphql.anilist.co';
+    const BANGUMI_ENDPOINT = 'https://api.bgm.tv';
 
     private $id_mapper;
     private $converter;
@@ -14,7 +14,7 @@ class Anime_Sync_API_Handler {
         $this->converter = $converter;
     }
 
-    public function get_all_data_from_input( int $input_id, string $input_type = 'auto', ?int $bangumi_id = null ) {
+    public function get_all_data_from_input( int $input_id, string $input_type = 'auto', ?int $bangumi_id = null ): array {
         return $this->get_full_anime_data( $input_id, $bangumi_id );
     }
 
@@ -24,7 +24,6 @@ class Anime_Sync_API_Handler {
 
         $al = $al_res['data'];
 
-        // ✅ 修正：$al 可能是 null（AniList 找不到該 ID）
         if ( empty( $al ) ) {
             return [ 'success' => false, 'message' => 'AniList 找不到 ID: ' . $anilist_id ];
         }
@@ -37,51 +36,145 @@ class Anime_Sync_API_Handler {
             $bgm_id = $ids['bangumi_id'] ?? $bangumi_id;
         }
 
-        // ✅ 修正：bgm_data 可能是 null，統一處理為空陣列
         $bgm_data = $this->get_bangumi_data( $bgm_id ) ?? [];
+
+        // ── Relations（關聯作品）────────────────────────────
+        $relations = $this->parse_relations( $al['relations']['edges'] ?? [] );
 
         return [
             'success'                => true,
             'anime_anilist_id'       => $anilist_id,
             'anime_mal_id'           => $mal_id,
             'bangumi_id'             => $bgm_id,
-            // ✅ 修正：bgm_data 為空時不會再報 Warning
             'anime_title_chinese'    => $this->convert_text(
                 ( ! empty( $bgm_data['name_cn'] ) ? $bgm_data['name_cn'] : null )
-                ?? ( ! empty( $bgm_data['name'] )    ? $bgm_data['name']    : null )
+                ?? ( ! empty( $bgm_data['name'] )  ? $bgm_data['name']   : null )
                 ?? $al['title']['english']
                 ?? $al['title']['romaji']
                 ?? ''
             ),
-            'anime_title_romaji'     => $al['title']['romaji']  ?? '',
-            'anime_title_english'    => $al['title']['english'] ?? '',
-            'anime_title_native'     => $al['title']['native']  ?? '',
-            'anime_status'           => $al['status']           ?? '',
-            'anime_type'             => $al['format']           ?? 'TV',
-            'anime_episodes'         => $al['episodes']         ?? 0,
-            'anime_season'           => $al['season']           ?? '',
-            'anime_year'             => $al['seasonYear']       ?? 0,
-            'anime_score_anilist'    => $al['averageScore']     ?? 0,
-            'anime_score_bangumi'    => $bgm_data['rating']['score'] ?? 0,
+            'anime_title_romaji'     => $al['title']['romaji']          ?? '',
+            'anime_title_english'    => $al['title']['english']         ?? '',
+            'anime_title_native'     => $al['title']['native']          ?? '',
+            'anime_status'           => $al['status']                   ?? '',
+            'anime_type'             => $al['format']                   ?? 'TV',
+            'anime_episodes'         => $al['episodes']                 ?? 0,
+            'anime_season'           => $al['season']                   ?? '',
+            'anime_year'             => $al['seasonYear']               ?? 0,
+            'anime_score_anilist'    => $al['averageScore']             ?? 0,
+            'anime_popularity'       => $al['popularity']               ?? 0,
+            'anime_score_bangumi'    => $bgm_data['rating']['score']    ?? 0,
             'anime_cover_image'      => $al['coverImage']['extraLarge'] ?? '',
-            'anime_banner_image'     => $al['bannerImage']      ?? '',
+            'anime_banner_image'     => $al['bannerImage']              ?? '',
             'anime_synopsis_chinese' => $this->convert_text( $al['description'] ?? '' ),
             'anime_staff_json'       => json_encode( $this->get_bgm_staff( $bgm_id ), JSON_UNESCAPED_UNICODE ),
             'anime_cast_json'        => json_encode( $this->get_bgm_chars( $bgm_id ), JSON_UNESCAPED_UNICODE ),
+            'anime_relations_json'   => json_encode( $relations, JSON_UNESCAPED_UNICODE ),
             '_genres'                => $al['genres'] ?? [],
-            'errors'                 => []
+            'errors'                 => [],
         ];
     }
 
-    private function convert_text( $text ) {
+    // ============================================================
+    // 解析關聯作品
+    // ============================================================
+    private function parse_relations( array $edges ): array {
+        $allowed_types = [
+            'PREQUEL'        => '前傳',
+            'SEQUEL'         => '續集',
+            'SIDE_STORY'     => '外傳',
+            'ALTERNATIVE'    => '替代版本',
+            'SPIN_OFF'       => '衍生作品',
+            'ADAPTATION'     => '改編原作',
+            'SOURCE'         => '原作',
+            'SUMMARY'        => '總集篇',
+            'PARENT'         => '主線作品',
+            'CHARACTER'      => '角色客串',
+            'OTHER'          => '其他相關',
+        ];
+
+        $relations = [];
+        foreach ( $edges as $edge ) {
+            $type = $edge['relationType'] ?? '';
+            if ( ! isset( $allowed_types[ $type ] ) ) continue;
+
+            $node = $edge['node'] ?? [];
+            $relations[] = [
+                'relation_type'    => $type,
+                'relation_label'   => $allowed_types[ $type ],
+                'anilist_id'       => $node['id']                        ?? 0,
+                'title_chinese'    => $this->convert_text(
+                    $node['title']['native'] ?? $node['title']['romaji'] ?? ''
+                ),
+                'title_romaji'     => $node['title']['romaji']           ?? '',
+                'title_native'     => $node['title']['native']           ?? '',
+                'format'           => $node['format']                    ?? '',
+                'status'           => $node['status']                    ?? '',
+                'cover_image'      => $node['coverImage']['large']       ?? '',
+                'episodes'         => $node['episodes']                  ?? 0,
+                'season_year'      => $node['seasonYear']                ?? 0,
+            ];
+        }
+
+        // 排序優先顯示：前傳、續集、外傳
+        $priority = [ 'PREQUEL' => 1, 'SEQUEL' => 2, 'SIDE_STORY' => 3, 'SPIN_OFF' => 4, 'ADAPTATION' => 5, 'SOURCE' => 6 ];
+        usort( $relations, function( $a, $b ) use ( $priority ) {
+            $pa = $priority[ $a['relation_type'] ] ?? 99;
+            $pb = $priority[ $b['relation_type'] ] ?? 99;
+            return $pa <=> $pb;
+        });
+
+        return $relations;
+    }
+
+    // ============================================================
+    // 文字轉換（簡 → 繁）
+    // ============================================================
+    private function convert_text( $text ): string {
         if ( empty( $text ) ) return '';
         return ( $this->converter && method_exists( $this->converter, 'convert' ) )
             ? $this->converter->convert( $text )
             : $text;
     }
 
-    private function fetch_anilist_data( int $id ) {
-        $query = 'query($id:Int){Media(id:$id,type:ANIME){id idMal title{romaji english native}status episodes description season seasonYear coverImage{extraLarge}bannerImage genres averageScore format}}';
+    // ============================================================
+    // 抓取 AniList GraphQL 資料
+    // ============================================================
+    private function fetch_anilist_data( int $id ): array {
+        $query = <<<'GQL'
+        query($id: Int) {
+            Media(id: $id, type: ANIME) {
+                id
+                idMal
+                title { romaji english native }
+                status
+                format
+                episodes
+                description
+                season
+                seasonYear
+                averageScore
+                popularity
+                coverImage { extraLarge large }
+                bannerImage
+                genres
+                relations {
+                    edges {
+                        relationType
+                        node {
+                            id
+                            title { romaji native }
+                            format
+                            status
+                            episodes
+                            seasonYear
+                            coverImage { large }
+                        }
+                    }
+                }
+            }
+        }
+        GQL;
 
         $res = wp_remote_post(
             self::ANILIST_ENDPOINT,
@@ -106,7 +199,6 @@ class Anime_Sync_API_Handler {
 
         $body = json_decode( wp_remote_retrieve_body( $res ), true );
 
-        // ✅ 檢查 GraphQL errors
         if ( ! empty( $body['errors'] ) ) {
             $msg = $body['errors'][0]['message'] ?? 'GraphQL 錯誤';
             return [ 'success' => false, 'message' => 'AniList GraphQL 錯誤：' . $msg ];
@@ -115,61 +207,65 @@ class Anime_Sync_API_Handler {
         return [ 'success' => true, 'data' => $body['data']['Media'] ?? null ];
     }
 
-    private function get_bangumi_data( $id ) {
+    // ============================================================
+    // 抓取 Bangumi 主題資料
+    // ============================================================
+    private function get_bangumi_data( $id ): ?array {
         if ( ! $id ) return null;
         $res = wp_remote_get(
             self::BANGUMI_ENDPOINT . "/v0/subjects/{$id}",
             [
-                'headers' => [ 'User-Agent' => 'AnimeSyncPro/1.0' ],
+                'headers' => [ 'User-Agent' => 'AnimeSyncPro/1.0 (https://dev.weixiaoacg.com)' ],
                 'timeout' => 15,
             ]
         );
         if ( is_wp_error( $res ) ) return null;
-        $code = wp_remote_retrieve_response_code( $res );
-        if ( $code !== 200 ) return null;
+        if ( wp_remote_retrieve_response_code( $res ) !== 200 ) return null;
         return json_decode( wp_remote_retrieve_body( $res ), true );
     }
 
-    private function get_bgm_staff( $id ) {
+    // ============================================================
+    // 抓取 Bangumi Staff
+    // ============================================================
+    private function get_bgm_staff( $id ): array {
         if ( ! $id ) return [];
-        $res = wp_remote_get(
+        $res  = wp_remote_get(
             self::BANGUMI_ENDPOINT . "/v0/subjects/{$id}/persons",
             [
-                'headers' => [ 'User-Agent' => 'AnimeSyncPro/1.0' ],
+                'headers' => [ 'User-Agent' => 'AnimeSyncPro/1.0 (https://dev.weixiaoacg.com)' ],
                 'timeout' => 15,
             ]
         );
-        $data = is_wp_error( $res ) ? [] : json_decode( wp_remote_retrieve_body( $res ), true );
+        $data = is_wp_error( $res ) ? [] : ( json_decode( wp_remote_retrieve_body( $res ), true ) ?? [] );
         $out  = [];
-        if ( is_array( $data ) ) {
-            foreach ( array_slice( $data, 0, 10 ) as $p ) {
-                $out[] = [
-                    'name' => $this->convert_text( $p['name'] ?? '' ),
-                    'role' => $p['relation'] ?? '',
-                ];
-            }
+        foreach ( array_slice( $data, 0, 10 ) as $p ) {
+            $out[] = [
+                'name' => $this->convert_text( $p['name'] ?? '' ),
+                'role' => $p['relation'] ?? '',
+            ];
         }
         return $out;
     }
 
-    private function get_bgm_chars( $id ) {
+    // ============================================================
+    // 抓取 Bangumi 角色
+    // ============================================================
+    private function get_bgm_chars( $id ): array {
         if ( ! $id ) return [];
-        $res = wp_remote_get(
+        $res  = wp_remote_get(
             self::BANGUMI_ENDPOINT . "/v0/subjects/{$id}/characters",
             [
-                'headers' => [ 'User-Agent' => 'AnimeSyncPro/1.0' ],
+                'headers' => [ 'User-Agent' => 'AnimeSyncPro/1.0 (https://dev.weixiaoacg.com)' ],
                 'timeout' => 15,
             ]
         );
-        $data = is_wp_error( $res ) ? [] : json_decode( wp_remote_retrieve_body( $res ), true );
+        $data = is_wp_error( $res ) ? [] : ( json_decode( wp_remote_retrieve_body( $res ), true ) ?? [] );
         $out  = [];
-        if ( is_array( $data ) ) {
-            foreach ( array_slice( $data, 0, 10 ) as $c ) {
-                $out[] = [
-                    'name' => $this->convert_text( $c['name'] ?? '' ),
-                    'role' => $c['relation'] ?? '',
-                ];
-            }
+        foreach ( array_slice( $data, 0, 10 ) as $c ) {
+            $out[] = [
+                'name' => $this->convert_text( $c['name'] ?? '' ),
+                'role' => $c['relation'] ?? '',
+            ];
         }
         return $out;
     }
