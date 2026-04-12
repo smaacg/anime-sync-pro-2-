@@ -48,11 +48,17 @@ class Anime_Sync_Security {
         return in_array( $s, [ 'WINTER', 'SPRING', 'SUMMER', 'FALL' ], true ) ? $s : false;
     }
 
-    public static function sanitize_year( $year ) {
-        $year = absint( $year );
-        $now  = (int) date( 'Y' );
-        return ( $year >= $now - 30 && $year <= $now + 5 ) ? $year : false;
+   public static function sanitize_year( $year ): int|false {
+    $year         = (int) $year;
+    $current_year = (int) gmdate( 'Y' ); // Bug AS fix: use gmdate() instead of date()
+    $min_year     = $current_year - 30;
+    $max_year     = $current_year + 5;
+
+    if ( $year >= $min_year && $year <= $max_year ) {
+        return $year;
     }
+    return false;
+}
 
     public static function escape_output( $text, $context = 'html' ) {
         return match ( $context ) {
