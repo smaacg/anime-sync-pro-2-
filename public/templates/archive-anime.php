@@ -16,11 +16,11 @@ wp_enqueue_style(
 get_header();
 
 /* ── 頁面資訊 ─────────────────────────────────────────────── */
-$is_archive    = is_post_type_archive( 'anime' );
-$is_genre      = is_tax( 'genre' );
-$is_season     = is_tax( 'anime_season_tax' );
-$is_format     = is_tax( 'anime_format_tax' );
-$current_term  = ( $is_genre || $is_season || $is_format ) ? get_queried_object() : null;
+$is_archive   = is_post_type_archive( 'anime' );
+$is_genre     = is_tax( 'genre' );
+$is_season    = is_tax( 'anime_season_tax' );
+$is_format    = is_tax( 'anime_format_tax' );
+$current_term = ( $is_genre || $is_season || $is_format ) ? get_queried_object() : null;
 
 $archive_title = '動畫列表';
 $archive_desc  = '';
@@ -29,27 +29,24 @@ if ( $current_term ) {
     $archive_desc  = term_description( $current_term->term_id );
 }
 
-$total_posts   = (int) $GLOBALS['wp_query']->found_posts;
-$current_page  = max( 1, get_query_var( 'paged' ) );
+$total_posts  = (int) $GLOBALS['wp_query']->found_posts;
+$current_page = max( 1, get_query_var( 'paged' ) );
 
-/* ── 當前篩選狀態（用於 active 判斷）────────────────────── */
-$active_genre  = $is_genre  ? $current_term->slug : ( $_GET['genre']  ?? '' );
-$active_season = $is_season ? $current_term->slug : ( $_GET['season'] ?? '' );
-$active_format = $is_format ? $current_term->slug : ( $_GET['format'] ?? '' );
+/* ── 當前篩選狀態 ────────────────────────────────────────── */
+$active_genre  = $is_genre  ? $current_term->slug : '';
+$active_season = $is_season ? $current_term->slug : '';
+$active_format = $is_format ? $current_term->slug : '';
 
 /* ── 抓取 Taxonomy 選項 ───────────────────────────────────── */
-// 季度：只取近五年（最新優先）
-$current_year  = (int) gmdate( 'Y' );
-$season_terms  = get_terms([
+$season_terms = get_terms([
     'taxonomy'   => 'anime_season_tax',
     'orderby'    => 'slug',
     'order'      => 'DESC',
     'hide_empty' => true,
-    'parent'     => 0,    // 只取年份父層
-    'number'     => 6,    // 近六年
+    'parent'     => 0,
+    'number'     => 6,
 ]);
 
-// 季度子層（春夏秋冬）
 $season_children = [];
 if ( ! is_wp_error( $season_terms ) ) {
     foreach ( $season_terms as $year_term ) {
@@ -66,7 +63,6 @@ if ( ! is_wp_error( $season_terms ) ) {
     }
 }
 
-// 格式
 $format_terms = get_terms([
     'taxonomy'   => 'anime_format_tax',
     'orderby'    => 'count',
@@ -74,7 +70,6 @@ $format_terms = get_terms([
     'hide_empty' => true,
 ]);
 
-// 類型
 $genre_terms = get_terms([
     'taxonomy'   => 'genre',
     'orderby'    => 'count',
@@ -82,6 +77,11 @@ $genre_terms = get_terms([
     'hide_empty' => true,
     'number'     => 20,
 ]);
+
+/* ── Bug 5 修正：Schema url 固定指向 canonical 第一頁 ────── */
+$canonical_url = ( $is_genre || $is_season || $is_format ) && $current_term
+    ? get_term_link( $current_term )
+    : get_post_type_archive_link( 'anime' );
 
 /* ── Schema：CollectionPage ──────────────────────────────── */
 $schema = [
@@ -91,7 +91,7 @@ $schema = [
     'description' => $archive_desc
         ? wp_strip_all_tags( $archive_desc )
         : '收錄所有動畫資訊，包含評分、季度、類型、聲優等完整資料。',
-    'url'         => get_pagenum_link( $current_page ),
+    'url'         => $canonical_url, // ✅ Bug 5 修正
 ];
 
 /* ── Schema：麵包屑 ───────────────────────────────────────── */
@@ -114,7 +114,6 @@ $breadcrumb_schema = [
 ];
 ?>
 
-<?php /* ── Schema JSON-LD ─────────────────────────────────── */ ?>
 <script type="application/ld+json"><?php echo wp_json_encode( $schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
 <script type="application/ld+json"><?php echo wp_json_encode( $breadcrumb_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
 
@@ -140,7 +139,7 @@ $breadcrumb_schema = [
     <p class="aaa-count">共 <strong><?php echo esc_html( $total_posts ); ?></strong> 部動畫</p>
 </div>
 
-<?php /* ── 篩選列（方式 C：靜態 taxonomy URL + 手風琴展開）───── */ ?>
+<?php /* ── 篩選列 ────────────────────────────────────────────── */ ?>
 <div class="aaa-filter-wrap">
 
     <?php /* 季度篩選 */ ?>
@@ -212,8 +211,9 @@ $season_labels = [
     'SUMMER' => '夏季', 'FALL'   => '秋季',
 ];
 $format_labels = [
-    'TV' => 'TV', 'TV_SHORT' => 'TV短篇', 'MOVIE' => '劇場版',
-    'OVA' => 'OVA', 'ONA' => 'ONA', 'SPECIAL' => '特別篇', 'MUSIC' => 'MV',
+    'TV'       => 'TV',    'TV_SHORT' => 'TV短篇', 'MOVIE'   => '劇場版',
+    'OVA'      => 'OVA',   'ONA'      => 'ONA',    'SPECIAL' => '特別篇',
+    'MUSIC'    => 'MV',
 ];
 $status_labels = [
     'FINISHED'         => '已完結',
@@ -233,32 +233,34 @@ $status_classes = [
 while ( have_posts() ) : the_post();
     $pid = get_the_ID();
 
-    // Meta
-    $cover       = get_post_meta( $pid, 'anime_cover_image',  true )
-                ?: get_the_post_thumbnail_url( $pid, 'medium' );
-    $title_zh    = get_post_meta( $pid, 'anime_title_chinese', true ) ?: get_the_title();
-    $title_ro    = get_post_meta( $pid, 'anime_title_romaji',  true );
-    $score_raw   = get_post_meta( $pid, 'anime_score_anilist', true );
-    $score       = is_numeric( $score_raw ) ? number_format( $score_raw / 10, 1 ) : '';
-    $season      = get_post_meta( $pid, 'anime_season',        true );
-    $year        = (int) get_post_meta( $pid, 'anime_year',    true );
-    $format      = get_post_meta( $pid, 'anime_format',        true );
-    $status      = get_post_meta( $pid, 'anime_status',        true );
-    $episodes    = (int) get_post_meta( $pid, 'anime_episodes', true );
-    $popularity  = (int) get_post_meta( $pid, 'anime_popularity', true );
+    $cover      = get_post_meta( $pid, 'anime_cover_image',   true )
+               ?: get_the_post_thumbnail_url( $pid, 'medium' );
+    $title_zh   = get_post_meta( $pid, 'anime_title_chinese', true ) ?: get_the_title();
+    $title_ro   = get_post_meta( $pid, 'anime_title_romaji',  true );
+    $score_raw  = get_post_meta( $pid, 'anime_score_anilist', true );
+    // ✅ Bug 6 連動修正：score 為 0 或空時不顯示
+    $score      = ( is_numeric( $score_raw ) && (float) $score_raw > 0 )
+        ? number_format( $score_raw / 10, 1 )
+        : '';
+    $season     = get_post_meta( $pid, 'anime_season',        true );
+    $year       = (int) get_post_meta( $pid, 'anime_year',    true );
+    $format     = get_post_meta( $pid, 'anime_format',        true );
+    $status     = get_post_meta( $pid, 'anime_status',        true );
+    $episodes   = (int) get_post_meta( $pid, 'anime_episodes', true );
+    $popularity = (int) get_post_meta( $pid, 'anime_popularity', true );
 
-    $season_label = $season_labels[ $status ] ?? '';
+    // ✅ Bug 4 修正：$season_label 正確使用 $season 當 key，且有實際使用
+    $season_label = $season_labels[ $season ] ?? '';
     $format_label = $format_labels[ $format ] ?? $format;
     $status_label = $status_labels[ $status ] ?? '';
     $status_class = $status_classes[ $status ] ?? '';
-    $season_str   = ( $year && isset( $season_labels[ $season ] ) )
-        ? $year . ' ' . $season_labels[ $season ]
+    $season_str   = ( $year && $season_label )
+        ? $year . ' ' . $season_label
         : ( $year ?: '' );
 ?>
 <article class="aaa-card">
     <a href="<?php the_permalink(); ?>" class="aaa-card-link">
 
-        <?php /* 封面圖 */ ?>
         <div class="aaa-card-cover-wrap">
             <?php if ( $cover ) : ?>
             <img class="aaa-card-cover"
@@ -269,20 +271,17 @@ while ( have_posts() ) : the_post();
             <div class="aaa-card-cover aaa-no-cover">無封面</div>
             <?php endif; ?>
 
-            <?php /* 狀態 badge */ ?>
             <?php if ( $status_label ) : ?>
             <span class="aaa-status-badge <?php echo esc_attr( $status_class ); ?>">
                 <?php echo esc_html( $status_label ); ?>
             </span>
             <?php endif; ?>
 
-            <?php /* 評分 overlay */ ?>
             <?php if ( $score ) : ?>
             <span class="aaa-score-badge">⭐ <?php echo esc_html( $score ); ?></span>
             <?php endif; ?>
         </div>
 
-        <?php /* 卡片資訊 */ ?>
         <div class="aaa-card-body">
             <h3 class="aaa-card-title"><?php echo esc_html( $title_zh ); ?></h3>
             <?php if ( $title_ro ) : ?>
@@ -349,7 +348,6 @@ while ( have_posts() ) : the_post();
 
 <?php else : ?>
 
-<?php /* ── 無結果 ────────────────────────────────────────────── */ ?>
 <div class="aaa-empty">
     <p>目前沒有動畫資料</p>
     <?php if ( current_user_can( 'manage_options' ) ) : ?>
@@ -362,10 +360,6 @@ while ( have_posts() ) : the_post();
 </div>
 
 <style>
-/* ============================================================
-   Archive Anime — 內嵌樣式（之後可移至 anime-archive.css）
-   ============================================================ */
-
 .aaa-wrap { max-width: 1280px; margin: 0 auto; padding: 0 20px 60px; }
 
 /* 麵包屑 */
@@ -437,8 +431,10 @@ while ( have_posts() ) : the_post();
 .aaa-card-romaji { font-size:11px; color:#888; margin:0 0 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .aaa-card-meta   { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
 .aaa-meta-tag    { font-size:11px; padding:2px 6px; border-radius:3px; background:rgba(255,255,255,0.08); color:#bbb; }
-.aaa-meta-format { background:rgba(91,155,213,.2); color:#5b9bd5; }
-.aaa-meta-season { background:rgba(39,174,96,.15); color:#27ae60; }
+.aaa-meta-format { background:rgba(91,155,213,.2);  color:#5b9bd5; }
+.aaa-meta-season { background:rgba(39,174,96,.15);  color:#27ae60; }
+/* ✅ Bug 8 修正：補上 .aaa-meta-ep 顏色定義 */
+.aaa-meta-ep     { background:rgba(155,89,182,.2);  color:#9b59b6; }
 .aaa-card-pop    { font-size:11px; color:#777; }
 
 /* 分頁 */
@@ -452,7 +448,7 @@ while ( have_posts() ) : the_post();
 }
 .aaa-pagination .page-numbers:hover,
 .aaa-pagination .page-numbers.current { background:#2271b1; color:#fff; border-color:#2271b1; }
-.aaa-pagination .page-numbers.dots { background:none; border:none; cursor:default; }
+.aaa-pagination .page-numbers.dots    { background:none; border:none; cursor:default; }
 
 /* SEO 底部連結 */
 .aaa-seo-footer { border-top:1px solid rgba(255,255,255,0.08); padding-top:24px; margin-top:16px; display:flex; flex-direction:column; gap:10px; }
@@ -465,12 +461,12 @@ while ( have_posts() ) : the_post();
 .aaa-empty      { text-align:center; padding:80px 20px; color:#888; }
 .aaa-import-btn { display:inline-block; margin-top:16px; padding:10px 24px; background:#2271b1; color:#fff; border-radius:6px; text-decoration:none; }
 
-/* ── 手機版 ─────────────────────────────────────────────── */
+/* 手機版 */
 @media (max-width: 600px) {
-    .aaa-filter-row    { gap:5px; }
-    .aaa-filter-btn    { padding:5px 11px; font-size:12px; }
-    .aaa-card-body     { padding:8px 10px 10px; }
-    .aaa-card-title    { font-size:12px; }
+    .aaa-filter-row { gap:5px; }
+    .aaa-filter-btn { padding:5px 11px; font-size:12px; }
+    .aaa-card-body  { padding:8px 10px 10px; }
+    .aaa-card-title { font-size:12px; }
 }
 </style>
 
