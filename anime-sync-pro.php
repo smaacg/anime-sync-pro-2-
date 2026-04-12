@@ -40,7 +40,6 @@ spl_autoload_register( function ( $class ) {
 // ============================================================
 add_action( 'init', function() {
 
-    // ── 動畫 Post Type ────────────────────────────────────
     register_post_type( 'anime', [
         'labels' => [
             'name'          => '動畫',
@@ -65,8 +64,7 @@ add_action( 'init', function() {
         'rewrite'           => [ 'slug' => 'anime', 'with_front' => false ],
     ] );
 
-    // ── 類型 Taxonomy（共用：anime + manga + novel）────────
-    // slug: genre | URL: /genre/action/
+    // genre | URL: /genre/action/
     register_taxonomy( 'genre', [ 'anime', 'manga', 'novel' ], [
         'labels' => [
             'name'          => '類型',
@@ -82,8 +80,7 @@ add_action( 'init', function() {
         'rewrite'           => [ 'slug' => 'genre', 'with_front' => false ],
     ] );
 
-    // ── 播出季度 Taxonomy（anime 專用）────────────────────
-    // slug: anime_season_tax | URL: /season/2025-spring/
+    // anime_season_tax | URL: /season/2025-spring/
     register_taxonomy( 'anime_season_tax', [ 'anime' ], [
         'labels' => [
             'name'          => '播出季度',
@@ -99,8 +96,7 @@ add_action( 'init', function() {
         'rewrite'           => [ 'slug' => 'season', 'with_front' => false ],
     ] );
 
-    // ── 動畫格式 Taxonomy（anime 專用）────────────────────
-    // slug: anime_format_tax | URL: /format/tv/
+    // anime_format_tax | URL: /format/tv/
     register_taxonomy( 'anime_format_tax', [ 'anime' ], [
         'labels' => [
             'name'          => '動畫格式',
@@ -119,9 +115,20 @@ add_action( 'init', function() {
 }, 10 );
 
 // ============================================================
-// 4. 啟動 Hook
+// 4. 啟動 Hook（Bug I 修正：補上 Installer 執行）
 // ============================================================
 register_activation_hook( __FILE__, function() {
+    // ✅ Bug I 修正：實例化 Installer，建立資料表、預設選項、上傳目錄
+    if ( class_exists( 'Anime_Sync_Installer' ) ) {
+        ( new Anime_Sync_Installer() )->activate();
+    } else {
+        // Autoloader 尚未掛載時的 fallback
+        $installer_file = plugin_dir_path( __FILE__ ) . 'includes/class-installer.php';
+        if ( file_exists( $installer_file ) ) {
+            require_once $installer_file;
+            ( new Anime_Sync_Installer() )->activate();
+        }
+    }
     flush_rewrite_rules();
 } );
 
@@ -138,7 +145,13 @@ add_action( 'plugins_loaded', function() {
         new Anime_Sync_ACF_Fields();
     }
 
-    // 後台 / Cron 才載入完整功能
+    // 前台載入 Frontend（模板覆蓋、REST API、Shortcode）
+    // ✅ Bug F 修正：Frontend 不限制 is_admin，前台也需要載入
+    if ( class_exists( 'Anime_Sync_Frontend' ) ) {
+        new Anime_Sync_Frontend();
+    }
+
+    // 後台 / Cron 才載入完整匯入功能
     if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
         $id_mapper      = new Anime_Sync_ID_Mapper();
         $converter      = new Anime_Sync_CN_Converter();
