@@ -18,18 +18,22 @@ class Anime_Sync_API_Handler {
         return $this->get_full_anime_data( $input_id, $bangumi_id );
     }
 
+    // ============================================================
+    // 主要資料彙整
+    // ============================================================
     public function get_full_anime_data( int $anilist_id, $bangumi_id = null ): array {
+
         $al_res = $this->fetch_anilist_data( $anilist_id );
         if ( ! $al_res['success'] ) return $al_res;
 
         $al = $al_res['data'];
-
         if ( empty( $al ) ) {
             return [ 'success' => false, 'message' => 'AniList 找不到 ID: ' . $anilist_id ];
         }
 
         $mal_id = $al['idMal'] ?? null;
 
+        // ── Bangumi ID 解析 ────────────────────────────────────
         $bgm_id = $bangumi_id;
         if ( $this->id_mapper && method_exists( $this->id_mapper, 'resolve_ids' ) ) {
             $ids    = $this->id_mapper->resolve_ids( $anilist_id, $mal_id, $bangumi_id );
@@ -38,14 +42,60 @@ class Anime_Sync_API_Handler {
 
         $bgm_data = $this->get_bangumi_data( $bgm_id ) ?? [];
 
-        // ── Relations（關聯作品）────────────────────────────
+        // ── Relations ─────────────────────────────────────────
         $relations = $this->parse_relations( $al['relations']['edges'] ?? [] );
+
+        // ── ✅ 問題 P 修正：解析製作公司 ──────────────────────
+        $studios = [];
+        foreach ( $al['studios']['nodes'] ?? [] as $studio ) {
+            if ( ! empty( $studio['isAnimationStudio'] ) && ! empty( $studio['name'] ) ) {
+                $studios[] = $studio['name'];
+            }
+        }
+        // 若無 isAnimationStudio 旗標的工作室，退回取所有工作室第一個
+        if ( empty( $studios ) && ! empty( $al['studios']['nodes'][0]['name'] ) ) {
+            $studios[] = $al['studios']['nodes'][0]['name'];
+        }
+        $studios_str = implode( '、', $studios );
+
+        // ── ✅ 問題 R 修正：解析串流平台 ──────────────────────
+        $streaming = [];
+        foreach ( $al['externalLinks'] ?? [] as $link ) {
+            if ( ( $link['type'] ?? '' ) === 'STREAMING' && ! empty( $link['site'] ) ) {
+                $streaming[] = [
+                    'platform' => $link['site'],
+                    'url'      => $link['url'] ?? '',
+                    'icon'     => $link['icon'] ?? '',
+                    'color'    => $link['color'] ?? '',
+                    'language' => $link['language'] ?? '',
+                ];
+            }
+        }
+
+        // ── ✅ 問題 U 修正：解析日期 ──────────────────────────
+        $start_date = $this->parse_fuzzy_date( $al['startDate'] ?? [] );
+        $end_date   = $this->parse_fuzzy_date( $al['endDate']   ?? [] );
+
+        // ── ✅ 問題 T 修正：中文簡介優先使用 Bangumi summary ──
+        // Bangumi summary → AniList description 作為 fallback
+        $synopsis_source = ! empty( $bgm_data['summary'] )
+            ? $this->convert_text( $bgm_data['summary'] )
+            : $this->convert_text( $al['description'] ?? '' );
+        $synopsis_chinese = $this->clean_synopsis( $synopsis_source );
+
+        // ── ✅ 問題 Q 說明：anime_themes 由 AnimeThemes API 補抓 ──
+        // AnimeThemes 整合尚未實作，先回傳空陣列，避免 import-manager 拿到 null
+        $anime_themes = [];
 
         return [
             'success'                => true,
+
+            // ID
             'anime_anilist_id'       => $anilist_id,
             'anime_mal_id'           => $mal_id,
             'bangumi_id'             => $bgm_id,
+
+            // 標題
             'anime_title_chinese'    => $this->convert_text(
                 ( ! empty( $bgm_data['name_cn'] ) ? $bgm_data['name_cn'] : null )
                 ?? ( ! empty( $bgm_data['name'] )  ? $bgm_data['name']   : null )
@@ -56,50 +106,84 @@ class Anime_Sync_API_Handler {
             'anime_title_romaji'     => $al['title']['romaji']          ?? '',
             'anime_title_english'    => $al['title']['english']         ?? '',
             'anime_title_native'     => $al['title']['native']          ?? '',
+
+            // 基本資訊
             'anime_status'           => $al['status']                   ?? '',
             'anime_type'             => $al['format']                   ?? 'TV',
             'anime_episodes'         => $al['episodes']                 ?? 0,
             'anime_season'           => $al['season']                   ?? '',
             'anime_year'             => $al['seasonYear']               ?? 0,
+            // ✅ 問題 U 修正：補上日期與時長
+            'anime_duration'         => $al['duration']                 ?? 0,
+            'anime_start_date'       => $start_date,
+            'anime_end_date'         => $end_date,
+
+            // 評分與人氣
             'anime_score_anilist'    => $al['averageScore']             ?? 0,
             'anime_popularity'       => $al['popularity']               ?? 0,
             'anime_score_bangumi'    => $bgm_data['rating']['score']    ?? 0,
+
+            // 圖片
             'anime_cover_image'      => $al['coverImage']['extraLarge'] ?? '',
             'anime_banner_image'     => $al['bannerImage']              ?? '',
-            // ✅ Bug 3 修正：清理 synopsis HTML 標籤與 AniList spoiler 標記
-            'anime_synopsis_chinese' => $this->clean_synopsis(
-                $this->convert_text( $al['description'] ?? '' )
-            ),
+
+            // ✅ 問題 T 修正：優先 Bangumi 中文簡介
+            'anime_synopsis_chinese' => $synopsis_chinese,
+
+            // Staff / Cast / Relations
             'anime_staff_json'       => json_encode( $this->get_bgm_staff( $bgm_id ), JSON_UNESCAPED_UNICODE ),
             'anime_cast_json'        => json_encode( $this->get_bgm_chars( $bgm_id ), JSON_UNESCAPED_UNICODE ),
             'anime_relations_json'   => json_encode( $relations, JSON_UNESCAPED_UNICODE ),
+
+            // ✅ 問題 P 修正：補上製作公司
+            'anime_studios'          => $studios_str,
+
+            // ✅ 問題 Q：AnimeThemes 尚未實作，回傳空陣列
+            'anime_themes'           => $anime_themes,
+
+            // ✅ 問題 R 修正：補上串流平台
+            'anime_streaming'        => $streaming,
+
+            // Taxonomy 用
             '_genres'                => $al['genres'] ?? [],
+
             'errors'                 => [],
         ];
     }
 
     // ============================================================
+    // ✅ 問題 U 輔助：解析 AniList FuzzyDate → YYYY-MM-DD
+    // ============================================================
+    private function parse_fuzzy_date( array $date ): string {
+        $y = $date['year']  ?? null;
+        $m = $date['month'] ?? null;
+        $d = $date['day']   ?? null;
+
+        if ( ! $y ) return '';
+        if ( ! $m ) return (string) $y;
+        if ( ! $d ) return sprintf( '%04d-%02d', $y, $m );
+        return sprintf( '%04d-%02d-%02d', $y, $m, $d );
+    }
+
+    // ============================================================
     // Bug 3 修正：清理 AniList synopsis
-    // 處理：~!spoiler!~ 標記、HTML 標籤、來源備註、多餘空白
     // ============================================================
     private function clean_synopsis( string $text ): string {
         if ( empty( $text ) ) return '';
 
-        // 1. 移除 AniList spoiler 標記區塊：~!...!~
+        // 1. 移除 AniList spoiler 標記：~!...!~
         $text = preg_replace( '/~!.*?!~/s', '', $text );
 
-        // 2. 移除來源備註（AniList 常見格式）
+        // 2. 移除來源備註
         foreach ( [ '[Written by MAL Rewrite]', '[Source:', '(Source:', 'Source:', '[Written by' ] as $marker ) {
             $pos = strpos( $text, $marker );
-            if ( $pos !== false ) {
-                $text = substr( $text, 0, $pos );
-            }
+            if ( $pos !== false ) $text = substr( $text, 0, $pos );
         }
 
-        // 3. 將 <br> / <br /> 換成換行，保留段落結構
+        // 3. <br> / <br /> → 換行
         $text = preg_replace( '/<br\s*\/?>/i', "\n", $text );
 
-        // 4. 移除所有其他 HTML 標籤（保留純文字）
+        // 4. 移除所有 HTML 標籤
         $text = wp_strip_all_tags( $text );
 
         // 5. 清理多餘空白與換行
@@ -150,15 +234,12 @@ class Anime_Sync_API_Handler {
             ];
         }
 
-        // 排序優先顯示：前傳、續集、外傳
         $priority = [
-            'PREQUEL'    => 1, 'SEQUEL'     => 2, 'SIDE_STORY'  => 3,
-            'SPIN_OFF'   => 4, 'ADAPTATION' => 5, 'SOURCE'      => 6,
+            'PREQUEL' => 1, 'SEQUEL' => 2, 'SIDE_STORY'  => 3,
+            'SPIN_OFF' => 4, 'ADAPTATION' => 5, 'SOURCE' => 6,
         ];
         usort( $relations, function( $a, $b ) use ( $priority ) {
-            $pa = $priority[ $a['relation_type'] ] ?? 99;
-            $pb = $priority[ $b['relation_type'] ] ?? 99;
-            return $pa <=> $pb;
+            return ( $priority[ $a['relation_type'] ] ?? 99 ) <=> ( $priority[ $b['relation_type'] ] ?? 99 );
         });
 
         return $relations;
@@ -175,7 +256,8 @@ class Anime_Sync_API_Handler {
     }
 
     // ============================================================
-    // 抓取 AniList GraphQL 資料
+    // ✅ 問題 P/R/U 修正：GraphQL query 補上 studios、externalLinks、
+    //    duration、startDate、endDate
     // ============================================================
     private function fetch_anilist_data( int $id ): array {
         $query = <<<'GQL'
@@ -187,14 +269,28 @@ class Anime_Sync_API_Handler {
                 status
                 format
                 episodes
+                duration
                 description(asHtml: false)
                 season
                 seasonYear
+                startDate { year month day }
+                endDate   { year month day }
                 averageScore
                 popularity
                 coverImage { extraLarge large }
                 bannerImage
                 genres
+                studios {
+                    nodes { name isAnimationStudio }
+                }
+                externalLinks {
+                    site
+                    url
+                    type
+                    icon
+                    color
+                    language
+                }
                 relations {
                     edges {
                         relationType
@@ -237,8 +333,7 @@ class Anime_Sync_API_Handler {
         $body = json_decode( wp_remote_retrieve_body( $res ), true );
 
         if ( ! empty( $body['errors'] ) ) {
-            $msg = $body['errors'][0]['message'] ?? 'GraphQL 錯誤';
-            return [ 'success' => false, 'message' => 'AniList GraphQL 錯誤：' . $msg ];
+            return [ 'success' => false, 'message' => 'AniList GraphQL 錯誤：' . ( $body['errors'][0]['message'] ?? '未知' ) ];
         }
 
         return [ 'success' => true, 'data' => $body['data']['Media'] ?? null ];
@@ -256,8 +351,7 @@ class Anime_Sync_API_Handler {
                 'timeout' => 15,
             ]
         );
-        if ( is_wp_error( $res ) ) return null;
-        if ( wp_remote_retrieve_response_code( $res ) !== 200 ) return null;
+        if ( is_wp_error( $res ) || wp_remote_retrieve_response_code( $res ) !== 200 ) return null;
         return json_decode( wp_remote_retrieve_body( $res ), true );
     }
 
