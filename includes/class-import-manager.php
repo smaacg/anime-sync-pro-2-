@@ -153,7 +153,10 @@ class Anime_Sync_Import_Manager {
             'anime_format'           => $type,
             'anime_type'             => $type,
             'anime_episodes'         => $data['anime_episodes']       ?? 0,
-            'anime_season'           => $data['anime_season']         ?? '',
+
+            // Bug AW fix: always store anime_season as uppercase
+            'anime_season'           => strtoupper( $data['anime_season'] ?? '' ),
+
             'anime_season_year'      => $data['anime_year']           ?? 0,
             'anime_year'             => $data['anime_year']           ?? 0,
 
@@ -198,6 +201,15 @@ class Anime_Sync_Import_Manager {
 
         foreach ( $fields as $key => $value ) {
             update_post_meta( $post_id, $key, $value );
+        }
+
+        // Bug AT fix: write anime_animethemes_id if present in data
+        if ( ! empty( $data['animethemes_id'] ) ) {
+            update_post_meta(
+                $post_id,
+                'anime_animethemes_id',
+                sanitize_text_field( (string) $data['animethemes_id'] )
+            );
         }
     }
 
@@ -254,6 +266,7 @@ class Anime_Sync_Import_Manager {
         }
 
         // ── 播出季度（anime_season_tax）──────────────────────
+        // Bug AW: anime_season is stored uppercase; convert to lowercase for slug lookup
         $season = strtolower( $data['anime_season'] ?? '' );
         $year   = (int) ( $data['anime_year'] ?? 0 );
 
