@@ -1,14 +1,11 @@
 <?php
 /**
  * Security Handler
- *
  * @package Anime_Sync_Pro
  */
 
 // ✅ Bug H 修正：補上 ABSPATH 安全檢查
-if ( ! defined( 'ABSPATH' ) ) {
-    exit;
-}
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 class Anime_Sync_Security {
 
@@ -28,7 +25,7 @@ class Anime_Sync_Security {
         return true;
     }
 
-    // ✅ Bug G 修正：AniList ID 上限從 999999 → 9999999
+    // ✅ Bug G 修正：上限從 999,999 → 9,999,999
     public static function sanitize_anilist_id( $id ) {
         $id = absint( $id );
         if ( $id < 1 || $id > 9999999 ) return false;
@@ -38,34 +35,33 @@ class Anime_Sync_Security {
     public static function sanitize_anilist_ids( $ids ) {
         if ( is_string( $ids ) ) $ids = explode( ',', $ids );
         if ( ! is_array( $ids ) ) return [];
-        $sanitized = [];
+        $clean = [];
         foreach ( $ids as $id ) {
-            $clean = self::sanitize_anilist_id( $id );
-            if ( $clean !== false ) $sanitized[] = $clean;
+            $v = self::sanitize_anilist_id( $id );
+            if ( $v !== false ) $clean[] = $v;
         }
-        return array_unique( $sanitized );
+        return array_unique( $clean );
     }
 
     public static function sanitize_season( $season ) {
-        $season = strtoupper( trim( $season ) );
-        return in_array( $season, [ 'WINTER', 'SPRING', 'SUMMER', 'FALL' ], true ) ? $season : false;
+        $s = strtoupper( trim( $season ) );
+        return in_array( $s, [ 'WINTER', 'SPRING', 'SUMMER', 'FALL' ], true ) ? $s : false;
     }
 
     public static function sanitize_year( $year ) {
-        $year         = absint( $year );
-        $current_year = (int) date( 'Y' );
-        if ( $year < ( $current_year - 30 ) || $year > ( $current_year + 5 ) ) return false;
-        return $year;
+        $year = absint( $year );
+        $now  = (int) date( 'Y' );
+        return ( $year >= $now - 30 && $year <= $now + 5 ) ? $year : false;
     }
 
     public static function escape_output( $text, $context = 'html' ) {
-        switch ( $context ) {
-            case 'attr':     return esc_attr( $text );
-            case 'url':      return esc_url( $text );
-            case 'js':       return esc_js( $text );
-            case 'textarea': return esc_textarea( $text );
-            default:         return wp_kses_post( $text );
-        }
+        return match ( $context ) {
+            'attr'     => esc_attr( $text ),
+            'url'      => esc_url( $text ),
+            'js'       => esc_js( $text ),
+            'textarea' => esc_textarea( $text ),
+            default    => wp_kses_post( $text ),
+        };
     }
 
     public static function validate_json( $json ) {
@@ -75,13 +71,13 @@ class Anime_Sync_Security {
     }
 
     public static function rate_limit_check( $action, $limit = 10, $period = 60 ) {
-        $user_id = get_current_user_id();
-        if ( ! $user_id ) return false;
-        $key      = 'anime_sync_rate_limit_' . $action . '_' . $user_id;
-        $requests = get_transient( $key );
-        if ( $requests === false ) { set_transient( $key, 1, $period ); return true; }
-        if ( $requests >= $limit ) return false;
-        set_transient( $key, $requests + 1, $period );
+        $uid = get_current_user_id();
+        if ( ! $uid ) return false;
+        $key  = 'anime_sync_rate_limit_' . $action . '_' . $uid;
+        $reqs = get_transient( $key );
+        if ( $reqs === false ) { set_transient( $key, 1, $period ); return true; }
+        if ( $reqs >= $limit ) return false;
+        set_transient( $key, $reqs + 1, $period );
         return true;
     }
 }
