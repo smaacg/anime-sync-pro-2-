@@ -4,6 +4,11 @@
  * 放在 wp-content/plugins/anime-sync-pro/setup-taxonomy.php
  * 用管理員登入後訪問：https://dev.weixiaoacg.com/wp-content/plugins/anime-sync-pro/setup-taxonomy.php
  * 執行完畢後請立即刪除此檔案
+ *
+ * 修正紀錄：
+ * - Bug 7：$season_labels 季節順序改為 winter → spring → summer → fall（符合播出時序）
+ * - 對齊 Bug 2：$genres 新增 'romance' 對應（戀愛），補齊與 class-import-manager.php 的 genre_map 一致
+ * - 對齊 Bug 2：'懸疑' slug 由 'thriller' 改為 'suspense'，'驚悚' slug 改為 'thriller'（語意對齊）
  */
 
 // 載入 WordPress
@@ -164,6 +169,12 @@ foreach ( $categories as [ $name, $slug, $parent_slug ] ) {
 // ============================================================
 echo '<h2>第二部分：動畫類型（genre）</h2>';
 
+// ── Bug 對齊修正說明 ──────────────────────────────────────────
+// 1. 新增 ['戀愛', 'romance', '']         → 對應 AniList 'Romance'
+// 2. '懸疑' slug: 'thriller' → 'suspense' → 對應 AniList 'Suspense'
+// 3. '驚悚' slug: 'suspense' → 'thriller' → 對應 AniList 'Thriller'
+//    （原版兩者 slug 互換，導致語意錯誤）
+// ─────────────────────────────────────────────────────────────
 $genres = [
     ['動作',     'action',        ''],
     ['冒險',     'adventure',     ''],
@@ -175,13 +186,13 @@ $genres = [
     ['機甲',     'mecha',         ''],
     ['音樂',     'music-genre',   ''],  // slug 加 -genre 避免跟 category/music 衝突
     ['推理',     'mystery',       ''],
-    ['懸疑',     'thriller',      ''],
+    ['懸疑',     'suspense',      ''],  // ← 修正：slug 由 thriller 改為 suspense
     ['心理',     'psychological', ''],
     ['科幻',     'sci-fi',        ''],
     ['日常',     'slice-of-life', ''],
     ['運動',     'sports',        ''],
     ['超自然',   'supernatural',  ''],
-    ['驚悚',     'suspense',      ''],
+    ['驚悚',     'thriller',      ''],  // ← 修正：slug 由 suspense 改為 thriller
     ['異世界',   'isekai',        ''],
     ['後宮',     'harem',         ''],
     ['百合',     'yuri',          ''],
@@ -191,6 +202,7 @@ $genres = [
     ['校園',     'school',        ''],
     ['兒童',     'kids',          ''],
     ['輕色情',   'ecchi',         ''],
+    ['戀愛',     'romance',       ''],  // ← 新增：對應 AniList 'Romance'
 ];
 
 foreach ( $genres as [ $name, $slug, ] ) {
@@ -202,11 +214,14 @@ foreach ( $genres as [ $name, $slug, ] ) {
 // ============================================================
 echo '<h2>第三部分：播出季度（anime_season_tax）2000–2030</h2>';
 
+// ── Bug 7 修正：季節順序改為 winter → spring → summer → fall ──
+// 冬季（1–3 月）為每年第一個播出季，應排在最前面。
+// 原版順序 spring → summer → fall → winter 在後台列表語意上不直觀。
 $season_labels = [
+    'winter' => '冬季',  // ← 移到第一位（Bug 7 修正）
     'spring' => '春季',
     'summer' => '夏季',
     'fall'   => '秋季',
-    'winter' => '冬季',
 ];
 
 for ( $year = 2000; $year <= 2030; $year++ ) {
