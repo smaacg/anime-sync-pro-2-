@@ -38,7 +38,7 @@ class Anime_Sync_Import_Manager {
             ];
         }
 
-        // 建立草稿
+        // 建立草稿標題
         $title = ! empty( $data['anime_title_chinese'] )
             ? $data['anime_title_chinese']
             : ( $data['anime_title_romaji'] ?? 'Unknown' );
@@ -54,10 +54,10 @@ class Anime_Sync_Import_Manager {
             return [ 'success' => false, 'message' => '建立草稿失敗：' . $post_id->get_error_message() ];
         }
 
-        // ✅ 完整寫入所有 Meta
+        // 完整寫入所有 Meta
         $this->save_post_meta( $post_id, $data );
 
-        // ✅ 處理封面圖片
+        // 處理封面圖片
         if ( ! empty( $data['anime_cover_image'] ) ) {
             $this->image_handler->handle_cover(
                 $data['anime_cover_image'],
@@ -66,7 +66,7 @@ class Anime_Sync_Import_Manager {
             );
         }
 
-        // ✅ 設定分類 taxonomy
+        // 設定分類 taxonomy
         if ( ! empty( $data['_genres'] ) && is_array( $data['_genres'] ) ) {
             wp_set_object_terms( $post_id, $data['_genres'], 'anime_genre' );
         }
@@ -81,46 +81,56 @@ class Anime_Sync_Import_Manager {
     }
 
     /**
-     * ✅ 完整寫入所有 anime meta 欄位
+     * 完整寫入所有 anime meta 欄位
+     * 同時寫入新舊兩組 key，確保模板相容
      */
     private function save_post_meta( int $post_id, array $data ): void {
 
+        $synopsis = $data['anime_synopsis_chinese'] ?? '';
+        $title_zh = $data['anime_title_chinese']    ?? '';
+        $bgm_id   = $data['bangumi_id']             ?? '';
+        $type     = $data['anime_type']             ?? '';
+
         $fields = [
-            // ID
-            'anime_anilist_id'       => $data['anime_anilist_id']       ?? '',
-            'anime_mal_id'           => $data['anime_mal_id']           ?? '',
-            'bangumi_id'             => $data['bangumi_id']             ?? '',
+            // ── ID ────────────────────────────────────────────
+            'anime_anilist_id'       => $data['anime_anilist_id'] ?? '',
+            'anime_mal_id'           => $data['anime_mal_id']     ?? '',
+            'anime_bangumi_id'       => $bgm_id,   // ✅ single-anime.php 讀取的 key
+            'bangumi_id'             => $bgm_id,   // 相容舊 key
 
-            // 標題
-            'anime_title_zh'         => $data['anime_title_chinese']    ?? '',
-            'anime_title_romaji'     => $data['anime_title_romaji']     ?? '',
-            'anime_title_english'    => $data['anime_title_english']    ?? '',
-            'anime_title_native'     => $data['anime_title_native']     ?? '',
+            // ── 標題 ──────────────────────────────────────────
+            'anime_title_chinese'    => $title_zh, // ✅ single-anime.php 讀取的 key
+            'anime_title_zh'         => $title_zh, // 相容舊 key
+            'anime_title_romaji'     => $data['anime_title_romaji']  ?? '',
+            'anime_title_english'    => $data['anime_title_english'] ?? '',
+            'anime_title_native'     => $data['anime_title_native']  ?? '',
 
-            // 基本資訊
-            'anime_status'           => $data['anime_status']           ?? '',
-            'anime_type'             => $data['anime_type']             ?? '',
-            'anime_episodes'         => $data['anime_episodes']         ?? 0,
-            'anime_season'           => $data['anime_season']           ?? '',
-            'anime_season_year'      => $data['anime_year']             ?? 0,
-            'anime_year'             => $data['anime_year']             ?? 0,
+            // ── 基本資訊 ──────────────────────────────────────
+            'anime_status'           => $data['anime_status']   ?? '',
+            'anime_format'           => $type,     // ✅ single-anime.php 讀取的 key
+            'anime_type'             => $type,     // 相容舊 key
+            'anime_episodes'         => $data['anime_episodes'] ?? 0,
+            'anime_season'           => $data['anime_season']   ?? '',
+            'anime_season_year'      => $data['anime_year']     ?? 0,
+            'anime_year'             => $data['anime_year']     ?? 0,
 
-            // 評分
-            'anime_score_anilist'    => $data['anime_score_anilist']    ?? 0,
-            'anime_score_bangumi'    => $data['anime_score_bangumi']    ?? 0,
+            // ── 評分 ──────────────────────────────────────────
+            'anime_score_anilist'    => $data['anime_score_anilist'] ?? 0,
+            'anime_score_bangumi'    => $data['anime_score_bangumi'] ?? 0,
 
-            // 圖片
-            'anime_cover_image'      => $data['anime_cover_image']      ?? '',
-            'anime_banner_image'     => $data['anime_banner_image']     ?? '',
+            // ── 圖片 ──────────────────────────────────────────
+            'anime_cover_image'      => $data['anime_cover_image']  ?? '',
+            'anime_banner_image'     => $data['anime_banner_image'] ?? '',
 
-            // 簡介
-            'anime_synopsis_zh'      => $data['anime_synopsis_chinese'] ?? '',
+            // ── 簡介 ──────────────────────────────────────────
+            'anime_synopsis_chinese' => $synopsis, // ✅ single-anime.php 讀取的 key
+            'anime_synopsis_zh'      => $synopsis, // 相容舊 key
 
-            // Staff / Cast
-            'anime_staff_json'       => $data['anime_staff_json']       ?? '[]',
-            'anime_cast_json'        => $data['anime_cast_json']        ?? '[]',
+            // ── Staff / Cast ──────────────────────────────────
+            'anime_staff_json'       => $data['anime_staff_json'] ?? '[]',
+            'anime_cast_json'        => $data['anime_cast_json']  ?? '[]',
 
-            // 同步時間
+            // ── 同步時間 ──────────────────────────────────────
             'anime_last_sync'        => current_time( 'mysql' ),
         ];
 
@@ -134,7 +144,7 @@ class Anime_Sync_Import_Manager {
      */
     private function find_existing( int $al_id, $mal_id ): int|false {
 
-        // 先用 AniList ID 查
+        // 先用新 key 查
         $q = new WP_Query( [
             'post_type'      => 'anime',
             'post_status'    => 'any',
@@ -146,7 +156,7 @@ class Anime_Sync_Import_Manager {
 
         if ( $q->have_posts() ) return (int) $q->posts[0];
 
-        // 再用舊的 key 查（相容性）
+        // 再用舊 key 查（相容性）
         $q2 = new WP_Query( [
             'post_type'      => 'anime',
             'post_status'    => 'any',
