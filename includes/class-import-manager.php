@@ -93,7 +93,6 @@ class Anime_Sync_Import_Manager {
     private function generate_slug( string $romaji, int $anilist_id ): string {
         if ( empty( $romaji ) ) return 'anime-' . $anilist_id;
 
-        // 轉小寫、移除特殊字元、空格換成 -
         $slug = strtolower( $romaji );
         $slug = preg_replace( '/[^a-z0-9\s\-]/', '', $slug );
         $slug = preg_replace( '/[\s\-]+/', '-', trim( $slug ) );
@@ -101,7 +100,6 @@ class Anime_Sync_Import_Manager {
 
         if ( empty( $slug ) ) return 'anime-' . $anilist_id;
 
-        // 確保 slug 唯一性
         $original_slug = $slug;
         $counter       = 1;
         while ( $this->slug_exists( $slug ) ) {
@@ -139,45 +137,43 @@ class Anime_Sync_Import_Manager {
 
         $fields = [
             // ── ID ────────────────────────────────────────────
-            'anime_anilist_id'       => $data['anime_anilist_id']    ?? '',
-            'anime_mal_id'           => $data['anime_mal_id']        ?? '',
+            'anime_anilist_id'       => $data['anime_anilist_id']     ?? '',
+            'anime_mal_id'           => $data['anime_mal_id']         ?? '',
             'anime_bangumi_id'       => $bgm_id,
-            'bangumi_id'             => $bgm_id,         // 相容舊 key
+            'bangumi_id'             => $bgm_id,
 
             // ── 標題 ──────────────────────────────────────────
             'anime_title_chinese'    => $title_zh,
-            'anime_title_zh'         => $title_zh,       // 相容舊 key
-            'anime_title_romaji'     => $data['anime_title_romaji']  ?? '',
-            'anime_title_english'    => $data['anime_title_english'] ?? '',
-            'anime_title_native'     => $data['anime_title_native']  ?? '',
+            'anime_title_zh'         => $title_zh,
+            'anime_title_romaji'     => $data['anime_title_romaji']   ?? '',
+            'anime_title_english'    => $data['anime_title_english']  ?? '',
+            'anime_title_native'     => $data['anime_title_native']   ?? '',
 
             // ── 基本資訊 ──────────────────────────────────────
-            'anime_status'           => $data['anime_status']        ?? '',
+            'anime_status'           => $data['anime_status']         ?? '',
             'anime_format'           => $type,
-            'anime_type'             => $type,           // 相容舊 key
-            'anime_episodes'         => $data['anime_episodes']      ?? 0,
-            'anime_season'           => $data['anime_season']        ?? '',
-            'anime_season_year'      => $data['anime_year']          ?? 0,
-            'anime_year'             => $data['anime_year']          ?? 0,
+            'anime_type'             => $type,
+            'anime_episodes'         => $data['anime_episodes']       ?? 0,
+            'anime_season'           => $data['anime_season']         ?? '',
+            'anime_season_year'      => $data['anime_year']           ?? 0,
+            'anime_year'             => $data['anime_year']           ?? 0,
 
             // ── 評分與人氣 ────────────────────────────────────
-            'anime_score_anilist'    => $data['anime_score_anilist'] ?? 0,
-            'anime_score_bangumi'    => $data['anime_score_bangumi'] ?? 0,
-            'anime_popularity'       => $data['anime_popularity']    ?? 0,
+            'anime_score_anilist'    => $data['anime_score_anilist']  ?? 0,
+            'anime_score_bangumi'    => $data['anime_score_bangumi']  ?? 0,
+            'anime_popularity'       => $data['anime_popularity']     ?? 0,
 
             // ── 圖片 ──────────────────────────────────────────
-            'anime_cover_image'      => $data['anime_cover_image']   ?? '',
-            'anime_banner_image'     => $data['anime_banner_image']  ?? '',
+            'anime_cover_image'      => $data['anime_cover_image']    ?? '',
+            'anime_banner_image'     => $data['anime_banner_image']   ?? '',
 
             // ── 簡介 ──────────────────────────────────────────
             'anime_synopsis_chinese' => $synopsis,
-            'anime_synopsis_zh'      => $synopsis,       // 相容舊 key
+            'anime_synopsis_zh'      => $synopsis,
 
-            // ── Staff / Cast ──────────────────────────────────
-            'anime_staff_json'       => $data['anime_staff_json']    ?? '[]',
-            'anime_cast_json'        => $data['anime_cast_json']     ?? '[]',
-
-            // ── 關聯作品 ──────────────────────────────────────
+            // ── Staff / Cast / Relations ──────────────────────
+            'anime_staff_json'       => $data['anime_staff_json']     ?? '[]',
+            'anime_cast_json'        => $data['anime_cast_json']      ?? '[]',
             'anime_relations_json'   => $data['anime_relations_json'] ?? '[]',
 
             // ── 同步時間 ──────────────────────────────────────
@@ -190,15 +186,18 @@ class Anime_Sync_Import_Manager {
     }
 
     // ============================================================
-    // 寫入 Taxonomy（genre / anime_season_tax / anime_format_tax）
+    // 寫入 Taxonomy
+    // Bug 1 修正：補齊所有 AniList genre 對應，修正 Boys Love slug 問題
     // ============================================================
     private function save_taxonomies( int $post_id, array $data ): void {
 
         // ── Genre（類型）─────────────────────────────────────
         $genres = $data['_genres'] ?? [];
         if ( ! empty( $genres ) && is_array( $genres ) ) {
-            // AniList 回傳英文 genre，對應到 taxonomy slug
+
+            // ✅ 完整對應 AniList 所有 genre → taxonomy slug
             $genre_map = [
+                // 原有（保留）
                 'Action'        => 'action',
                 'Adventure'     => 'adventure',
                 'Comedy'        => 'comedy',
@@ -210,18 +209,30 @@ class Anime_Sync_Import_Manager {
                 'Music'         => 'music-genre',
                 'Mystery'       => 'mystery',
                 'Psychological' => 'psychological',
-                'Romance'       => 'romance',
                 'Sci-Fi'        => 'sci-fi',
                 'Slice of Life' => 'slice-of-life',
                 'Sports'        => 'sports',
                 'Supernatural'  => 'supernatural',
                 'Thriller'      => 'thriller',
                 'Ecchi'         => 'ecchi',
+                // ✅ Bug 1 修正：補上缺少的 genre
+                'Romance'       => 'romance',
+                'Isekai'        => 'isekai',
+                'Harem'         => 'harem',
+                'Boys Love'     => 'bl',       // ✅ 直接指定 slug，不走 sanitize_title
+                'Yuri'          => 'yuri',
+                'Historical'    => 'historical',
+                'School'        => 'school',
+                'Kids'          => 'kids',
+                'Wuxia'         => 'wuxia',
+                'Suspense'      => 'suspense',
             ];
 
             $term_ids = [];
             foreach ( $genres as $genre_en ) {
-                $slug = $genre_map[ $genre_en ] ?? sanitize_title( $genre_en );
+                $slug = $genre_map[ $genre_en ] ?? null;
+                // ✅ 若 map 沒有對應，用 sanitize_title fallback 但不靜默，改用 null 跳過
+                if ( $slug === null ) continue;
                 $term = get_term_by( 'slug', $slug, 'genre' );
                 if ( $term ) {
                     $term_ids[] = $term->term_id;
@@ -234,8 +245,8 @@ class Anime_Sync_Import_Manager {
         }
 
         // ── 播出季度（anime_season_tax）──────────────────────
-        $season    = strtolower( $data['anime_season'] ?? '' );
-        $year      = (int) ( $data['anime_year'] ?? 0 );
+        $season = strtolower( $data['anime_season'] ?? '' );
+        $year   = (int) ( $data['anime_year'] ?? 0 );
 
         $season_slug_map = [
             'spring' => 'spring',
@@ -261,13 +272,13 @@ class Anime_Sync_Import_Manager {
         $format = strtoupper( $data['anime_type'] ?? '' );
 
         $format_slug_map = [
-            'TV'      => 'format-tv',
-            'TV_SHORT'=> 'format-tv-short',
-            'MOVIE'   => 'format-movie',
-            'OVA'     => 'format-ova',
-            'ONA'     => 'format-ona',
-            'SPECIAL' => 'format-special',
-            'MUSIC'   => 'format-music',
+            'TV'       => 'format-tv',
+            'TV_SHORT' => 'format-tv-short',
+            'MOVIE'    => 'format-movie',
+            'OVA'      => 'format-ova',
+            'ONA'      => 'format-ona',
+            'SPECIAL'  => 'format-special',
+            'MUSIC'    => 'format-music',
         ];
 
         if ( isset( $format_slug_map[ $format ] ) ) {
