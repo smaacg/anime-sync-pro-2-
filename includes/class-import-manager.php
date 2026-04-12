@@ -41,16 +41,16 @@ class Anime_Sync_Import_Manager {
             ];
         }
 
-        // ── 標題（繁中優先，fallback Romaji）──────────────────
+        // 標題（繁中優先，fallback Romaji）
         $title = ! empty( $data['anime_title_chinese'] )
             ? $data['anime_title_chinese']
             : ( $data['anime_title_romaji'] ?? 'Unknown' );
 
-        // ── Post Slug（用 Romaji，SEO 友善）───────────────────
+        // Post Slug（Romaji，SEO 友善）
         $romaji = $data['anime_title_romaji'] ?? '';
         $slug   = $this->generate_slug( $romaji, $anilist_id );
 
-        // ── 建立草稿 ──────────────────────────────────────────
+        // 建立草稿
         $post_id = wp_insert_post( [
             'post_title'   => $title,
             'post_name'    => $slug,
@@ -63,10 +63,10 @@ class Anime_Sync_Import_Manager {
             return [ 'success' => false, 'message' => '建立草稿失敗：' . $post_id->get_error_message() ];
         }
 
-        // ── 寫入所有 Meta ─────────────────────────────────────
+        // 寫入所有 Meta
         $this->save_post_meta( $post_id, $data );
 
-        // ── 處理封面圖片 ──────────────────────────────────────
+        // 處理封面圖片
         if ( ! empty( $data['anime_cover_image'] ) ) {
             $this->image_handler->handle_cover(
                 $data['anime_cover_image'],
@@ -75,7 +75,7 @@ class Anime_Sync_Import_Manager {
             );
         }
 
-        // ── 設定 Taxonomy ─────────────────────────────────────
+        // 設定 Taxonomy
         $this->save_taxonomies( $post_id, $data );
 
         return [
@@ -100,11 +100,10 @@ class Anime_Sync_Import_Manager {
 
         if ( empty( $slug ) ) return 'anime-' . $anilist_id;
 
-        $original_slug = $slug;
-        $counter       = 1;
+        $original = $slug;
+        $counter  = 1;
         while ( $this->slug_exists( $slug ) ) {
-            $slug = $original_slug . '-' . $counter;
-            $counter++;
+            $slug = $original . '-' . $counter++;
         }
 
         return $slug;
@@ -176,6 +175,23 @@ class Anime_Sync_Import_Manager {
             'anime_cast_json'        => $data['anime_cast_json']      ?? '[]',
             'anime_relations_json'   => $data['anime_relations_json'] ?? '[]',
 
+            // ✅ 問題 L 修正：補上 anime_studios 寫入（製作公司）
+            'anime_studios'          => $data['anime_studios']        ?? '',
+
+            // ✅ 問題 J 修正：補上 anime_themes 寫入（OP/ED，JSON 字串）
+            'anime_themes'           => isset( $data['anime_themes'] )
+                                        ? ( is_array( $data['anime_themes'] )
+                                            ? wp_json_encode( $data['anime_themes'], JSON_UNESCAPED_UNICODE )
+                                            : $data['anime_themes'] )
+                                        : '[]',
+
+            // ✅ 問題 K 修正：補上 anime_streaming 寫入（串流平台，JSON 字串）
+            'anime_streaming'        => isset( $data['anime_streaming'] )
+                                        ? ( is_array( $data['anime_streaming'] )
+                                            ? wp_json_encode( $data['anime_streaming'], JSON_UNESCAPED_UNICODE )
+                                            : $data['anime_streaming'] )
+                                        : '[]',
+
             // ── 同步時間 ──────────────────────────────────────
             'anime_last_sync'        => current_time( 'mysql' ),
         ];
@@ -187,17 +203,14 @@ class Anime_Sync_Import_Manager {
 
     // ============================================================
     // 寫入 Taxonomy
-    // Bug 1 修正：補齊所有 AniList genre 對應，修正 Boys Love slug 問題
     // ============================================================
     private function save_taxonomies( int $post_id, array $data ): void {
 
-        // ── Genre（類型）─────────────────────────────────────
+        // ── Genre ─────────────────────────────────────────────
         $genres = $data['_genres'] ?? [];
         if ( ! empty( $genres ) && is_array( $genres ) ) {
 
-            // ✅ 完整對應 AniList 所有 genre → taxonomy slug
             $genre_map = [
-                // 原有（保留）
                 'Action'        => 'action',
                 'Adventure'     => 'adventure',
                 'Comedy'        => 'comedy',
@@ -215,11 +228,10 @@ class Anime_Sync_Import_Manager {
                 'Supernatural'  => 'supernatural',
                 'Thriller'      => 'thriller',
                 'Ecchi'         => 'ecchi',
-                // ✅ Bug 1 修正：補上缺少的 genre
                 'Romance'       => 'romance',
                 'Isekai'        => 'isekai',
                 'Harem'         => 'harem',
-                'Boys Love'     => 'bl',       // ✅ 直接指定 slug，不走 sanitize_title
+                'Boys Love'     => 'bl',
                 'Yuri'          => 'yuri',
                 'Historical'    => 'historical',
                 'School'        => 'school',
@@ -231,12 +243,9 @@ class Anime_Sync_Import_Manager {
             $term_ids = [];
             foreach ( $genres as $genre_en ) {
                 $slug = $genre_map[ $genre_en ] ?? null;
-                // ✅ 若 map 沒有對應，用 sanitize_title fallback 但不靜默，改用 null 跳過
                 if ( $slug === null ) continue;
                 $term = get_term_by( 'slug', $slug, 'genre' );
-                if ( $term ) {
-                    $term_ids[] = $term->term_id;
-                }
+                if ( $term ) $term_ids[] = $term->term_id;
             }
 
             if ( ! empty( $term_ids ) ) {
@@ -248,21 +257,14 @@ class Anime_Sync_Import_Manager {
         $season = strtolower( $data['anime_season'] ?? '' );
         $year   = (int) ( $data['anime_year'] ?? 0 );
 
-        $season_slug_map = [
-            'spring' => 'spring',
-            'summer' => 'summer',
-            'fall'   => 'fall',
-            'winter' => 'winter',
-        ];
+        $season_slug_map = [ 'winter' => 'winter', 'spring' => 'spring', 'summer' => 'summer', 'fall' => 'fall' ];
 
         if ( $year && isset( $season_slug_map[ $season ] ) ) {
-            $parent_term = get_term_by( 'slug', (string) $year, 'anime_season_tax' );
-            $child_term  = get_term_by( 'slug', "{$year}-{$season}", 'anime_season_tax' );
-
+            $parent_term     = get_term_by( 'slug', (string) $year, 'anime_season_tax' );
+            $child_term      = get_term_by( 'slug', "{$year}-{$season}", 'anime_season_tax' );
             $season_term_ids = [];
             if ( $parent_term ) $season_term_ids[] = $parent_term->term_id;
             if ( $child_term )  $season_term_ids[] = $child_term->term_id;
-
             if ( ! empty( $season_term_ids ) ) {
                 wp_set_object_terms( $post_id, $season_term_ids, 'anime_season_tax' );
             }
@@ -302,7 +304,6 @@ class Anime_Sync_Import_Manager {
             'posts_per_page' => 1,
             'no_found_rows'  => true,
         ] );
-
         if ( $q->have_posts() ) return (int) $q->posts[0];
 
         // 相容舊 key
@@ -314,7 +315,6 @@ class Anime_Sync_Import_Manager {
             'posts_per_page' => 1,
             'no_found_rows'  => true,
         ] );
-
         return $q2->have_posts() ? (int) $q2->posts[0] : false;
     }
 }
