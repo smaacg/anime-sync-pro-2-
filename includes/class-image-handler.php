@@ -34,7 +34,7 @@ class Anime_Sync_Image_Handler {
 
     // ============================================================
     // 模式一：直接使用 API URL
-    // ✅ 補上 featured image 虛擬設定（儲存 URL 到 meta，供模板讀取）
+    // Bug 2 修正：先檢查 featured image 是否已存在，避免重複下載
     // ============================================================
     private function handle_api_url( string $url, string $anime_title, int $post_id ): array {
         if ( ! $this->validate_url( $url ) ) {
@@ -44,19 +44,18 @@ class Anime_Sync_Image_Handler {
 
         $clean_url = esc_url_raw( $url );
 
-        // ✅ 儲存封面 URL 到 post meta（模板讀取用）
         if ( $post_id ) {
             update_post_meta( $post_id, 'anime_cover_image', $clean_url );
 
-            // ✅ 嘗試將圖片下載並設為 featured image（供 RankMath OG image 使用）
-            // 若下載失敗不影響主流程，僅記錄 warning
-            $attachment_id = $this->download_and_upload( $url, $anime_title, $post_id, true );
-            if ( ! $attachment_id ) {
-                // 下載失敗時，至少把外部 URL 記錄起來讓模板用
-                $this->logger->log( 'warning', 'api_url 模式：無法下載封面至媒體庫，改用外部 URL', [
-                    'url'   => $url,
-                    'title' => $anime_title,
-                ]);
+            // ✅ Bug 2 修正：已有 featured image 就不重複下載
+            if ( ! has_post_thumbnail( $post_id ) ) {
+                $attachment_id = $this->download_and_upload( $url, $anime_title, $post_id, true );
+                if ( ! $attachment_id ) {
+                    $this->logger->log( 'warning', 'api_url 模式：無法下載封面至媒體庫，改用外部 URL', [
+                        'url'   => $url,
+                        'title' => $anime_title,
+                    ]);
+                }
             }
         }
 
@@ -65,11 +64,17 @@ class Anime_Sync_Image_Handler {
 
     // ============================================================
     // 模式二：上傳至媒體庫
+    // Bug 2 修正：先檢查 featured image 是否已存在
     // ============================================================
     private function handle_media_library( string $url, string $anime_title, int $post_id ): array {
         if ( ! $this->validate_url( $url ) ) {
             $this->logger->log( 'warning', 'Invalid image URL for upload', [ 'url' => $url ] );
             return [ 'method' => 'media_library', 'value' => 0 ];
+        }
+
+        // ✅ Bug 2 修正：已有 featured image 就不重複下載
+        if ( $post_id && has_post_thumbnail( $post_id ) ) {
+            return [ 'method' => 'media_library', 'value' => get_post_thumbnail_id( $post_id ) ];
         }
 
         $attachment_id = $this->download_and_upload( $url, $anime_title, $post_id );
@@ -85,7 +90,7 @@ class Anime_Sync_Image_Handler {
 
     // ============================================================
     // 模式三：CDN 代理
-    // ✅ 補上 featured image 設定
+    // Bug 2 修正：先檢查 featured image 是否已存在
     // ============================================================
     private function handle_cdn( string $url, string $anime_title, int $post_id ): array {
         $cdn_url = $this->build_cdn_url( $url, $this->cover_width, $this->cover_height );
@@ -93,13 +98,15 @@ class Anime_Sync_Image_Handler {
         if ( $post_id ) {
             update_post_meta( $post_id, 'anime_cover_image', esc_url_raw( $cdn_url ) );
 
-            // ✅ 嘗試下載原圖並設為 featured image
-            $attachment_id = $this->download_and_upload( $url, $anime_title, $post_id, true );
-            if ( ! $attachment_id ) {
-                $this->logger->log( 'warning', 'cdn 模式：無法下載封面至媒體庫，改用 CDN URL', [
-                    'url'   => $cdn_url,
-                    'title' => $anime_title,
-                ]);
+            // ✅ Bug 2 修正：已有 featured image 就不重複下載
+            if ( ! has_post_thumbnail( $post_id ) ) {
+                $attachment_id = $this->download_and_upload( $url, $anime_title, $post_id, true );
+                if ( ! $attachment_id ) {
+                    $this->logger->log( 'warning', 'cdn 模式：無法下載封面至媒體庫，改用 CDN URL', [
+                        'url'   => $cdn_url,
+                        'title' => $anime_title,
+                    ]);
+                }
             }
         }
 
@@ -129,7 +136,6 @@ class Anime_Sync_Image_Handler {
 
     // ============================================================
     // 下載圖片並上傳至媒體庫
-    // $silent = true 時失敗不回傳 error，只回傳 false（供 api_url/cdn fallback 用）
     // ============================================================
     public function download_and_upload( string $url, string $title, int $post_id = 0, bool $silent = false ): int|false {
         require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -148,7 +154,6 @@ class Anime_Sync_Image_Handler {
             return false;
         }
 
-        // ✅ 自動設定 Alt Text：「{標題} 封面圖 | 動畫資料庫」
         $alt_text  = trim( $title ) . ' 封面圖 | 動畫資料庫';
         $file_name = sanitize_file_name( $title . '-cover.jpg' );
 
@@ -171,10 +176,10 @@ class Anime_Sync_Image_Handler {
             return false;
         }
 
-        // ✅ 設定 Alt Text（媒體庫 meta）
+        // 設定 Alt Text
         update_post_meta( $attachment_id, '_wp_attachment_image_alt', sanitize_text_field( $alt_text ) );
 
-        // ✅ 設定為文章 Featured Image（RankMath OG image 用）
+        // 設定為 Featured Image
         if ( $post_id ) {
             set_post_thumbnail( $post_id, $attachment_id );
         }
