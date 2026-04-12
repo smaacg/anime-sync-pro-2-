@@ -1,172 +1,199 @@
-# Anime Sync Pro — 專案上下文 CONTEXT.md
+# Anime Sync Pro — 開發上下文文件 (CONTEXT.md)
+版本：4.0 | 更新日期：2026-04-12 | 適用模型：Claude / GPT / Gemini
 
-## 專案基本資訊
+---
 
-- **網站名稱**：小巴哈姆特（微笑動漫）
-- **網站網址**：https://dev.weixiaoacg.com
-- **GitHub**：https://github.com/smaacg/anime-sync-pro-2-
-- **外掛目錄**：`wp-content/plugins/anime-sync-pro/`
-- **目前版本**：1.0.1
+## 一、專案基本資訊
 
-## 環境
+| 項目 | 內容 |
+|---|---|
+| Plugin Name | Anime Sync Pro |
+| Text Domain | anime-sync-pro |
+| Plugin Version | 定義於 `ANIME_SYNC_PRO_VERSION` 常數 |
+| PHP Requirement | ≥ 7.4 |
+| WordPress Requirement | ≥ 6.0 |
+| 主要插件檔 | `anime-sync-pro.php` |
+| 插件常數 | `ANIME_SYNC_PRO_VERSION`, `ANIME_SYNC_PRO_DIR`, `ANIME_SYNC_PRO_URL`, `ANIME_SYNC_PRO_BASENAME` |
 
-- WordPress 最新版
-- PHP 8.0+
-- 必要外掛：ACF（Advanced Custom Fields）
-- 已安裝外掛：RankMath SEO、LiteSpeed Cache、Elementor、Hello Elementor
+---
 
-## Post Types
+## 二、目錄結構
 
-| Post Type | 狀態    | 說明                        |
-|-----------|---------|-----------------------------|
-| `anime`   | ✅ 完成 | 動畫，支援 REST API         |
-| `manga`   | ⬜ 第二階段 | 漫畫                    |
-| `novel`   | ⬜ 第二階段 | 輕小說                  |
-| `series`  | ⬜ 第三階段 | 系列（跨 post type 關聯） |
+anime-sync-pro/ ├── anime-sync-pro.php ✅ 已修正 (Bug A, B, C) ├── CONTEXT.md ✅ 本文件 ├── admin/ │ ├── class-admin.php ✅ 已修正 (Bug D) │ └── pages/ │ ├── dashboard.php ✅ 已審查，無需修正 │ ├── import-tool.php ✅ 已審查，無需修正 │ ├── review-queue.php ✅ 已審查，無需修正 │ ├── published-list.php ✅ 已審查，無需修正 │ ├── review-preview.php ✅ 已審查，無需修正 │ ├── logs.php ✅ 已審查，無需修正 │ └── settings.php ✅ 已審查，無需修正 ├── public/ │ ├── class-frontend.php ✅ 已修正 (Bug B, E, F) │ └── templates/ │ ├── single-anime.php ✅ 已修正 (Bug V, W, X) │ ├── single.php ⚠️ 已審查，見下方說明 │ └── archive-anime.php ✅ 已審查，Bug 4/5/6/8 已修正 ├── includes/ │ ├── class-security.php ✅ 已修正 (Bug H, I) │ ├── class-acf-fields.php ✅ 已修正 (Bug J, K, L, M) │ ├── class-import-manager.php ✅ 已修正 (Bug J, K, L, P, Q, R) │ ├── class-api-handler.php ✅ 已修正 (Bug P, Q, R, S, T, U) │ ├── class-installer.php ⏳ 待審查 │ ├── class-review-queue.php ⏳ 待審查 │ ├── class-error-logger.php ⏳ 待審查 │ ├── class-cron-manager.php ⏳ 待審查 │ ├── class-id-mapper.php ⏳ 待審查 │ ├── class-image-handler.php ⏳ 待審查 │ ├── class-performance.php ⏳ 待審查 │ └── class-cn-converter.php ⏳ 待審查 └── assets/ ├── css/ │ ├── admin.css │ ├── anime-single.css ✅ Bug F 新增 enqueue │ └── anime-archive.css └── js/ ├── admin.js └── frontend.js
 
-## Taxonomies
+Copy
+---
 
-| Taxonomy          | Slug     | 共用 Post Type          | 狀態    |
-|-------------------|----------|-------------------------|---------|
-| `genre`           | `/genre/`  | anime, manga, novel   | ✅ 正確 |
-| `anime_season_tax`| `/season/` | anime                 | ✅ 正確 |
-| `anime_format_tax`| `/format/` | anime                 | ✅ 正確 |
+## 三、Custom Post Type 與 Taxonomy 定義
 
-> ⚠️ 舊版錯誤 slug `anime_genre`、`anime_tag` 已全面廢除，所有程式碼均已改用正確 slug。
+### Post Type: `anime`
+- 公開可見、支援標題/編輯器/縮圖
+- Rewrite slug: `anime`
+- REST API 啟用
 
-## Genre 完整清單（28 個）
+### Taxonomy 1: `genre`（動畫類型）
+- Rewrite slug: `anime-genre`
+- 完整 slug 列表（28 項）：
 
-action, adventure, comedy, drama, fantasy, horror, mahou-shoujo, mecha,
-music-genre, mystery, suspense, psychological, sci-fi, slice-of-life,
-sports, supernatural, thriller, isekai, harem, yuri, bl, historical,
-wuxia, school, kids, ecchi, romance
+| 顯示名稱 | Slug |
+|---|---|
+| 動作 | action |
+| 冒險 | adventure |
+| 喜劇 | comedy |
+| 劇情 | drama |
+| 奇幻 | fantasy |
+| 科幻 | sci-fi |
+| 恐怖 | horror |
+| 神秘 | mystery |
+| 心理 | psychological |
+| 浪漫 | romance |
+| 體育 | sports |
+| 超自然 | supernatural |
+| 音樂 | music |
+| 日常 | slice-of-life |
+| 少年 | shounen |
+| 少女 | shoujo |
+| 青年 | seinen |
+| 女性向 | josei |
+| 兒童 | kids |
+| 百合 | yuri |
+| 男男 | bl |
+| 異世界 | isekai |
+| 後宮 | harem |
+| 歷史 | historical |
+| 校園 | school |
+| 武俠 | wuxia |
+| 懸疑 | suspense |
+| 機甲 | mecha |
 
-> **注意**：Boys Love 統一使用 slug `bl`，不使用 `boys-love`。
+### Taxonomy 2: `anime_season_tax`（播出季度）
+- Rewrite slug: `anime-season`
+- 父層 term: 年份（如 `2025`）
+- 子層 term: 季度（如 `2025-winter`）
+- 季節順序：winter → spring → summer → fall
+- 排序：orderby slug DESC（最新在前）
 
-## 季節 Taxonomy 規則
+### Taxonomy 3: `anime_format_tax`（動畫格式）
+- Rewrite slug: `anime-format`
 
-- 涵蓋 2000–2030 年
-- 每年四季順序：**winter → spring → summer → fall**（winter 為每年第一季）
-- Slug 格式：`2025-winter`、`2025-spring`、`2025-summer`、`2025-fall`
+| AniList 類型 | Slug |
+|---|---|
+| TV | format-tv |
+| TV_SHORT | format-tv-short |
+| MOVIE | format-movie |
+| OVA | format-ova |
+| ONA | format-ona |
+| SPECIAL | format-special |
+| MUSIC | format-music |
 
-## Format Taxonomy
+---
 
-| 名稱    | Slug              |
-|---------|-------------------|
-| TV      | `format-tv`       |
-| TV 短篇 | `format-tv-short` |
-| 劇場版  | `format-movie`    |
-| OVA     | `format-ova`      |
-| ONA     | `format-ona`      |
-| 特別篇  | `format-special`  |
-| 音樂MV  | `format-music`    |
+## 四、Meta Key 對照總表（最終統一版）
 
-## 永久連結結構
+> ⚠️ 重要：所有 meta key 已對齊，使用以下表格作為唯一真實來源
 
-- 一般文章：`/%postname%/`
-- 分類前綴：`topic`
-- 標籤前綴：`tag`
+| Meta Key | 說明 | 來源 | 類型 |
+|---|---|---|---|
+| `anime_anilist_id` | AniList ID | API | int |
+| `anime_mal_id` | MyAnimeList ID | API | int |
+| `anime_bangumi_id` | Bangumi ID | 手動/API | int |
+| `anime_title_chinese` | 繁體中文標題 | API/手動 | string |
+| `anime_title_romaji` | 羅馬字標題 | API | string |
+| `anime_title_english` | 英文標題 | API | string |
+| `anime_title_native` | 日文標題 | API | string |
+| `anime_format` | 格式（TV/MOVIE等） | API | string |
+| `anime_status` | 播出狀態 | API | string |
+| `anime_season` | 季節（spring等） | API | string |
+| `anime_season_year` | 年份 | API | int |
+| `anime_episodes` | 集數 | API | int |
+| `anime_duration` | 單集時長（分鐘） | API | int ✅ 新增 |
+| `anime_source` | 原作來源 | API | string |
+| `anime_studios` | 製作公司 ✅已統一 | API | string |
+| `anime_score_anilist` | AniList評分(0-100原始值) | API | int |
+| `anime_score_mal` | MAL評分(×10) | API | int |
+| `anime_score_bangumi` | Bangumi評分(×10) | API | int |
+| `anime_popularity` | 人氣數值 | API | int |
+| `anime_cover_image` | 封面圖 URL | API | string |
+| `anime_banner_image` | 橫幅圖 URL | API | string |
+| `anime_trailer_url` | 預告片（多行textarea）| API | string |
+| `anime_synopsis_chinese` | 繁體中文簡介 | Bangumi優先 | string |
+| `anime_synopsis_english` | 英文簡介 | API | string |
+| `anime_start_date` | 開播日期(Y-m-d) | API | string ✅ 新增 |
+| `anime_end_date` | 完結日期(Y-m-d) | API | string ✅ 新增 |
+| `anime_streaming` | 串流平台(JSON) ✅已統一 | API | JSON |
+| `anime_themes` | OP/ED主題曲(JSON) ✅已統一 | API | JSON |
+| `anime_staff_json` | 製作人員(JSON) | API | JSON |
+| `anime_cast_json` | 聲優/角色(JSON) | API | JSON |
+| `anime_relations_json` | 相關作品(JSON) | API | JSON |
+| `anime_external_links` | 外部連結(JSON) | API | JSON |
+| `anime_tw_distributor` | 台灣代理商 | 手動 | string |
+| `anime_tw_broadcast` | 台灣播出時間 | 手動 | string |
+| `anime_tw_streaming` | 台灣合法串流(textarea) | 手動 | string |
+| `anime_last_sync` | 最後同步時間 | 系統 | timestamp |
+| `anime_next_airing` | 下集播出資訊(JSON) | API | JSON |
 
-## 核心設計決策
+---
 
-1. 動畫使用 Romaji slug（SEO 友善）
-2. `genre` taxonomy 共用於 anime / manga / novel
-3. 篩選器使用靜態 taxonomy URL（`/season/2025-spring/`），不使用 GET 參數
-4. Schema 類型：TV → `TVSeries`，Movie → `Movie`，Music → `MusicVideoObject`
-5. Schema 僅由模板（`single-anime.php`、`archive-anime.php`）輸出，`class-frontend.php` 不重複輸出
-6. `aggregateRating` 僅在 score > 0 時輸出
-7. `alternateName` 空陣列時不輸出
-8. Featured image 的 alt text 使用中文標題
-9. RankMath 啟用時，`class-frontend.php` 的 SEO meta 自動跳過
+## 五、已修正 Bug 總表
 
-## 已修復的 Bug 清單
+| Bug ID | 描述 | 影響檔案 | 狀態 |
+|---|---|---|---|
+| Bug A | 主插件缺少 rewrite flush 邏輯 | `anime-sync-pro.php` | ✅ 已修正 |
+| Bug B | Frontend 多餘的 JSON-LD filter | `class-frontend.php` | ✅ 已修正 |
+| Bug C | CPT/Taxonomy 初始化時機錯誤 | `anime-sync-pro.php` | ✅ 已修正 |
+| Bug D | 批量操作與 Bangumi ID 儲存 AJAX 缺失 | `class-admin.php` | ✅ 已修正 |
+| Bug E | Frontend REST API 使用錯誤 taxonomy slug | `class-frontend.php` | ✅ 已修正 |
+| Bug F | anime-single.css 未被 enqueue | `class-frontend.php` | ✅ 已修正 |
+| Bug H | class-security.php 缺少 ABSPATH 檢查 | `class-security.php` | ✅ 已修正 |
+| Bug I | Security 驗證上限設定錯誤 | `class-security.php` | ✅ 已修正 |
+| Bug J | ACF 欄位名 `anime_themes_json` 與實際使用 `anime_themes` 不符 | `class-acf-fields.php`, `class-import-manager.php` | ✅ 已修正 |
+| Bug K | ACF 欄位名 `anime_streaming_json` 與實際使用 `anime_streaming` 不符 | `class-acf-fields.php`, `class-import-manager.php` | ✅ 已修正 |
+| Bug L | ACF 欄位 `anime_studio` 與 import 寫入 `anime_studios` 不符 | `class-acf-fields.php`, `class-import-manager.php` | ✅ 已修正 |
+| Bug M | ACF 的 AniList 分數除以10 filter 導致前端顯示錯誤 | `class-acf-fields.php` | ✅ 已修正 |
+| Bug P | API Handler 未獲取/回傳 studios 資料 | `class-api-handler.php`, `class-import-manager.php` | ✅ 已修正 |
+| Bug Q | API Handler 未處理 themes 資料 | `class-api-handler.php`, `class-import-manager.php` | ✅ 已修正 |
+| Bug R | API Handler 未獲取 streaming 資料 | `class-api-handler.php`, `class-import-manager.php` | ✅ 已修正 |
+| Bug S | Bangumi 評分路徑解析可能失敗 | `class-api-handler.php` | ✅ 已修正 |
+| Bug T | 中文簡介誤用 AniList 而非 Bangumi | `class-api-handler.php` | ✅ 已修正 |
+| Bug U | 缺少 duration, startDate, endDate 欄位 | `class-api-handler.php`, `class-import-manager.php` | ✅ 已修正 |
+| Bug V | single-anime.php 使用舊 meta key `anime_streaming_json` | `single-anime.php` | ✅ 已修正 |
+| Bug W | single-anime.php 讀取 `anime_studio` 應為 `anime_studios` | `single-anime.php` | ✅ 已修正 |
+| Bug X | 倒數計時器 JS 計算邏輯不完整 | `single-anime.php` | ✅ 已修正 |
+| Bug 1 | Genre mapping 不完整，缺少多個類型 | `class-import-manager.php` | ✅ 已修正 |
+| Bug 3 | AniList synopsis 未清除 spoiler 標記 | `class-api-handler.php` | ✅ 已修正 |
+| Bug 4 | archive-anime.php season_label 取值邏輯錯誤 | `archive-anime.php` | ✅ 已修正 |
+| Bug 5 | archive-anime.php canonical URL 指向錯誤 | `archive-anime.php` | ✅ 已修正 |
+| Bug 6 | 分數顯示條件錯誤（應 >0 才顯示） | `archive-anime.php`, `single-anime.php` | ✅ 已修正 |
+| Bug 8 | anime-meta-ep 缺少 color class | `archive-anime.php` | ✅ 已修正 |
 
-| Bug ID | 檔案                          | 問題描述                                          | 狀態 |
-|--------|-------------------------------|---------------------------------------------------|------|
-| Bug 1  | `class-import-manager.php`    | genre 對應表缺少 Romance、Isekai 等 10+ 類型      | ✅   |
-| Bug 2  | `class-image-handler.php`     | 三種圖片模式均缺少 `has_post_thumbnail` 重複下載檢查 | ✅  |
-| Bug 3  | `class-api-handler.php`       | synopsis 包含 AniList 劇透標記與 HTML              | ✅   |
-| Bug 4  | `archive-anime.php`           | `$season_label` 使用錯誤 key                      | ✅   |
-| Bug 5  | `archive-anime.php`           | Schema canonical URL 指向錯誤                     | ✅   |
-| Bug 6  | `archive-anime.php` / `single-anime.php` | score 為 0 時仍輸出評分                | ✅   |
-| Bug 7  | `setup-taxonomy.php`          | 季節順序錯誤（應為 winter → spring → summer → fall）| ✅  |
-| Bug 8  | `archive-anime.php`           | 缺少 `.aaa-meta-ep` CSS 規則                      | ✅   |
-| Bug 9  | `single-anime.php`            | `alternateName` 空陣列仍輸出                      | ✅   |
-| Bug A  | `class-frontend.php`          | 使用舊 taxonomy slug `anime_genre`                | ✅   |
-| Bug B  | `class-frontend.php`          | JSON-LD Schema 與模板重複輸出                     | ✅   |
-| Bug C  | `class-frontend.php`          | `aggregateRating` 未檢查 score > 0               | ✅   |
-| Bug D  | `admin/class-admin.php`       | 缺少 `anime_sync_bulk_action` 與 `save_bangumi_id` AJAX handler | ✅ |
-| Bug E  | `class-frontend.php`          | REST API 使用舊 slug `anime_genre`、`anime_tag`   | ✅   |
-| Bug F  | `class-frontend.php`          | 未 enqueue `anime-single.css`                    | ✅   |
-| Bug G  | `class-security.php`          | AniList ID 上限 999,999 過低                      | ✅   |
-| Bug H  | `class-security.php`          | 缺少 `ABSPATH` 安全檢查                           | ✅   |
-| Bug I  | `anime-sync-pro.php`          | activation hook 未實例化 Installer                | ✅   |
+---
 
-## 檔案狀態總表
+## 六、AniList GraphQL Query 欄位（最終版）
 
-### 已完全修正 ✅
+`class-api-handler.php` 的 `fetch_anilist_data()` 目前查詢以下欄位：
 
-| 檔案路徑                                      | 說明                                       |
-|-----------------------------------------------|--------------------------------------------|
-| `anime-sync-pro.php`                          | 主外掛，含 Installer 觸發、Frontend 載入   |
-| `setup-taxonomy.php`                          | 分類初始化腳本（執行後刪除）               |
-| `includes/class-api-handler.php`              | AniList/Bangumi API 處理、clean_synopsis   |
-| `includes/class-import-manager.php`           | 匯入主邏輯、完整 genre_map                 |
-| `includes/class-image-handler.php`            | 封面圖處理、重複下載防護                   |
-| `includes/class-security.php`                 | 安全驗證、sanitize、rate limit             |
-| `admin/class-admin.php`                       | 後台選單、所有 AJAX handler                |
-| `public/class-frontend.php`                   | 前台模板、SEO、Shortcode、REST API         |
-| `public/templates/archive-anime.php`          | 動畫列表模板                               |
-| `public/templates/single-anime.php`           | 動畫單頁模板                               |
-
-### 待審查 ⬜
-
-| 檔案路徑                              | 說明                              |
-|---------------------------------------|-----------------------------------|
-| `includes/class-acf-fields.php`       | ACF 欄位定義（41 KB，最大檔案）   |
-| `includes/class-installer.php`        | 資料表建立、預設選項              |
-| `includes/class-performance.php`      | 批次處理、記憶體管理              |
-| `includes/class-rate-limiter.php`     | API 速率限制                      |
-| `includes/class-review-queue.php`     | 審核佇列操作                      |
-| `includes/class-cn-converter.php`     | 簡繁轉換                          |
-| `includes/class-id-mapper.php`        | AniList/MAL/Bangumi ID 對照       |
-| `includes/class-error-logger.php`     | 錯誤日誌                          |
-| `admin/pages/dashboard.php`           | 儀表板頁面                        |
-| `admin/pages/import-tool.php`         | 匯入工具頁面                      |
-| `admin/pages/settings.php`            | 設定頁面                          |
-| `admin/pages/review-queue.php`        | 審核佇列頁面                      |
-| `admin/pages/review-preview.php`      | 審核預覽頁面                      |
-| `admin/pages/published-list.php`      | 已發佈列表頁面                    |
-| `admin/pages/logs.php`                | 日誌頁面                          |
-| `public/templates/single.php`         | 通用單頁模板                      |
-
-## 部署步驟（每次上傳後）
-
-1. 將所有修正檔案上傳到 `wp-content/plugins/anime-sync-pro/`
-2. 至 WordPress 後台「外掛」頁面，**停用**再**啟用** Anime Sync Pro
-   - 這會觸發 `Anime_Sync_Installer::activate()`，建立資料表與預設選項
-3. 瀏覽器登入管理員帳號後，訪問：
-   `https://dev.weixiaoacg.com/wp-content/plugins/anime-sync-pro/setup-taxonomy.php`
-   - 執行分類初始化（建立 category、genre、anime_season_tax、anime_format_tax）
-4. **立即刪除** `setup-taxonomy.php`（避免被重複執行）
-5. 至「設定 → 永久連結」頁面，點擊「儲存變更」刷新 rewrite rules
-6. 至「動畫同步 → 匯入工具」，測試匯入 1 筆動畫，確認 genre、season、format 正確寫入
-
-## 待辦事項
-
-- [ ] 審查 `class-acf-fields.php`（最重要，41 KB）
-- [ ] 審查其他 ⬜ 檔案
-- [ ] 自動排行榜頁面功能
-- [ ] Manga、Novel Post Type（第二階段）
-- [ ] Series Post Type（第三階段）
-- [ ] 站內搜尋優化
-- [ ] 使用者收藏、評分互動功能
-- [ ] RankMath 自動設定模組
-- [ ] archive-anime.php UI 精修
-
-## 給其他 AI 的讀取指令
-
-請先讀取專案說明：
-`https://raw.githubusercontent.com/smaacg/anime-sync-pro-2-/main/CONTEXT.md`
-
-再讀取所有程式碼：
+```graphql
+query ($id: Int) {
+  Media(id: $id, type: ANIME) {
+    id
+    idMal
+    title { romaji english native }
+    format status episodes duration
+    startDate { year month day }
+    endDate { year month day }
+    season seasonYear
+    source
+    genres
+    studios { nodes { name isAnimationStudio } }
+    coverImage { extraLarge large }
+    bannerImage
+    trailer { id site }
+    description(asHtml: false)
+    averageScore popularity meanScore
+    nextAiringEpisode { airingAt episode }
+    relations { edges { relationType node { id title { romaji } type } } }
+    staff { edges { role node { name { full } } } }
+    characters { edges { role voiceActors { name { full } languageV2 } node { name { full } image { medium } } } }
+    externalLinks { site url type icon color language }
+  }
+}
