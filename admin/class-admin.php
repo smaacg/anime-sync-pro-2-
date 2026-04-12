@@ -12,19 +12,18 @@ class Anime_Sync_Admin {
     public function __construct( $import_manager ) {
         $this->import_manager = $import_manager;
 
-        add_action( 'admin_menu',            [ $this, 'register_admin_menu'     ] );
-        add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets'    ] );
+        add_action( 'admin_menu',            [ $this, 'register_admin_menu'  ] );
+        add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
 
-        // ── AJAX handlers ──────────────────────────────────
-        add_action( 'wp_ajax_anime_sync_import_single', [ $this, 'handle_ajax_import_single' ] );
-        add_action( 'wp_ajax_anime_sync_query_season',  [ $this, 'handle_ajax_query_season'  ] );
-        add_action( 'wp_ajax_anime_sync_update_map',    [ $this, 'handle_ajax_update_map'    ] );
-        add_action( 'wp_ajax_anime_sync_clear_cache',   [ $this, 'handle_ajax_clear_cache'   ] );
-        add_action( 'wp_ajax_anime_sync_clear_logs',    [ $this, 'handle_ajax_clear_logs'    ] );
-        add_action( 'wp_ajax_anime_clear_old_logs',     [ $this, 'handle_ajax_clear_logs'    ] );
+        add_action( 'wp_ajax_anime_sync_import_single',   [ $this, 'handle_ajax_import_single'   ] );
+        add_action( 'wp_ajax_anime_sync_query_season',    [ $this, 'handle_ajax_query_season'    ] );
+        add_action( 'wp_ajax_anime_sync_update_map',      [ $this, 'handle_ajax_update_map'      ] );
+        add_action( 'wp_ajax_anime_sync_clear_cache',     [ $this, 'handle_ajax_clear_cache'     ] );
+        add_action( 'wp_ajax_anime_sync_clear_logs',      [ $this, 'handle_ajax_clear_logs'      ] );
+        add_action( 'wp_ajax_anime_clear_old_logs',       [ $this, 'handle_ajax_clear_logs'      ] );
         // ✅ Bug D 修正：補上審核佇列批次操作 handler
-        add_action( 'wp_ajax_anime_sync_bulk_action',      [ $this, 'handle_ajax_bulk_action'      ] );
-        add_action( 'wp_ajax_anime_sync_save_bangumi_id',  [ $this, 'handle_ajax_save_bangumi_id'  ] );
+        add_action( 'wp_ajax_anime_sync_bulk_action',     [ $this, 'handle_ajax_bulk_action'     ] );
+        add_action( 'wp_ajax_anime_sync_save_bangumi_id', [ $this, 'handle_ajax_save_bangumi_id' ] );
     }
 
     // ── 選單 ───────────────────────────────────────────────
@@ -95,7 +94,7 @@ class Anime_Sync_Admin {
             'body'    => json_encode( [ 'query' => $query, 'variables' => [ 'season' => $season, 'year' => $year ] ] ),
             'headers' => [ 'Content-Type' => 'application/json', 'Accept' => 'application/json' ],
             'timeout' => 20,
-        ]);
+        ] );
 
         if ( is_wp_error( $res ) ) wp_send_json_error( 'API 連線失敗：' . $res->get_error_message() );
 
@@ -121,7 +120,7 @@ class Anime_Sync_Admin {
         wp_send_json_success( [ 'list' => $list, 'total' => count( $list ) ] );
     }
 
-    // ── AJAX：批次操作（Bug D 新增）────────────────────────
+    // ── AJAX：批次操作（✅ Bug D 新增）────────────────────────
     public function handle_ajax_bulk_action(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
@@ -129,52 +128,40 @@ class Anime_Sync_Admin {
         $action   = sanitize_text_field( $_POST['bulk'] ?? '' );
         $post_ids = array_map( 'intval', (array) ( $_POST['post_ids'] ?? [] ) );
 
-        if ( empty( $action ) || empty( $post_ids ) ) {
-            wp_send_json_error( '參數錯誤' );
-        }
+        if ( empty( $action ) || empty( $post_ids ) ) wp_send_json_error( '參數錯誤' );
 
         $allowed_actions = [ 'publish', 'draft', 'delete', 'refetch' ];
-        if ( ! in_array( $action, $allowed_actions, true ) ) {
-            wp_send_json_error( '不允許的操作' );
-        }
+        if ( ! in_array( $action, $allowed_actions, true ) ) wp_send_json_error( '不允許的操作' );
 
         $count = 0;
         foreach ( $post_ids as $post_id ) {
             if ( ! $post_id || get_post_type( $post_id ) !== 'anime' ) continue;
-
             switch ( $action ) {
                 case 'publish':
-                    $result = wp_update_post( [ 'ID' => $post_id, 'post_status' => 'publish' ] );
-                    if ( $result && ! is_wp_error( $result ) ) $count++;
+                    $r = wp_update_post( [ 'ID' => $post_id, 'post_status' => 'publish' ] );
+                    if ( $r && ! is_wp_error( $r ) ) $count++;
                     break;
-
                 case 'draft':
-                    $result = wp_update_post( [ 'ID' => $post_id, 'post_status' => 'draft' ] );
-                    if ( $result && ! is_wp_error( $result ) ) $count++;
+                    $r = wp_update_post( [ 'ID' => $post_id, 'post_status' => 'draft' ] );
+                    if ( $r && ! is_wp_error( $r ) ) $count++;
                     break;
-
                 case 'delete':
-                    $result = wp_delete_post( $post_id, true );
-                    if ( $result ) $count++;
+                    if ( wp_delete_post( $post_id, true ) ) $count++;
                     break;
-
                 case 'refetch':
                     $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
                     if ( $anilist_id ) {
-                        $result = $this->import_manager->import_single( $anilist_id );
-                        if ( ! empty( $result['success'] ) ) $count++;
+                        $r = $this->import_manager->import_single( $anilist_id );
+                        if ( ! empty( $r['success'] ) ) $count++;
                     }
                     break;
             }
         }
 
-        wp_send_json_success( [
-            'count'   => $count,
-            'message' => "已完成 {$count} 筆操作",
-        ] );
+        wp_send_json_success( [ 'count' => $count, 'message' => "已完成 {$count} 筆操作" ] );
     }
 
-    // ── AJAX：儲存 Bangumi ID（Bug D 新增）─────────────────
+    // ── AJAX：儲存 Bangumi ID（✅ Bug D 新增）─────────────────
     public function handle_ajax_save_bangumi_id(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
@@ -198,13 +185,8 @@ class Anime_Sync_Admin {
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
 
         if ( class_exists( 'Anime_Sync_ID_Mapper' ) ) {
-            $mapper = new Anime_Sync_ID_Mapper();
-            $result = $mapper->download_and_cache_map();
-            if ( $result ) {
-                wp_send_json_success( '對照表更新成功' );
-            } else {
-                wp_send_json_error( '下載失敗，請檢查網路連線' );
-            }
+            $result = ( new Anime_Sync_ID_Mapper() )->download_and_cache_map();
+            $result ? wp_send_json_success( '對照表更新成功' ) : wp_send_json_error( '下載失敗，請檢查網路連線' );
         } else {
             wp_send_json_error( '找不到 ID Mapper 類別' );
         }
@@ -221,7 +203,6 @@ class Anime_Sync_Admin {
              WHERE option_name LIKE '_transient_anime_sync_%'
              OR option_name LIKE '_transient_timeout_anime_sync_%'"
         );
-
         wp_send_json_success( '已清除 ' . (int) $count . ' 筆快取' );
     }
 
@@ -231,8 +212,7 @@ class Anime_Sync_Admin {
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
 
         if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
-            $logger = new Anime_Sync_Error_Logger();
-            $count  = $logger->delete_old_logs( 0 );
+            $count = ( new Anime_Sync_Error_Logger() )->delete_old_logs( 0 );
             wp_send_json_success( [ 'count' => $count, 'message' => '已清除 ' . $count . ' 筆日誌' ] );
         } else {
             wp_send_json_error( '找不到 Logger 類別' );
@@ -243,15 +223,15 @@ class Anime_Sync_Admin {
     public function enqueue_admin_assets( string $hook ): void {
         if ( strpos( $hook, 'anime-sync' ) === false ) return;
 
-        $plugin_url = defined( 'ANIME_SYNC_PRO_URL' )     ? ANIME_SYNC_PRO_URL     : plugin_dir_url( dirname( __FILE__ ) );
-        $version    = defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0';
+        $url     = defined( 'ANIME_SYNC_PRO_URL' )     ? ANIME_SYNC_PRO_URL     : plugin_dir_url( dirname( __FILE__ ) );
+        $version = defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0';
 
-        wp_enqueue_style(  'anime-sync-admin', $plugin_url . 'admin/assets/css/admin.css', [],           $version );
-        wp_enqueue_script( 'anime-sync-admin', $plugin_url . 'admin/assets/js/admin.js',  [ 'jquery' ], $version, true );
+        wp_enqueue_style(  'anime-sync-admin', $url . 'admin/assets/css/admin.css', [],           $version );
+        wp_enqueue_script( 'anime-sync-admin', $url . 'admin/assets/js/admin.js',  [ 'jquery' ], $version, true );
 
         wp_localize_script( 'anime-sync-admin', 'animeSyncAdmin', [
             'ajaxUrl' => admin_url( 'admin-ajax.php' ),
             'nonce'   => wp_create_nonce( 'anime_sync_admin_nonce' ),
-        ]);
+        ] );
     }
 }
