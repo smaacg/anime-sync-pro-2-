@@ -31,18 +31,18 @@ while ( have_posts() ) : the_post();
     $display_title = $title_chinese ?: get_the_title();
 
     /* ── 基本資訊 ───────────────────────────────────────────── */
-    $format      = get_post_meta( $post_id, 'anime_format',           true );
-    $status      = get_post_meta( $post_id, 'anime_status',           true );
-    $season      = get_post_meta( $post_id, 'anime_season',           true );
-    $season_year = (int) get_post_meta( $post_id, 'anime_season_year', true );
-    $episodes    = (int) get_post_meta( $post_id, 'anime_episodes',   true );
+    $format      = get_post_meta( $post_id, 'anime_format',              true );
+    $status      = get_post_meta( $post_id, 'anime_status',              true );
+    $season      = get_post_meta( $post_id, 'anime_season',              true );
+    $season_year = (int) get_post_meta( $post_id, 'anime_season_year',   true );
+    $episodes    = (int) get_post_meta( $post_id, 'anime_episodes',      true );
     $ep_aired    = (int) get_post_meta( $post_id, 'anime_episodes_aired', true );
-    $duration    = (int) get_post_meta( $post_id, 'anime_duration',   true );
-    $source      = get_post_meta( $post_id, 'anime_source',           true );
-    $studio      = get_post_meta( $post_id, 'anime_studio',           true );
-    $tw_dist     = get_post_meta( $post_id, 'anime_tw_distributor',   true );
-    $tw_bc       = get_post_meta( $post_id, 'anime_tw_broadcast',     true );
-    $popularity  = (int) get_post_meta( $post_id, 'anime_popularity', true );
+    $duration    = (int) get_post_meta( $post_id, 'anime_duration',      true );
+    $source      = get_post_meta( $post_id, 'anime_source',              true );
+    $studio      = get_post_meta( $post_id, 'anime_studio',              true );
+    $tw_dist     = get_post_meta( $post_id, 'anime_tw_distributor',      true );
+    $tw_bc       = get_post_meta( $post_id, 'anime_tw_broadcast',        true );
+    $popularity  = (int) get_post_meta( $post_id, 'anime_popularity',    true );
 
     /* ── 日期 ───────────────────────────────────────────────── */
     $format_date = function( $raw ) {
@@ -59,11 +59,13 @@ while ( have_posts() ) : the_post();
 
     /* ── 評分 ───────────────────────────────────────────────── */
     $score_anilist_raw = get_post_meta( $post_id, 'anime_score_anilist', true );
-    $score_anilist     = is_numeric( $score_anilist_raw )
-        ? number_format( $score_anilist_raw / 10, 1 )
-        : $score_anilist_raw;
-    $score_mal     = get_post_meta( $post_id, 'anime_score_mal',     true );
-    $score_bangumi = get_post_meta( $post_id, 'anime_score_bangumi', true );
+    // ✅ Bug 6 修正：score 為 0 時不輸出 aggregateRating Schema
+    $score_anilist_num = is_numeric( $score_anilist_raw ) ? (float) $score_anilist_raw : 0;
+    $score_anilist     = $score_anilist_num > 0
+        ? number_format( $score_anilist_num / 10, 1 )
+        : '';
+    $score_mal         = get_post_meta( $post_id, 'anime_score_mal',     true );
+    $score_bangumi     = get_post_meta( $post_id, 'anime_score_bangumi', true );
 
     /* ── 圖片 / 預告 ────────────────────────────────────────── */
     $cover_image  = get_post_meta( $post_id, 'anime_cover_image',  true );
@@ -100,12 +102,6 @@ while ( have_posts() ) : the_post();
     $synopsis_raw = get_post_meta( $post_id, 'anime_synopsis_chinese', true );
     if ( empty( $synopsis_raw ) ) $synopsis_raw = get_post_meta( $post_id, 'anime_synopsis', true );
     if ( empty( $synopsis_raw ) ) $synopsis_raw = get_the_content();
-    foreach ( [ '[簡介原文]', '[原文]', '~!', '[Source]' ] as $delim ) {
-        if ( strpos( $synopsis_raw, $delim ) !== false ) {
-            $synopsis_raw = explode( $delim, $synopsis_raw )[0];
-            break;
-        }
-    }
     $synopsis = trim( $synopsis_raw );
 
     /* ── JSON 解碼 ──────────────────────────────────────────── */
@@ -129,8 +125,8 @@ while ( have_posts() ) : the_post();
         $key    = $type . '||' . $stitle;
         if ( isset( $seen[$key] ) ) continue;
         $seen[$key] = true;
-        if ( str_starts_with( $type, 'OP' ) )     $openings[] = $t;
-        elseif ( str_starts_with( $type, 'ED' ) ) $endings[]  = $t;
+        if ( str_starts_with( $type, 'OP' ) )      $openings[] = $t;
+        elseif ( str_starts_with( $type, 'ED' ) )  $endings[]  = $t;
     }
 
     /* ── Label Maps ─────────────────────────────────────────── */
@@ -140,11 +136,11 @@ while ( have_posts() ) : the_post();
     $status_classes = [ 'FINISHED'=>'s-fin','RELEASING'=>'s-rel','NOT_YET_RELEASED'=>'s-pre','CANCELLED'=>'s-can','HIATUS'=>'s-hia' ];
     $source_labels  = [ 'ORIGINAL'=>'原創','MANGA'=>'漫畫改編','LIGHT_NOVEL'=>'輕小說','NOVEL'=>'小說','VISUAL_NOVEL'=>'視覺小說','VIDEO_GAME'=>'遊戲','WEB_MANGA'=>'網路漫畫','BOOK'=>'書籍','MUSIC'=>'音樂','GAME'=>'遊戲','LIVE_ACTION'=>'真人','MULTIMEDIA_PROJECT'=>'多媒體企劃','OTHER'=>'其他' ];
 
-    $season_label = $season_labels[$season] ?? $season;
-    $format_label = $format_labels[$format] ?? $format;
-    $status_label = $status_labels[$status] ?? $status;
-    $status_class = $status_classes[$status] ?? '';
-    $source_label = $source_labels[$source] ?? $source;
+    $season_label = $season_labels[ $season ] ?? $season;
+    $format_label = $format_labels[ $format ] ?? $format;
+    $status_label = $status_labels[ $status ] ?? $status;
+    $status_class = $status_classes[ $status ] ?? '';
+    $source_label = $source_labels[ $source ] ?? $source;
 
     $ep_str = '';
     if ( $episodes ) {
@@ -153,12 +149,12 @@ while ( have_posts() ) : the_post();
             : $episodes . ' 集';
     }
 
-    /* ── Taxonomy 資料（用於 SEO 底部連結）──────────────────── */
-    $genre_terms  = get_the_terms( $post_id, 'genre' )          ?: [];
+    /* ── Taxonomy 資料 ───────────────────────────────────────── */
+    $genre_terms  = get_the_terms( $post_id, 'genre' )            ?: [];
     $season_terms = get_the_terms( $post_id, 'anime_season_tax' ) ?: [];
     $format_terms = get_the_terms( $post_id, 'anime_format_tax' ) ?: [];
 
-    /* ── 熱門推薦（同 genre + 評分最高，排除自己）────────────── */
+    /* ── 熱門推薦 ────────────────────────────────────────────── */
     $recommend_posts = [];
     if ( ! empty( $genre_terms ) ) {
         $genre_ids       = wp_list_pluck( $genre_terms, 'term_id' );
@@ -182,7 +178,7 @@ while ( have_posts() ) : the_post();
         wp_reset_postdata();
     }
 
-    /* ── 相關新聞（tag 自動關聯）────────────────────────────── */
+    /* ── 相關新聞 ────────────────────────────────────────────── */
     $news_posts = [];
     if ( $display_title ) {
         $tag_slug   = sanitize_title( $display_title );
@@ -196,7 +192,6 @@ while ( have_posts() ) : the_post();
         $news_posts = $news_query->posts;
         wp_reset_postdata();
 
-        // 若 tag 無結果，改用標題關鍵字搜尋
         if ( empty( $news_posts ) && $title_romaji ) {
             $news_query2 = new WP_Query([
                 'post_type'      => 'post',
@@ -218,68 +213,62 @@ while ( have_posts() ) : the_post();
     $schema_genres = [];
     foreach ( $genre_terms as $gt ) $schema_genres[] = $gt->name;
 
+    // ✅ Bug 9 修正：alternateName 全空時不輸出該欄位
+    $alternate_names = array_values( array_filter( [ $title_native, $title_romaji, $title_english ] ) );
+
     $schema = [
-        '@context'        => 'https://schema.org',
-        '@type'           => $schema_type,
-        'name'            => $display_title,
-        'alternateName'   => array_filter( [ $title_native, $title_romaji, $title_english ] ),
-        'description'     => mb_substr( wp_strip_all_tags( $synopsis ), 0, 200 ),
-        'image'           => $cover_image ?: get_the_post_thumbnail_url( $post_id, 'large' ),
-        'genre'           => $schema_genres,
-        'datePublished'   => $start_date,
-        'url'             => get_permalink( $post_id ),
+        '@context'      => 'https://schema.org',
+        '@type'         => $schema_type,
+        'name'          => $display_title,
+        'description'   => mb_substr( wp_strip_all_tags( $synopsis ), 0, 200 ),
+        'image'         => $cover_image ?: get_the_post_thumbnail_url( $post_id, 'large' ),
+        'genre'         => $schema_genres,
+        'datePublished' => $start_date,
+        'url'           => get_permalink( $post_id ),
     ];
-    if ( $episodes )        $schema['numberOfEpisodes'] = $episodes;
-    if ( $score_anilist ) {
+
+    // ✅ Bug 9 修正：只在有值時才加入 alternateName
+    if ( ! empty( $alternate_names ) ) {
+        $schema['alternateName'] = $alternate_names;
+    }
+
+    if ( $episodes ) {
+        $schema['numberOfEpisodes'] = $episodes;
+    }
+
+    // ✅ Bug 6 修正：score > 0 才輸出 aggregateRating
+    if ( $score_anilist_num > 0 ) {
         $schema['aggregateRating'] = [
             '@type'       => 'AggregateRating',
-            'ratingValue' => $score_anilist,
+            'ratingValue' => number_format( $score_anilist_num / 10, 1 ),
             'bestRating'  => '10',
             'worstRating' => '1',
             'ratingCount' => max( 1, $popularity ),
         ];
     }
 
-    /* ── Schema：麵包屑 ──────────────────────────────────────── */
+    /* ── Schema：麵包屑 ─────────────────────────────────────── */
     $breadcrumb_schema = [
         '@context'        => 'https://schema.org',
         '@type'           => 'BreadcrumbList',
         'itemListElement' => [
-            [
-                '@type'    => 'ListItem',
-                'position' => 1,
-                'name'     => '首頁',
-                'item'     => home_url('/'),
-            ],
-            [
-                '@type'    => 'ListItem',
-                'position' => 2,
-                'name'     => '動畫列表',
-                'item'     => home_url('/anime/'),
-            ],
-            [
-                '@type'    => 'ListItem',
-                'position' => 3,
-                'name'     => $display_title,
-                'item'     => get_permalink( $post_id ),
-            ],
+            [ '@type' => 'ListItem', 'position' => 1, 'name' => '首頁',     'item' => home_url('/') ],
+            [ '@type' => 'ListItem', 'position' => 2, 'name' => '動畫列表', 'item' => home_url('/anime/') ],
+            [ '@type' => 'ListItem', 'position' => 3, 'name' => $display_title, 'item' => get_permalink( $post_id ) ],
         ],
     ];
 ?>
-<?php /* ══ Schema JSON-LD ══════════════════════════════════════ */ ?>
 <script type="application/ld+json"><?php echo wp_json_encode( $schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
 <script type="application/ld+json"><?php echo wp_json_encode( $breadcrumb_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
 
 <div class="asd-wrap">
 
-<?php /* ══ BANNER ══════════════════════════════════════════════ */ ?>
 <?php if ( $banner_image ) : ?>
 <div class="asd-banner" style="background-image:url(<?php echo esc_url( $banner_image ); ?>)">
     <div class="asd-banner-fade"></div>
 </div>
 <?php endif; ?>
 
-<?php /* ══ 麵包屑 ══════════════════════════════════════════════ */ ?>
 <nav class="asd-breadcrumb" aria-label="麵包屑導航">
     <ol>
         <li><a href="<?php echo esc_url( home_url('/') ); ?>">首頁</a></li>
@@ -288,7 +277,6 @@ while ( have_posts() ) : the_post();
     </ol>
 </nav>
 
-<?php /* ══ 頂部區塊（封面 + 標題 + 評分 + 預告）══════════════ */ ?>
 <div class="asd-hero">
     <div class="asd-hero-cover">
         <?php if ( $cover_image ) : ?>
@@ -301,20 +289,17 @@ while ( have_posts() ) : the_post();
     </div>
 
     <div class="asd-hero-info">
-        <?php /* 標題 */ ?>
         <h1 class="asd-title"><?php echo esc_html( $display_title ); ?></h1>
         <?php if ( $title_native )  : ?><p class="asd-title-native"><?php echo esc_html( $title_native );  ?></p><?php endif; ?>
         <?php if ( $title_romaji )  : ?><p class="asd-title-romaji"><?php echo esc_html( $title_romaji );  ?></p><?php endif; ?>
         <?php if ( $title_english ) : ?><p class="asd-title-english"><?php echo esc_html( $title_english ); ?></p><?php endif; ?>
 
-        <?php /* Badge */ ?>
         <div class="asd-badges">
             <?php if ( $status_label ) echo '<span class="asd-badge asd-badge-status ' . esc_attr( $status_class ) . '">' . esc_html( $status_label ) . '</span>'; ?>
             <?php if ( $format_label ) echo '<span class="asd-badge asd-badge-format">' . esc_html( $format_label ) . '</span>'; ?>
             <?php if ( $season_label && $season_year ) echo '<span class="asd-badge asd-badge-season">' . esc_html( $season_year . ' ' . $season_label ) . '</span>'; ?>
         </div>
 
-        <?php /* 評分 + 人氣 */ ?>
         <div class="asd-hero-scores">
             <?php if ( $score_anilist ) : ?>
             <div class="asd-hero-score asd-score-al">
@@ -345,33 +330,29 @@ while ( have_posts() ) : the_post();
             <?php endif; ?>
         </div>
 
-        <?php /* 預告片按鈕 */ ?>
         <?php if ( $youtube_id ) : ?>
-        <a class="asd-trailer-btn" href="https://www.youtube.com/watch?v=<?php echo esc_attr( $youtube_id ); ?>"
+        <a class="asd-trailer-btn"
+           href="https://www.youtube.com/watch?v=<?php echo esc_attr( $youtube_id ); ?>"
            target="_blank" rel="noopener">▶ 觀看預告片</a>
         <?php endif; ?>
     </div>
 </div>
 
-<?php /* ══ 快速導覽 Tab ══════════════════════════════════════ */ ?>
 <nav class="asd-tabs" id="asd-tabs">
     <a class="asd-tab active" href="#asd-sec-info">📋 基本資訊</a>
-    <?php if ( $synopsis ) : ?><a class="asd-tab" href="#asd-sec-synopsis">📝 劇情簡介</a><?php endif; ?>
-    <?php if ( $cast_list ) : ?><a class="asd-tab" href="#asd-sec-cast">🎭 角色聲優</a><?php endif; ?>
-    <?php if ( $staff_list ) : ?><a class="asd-tab" href="#asd-sec-staff">🎬 製作人員</a><?php endif; ?>
-    <?php if ( $openings || $endings ) : ?><a class="asd-tab" href="#asd-sec-music">🎵 主題曲</a><?php endif; ?>
-    <?php if ( $streaming_list ) : ?><a class="asd-tab" href="#asd-sec-stream">📺 串流平台</a><?php endif; ?>
-    <?php if ( $relations_list ) : ?><a class="asd-tab" href="#asd-sec-relations">🎬 相關作品</a><?php endif; ?>
-    <?php if ( $news_posts ) : ?><a class="asd-tab" href="#asd-sec-news">📰 相關新聞</a><?php endif; ?>
+    <?php if ( $synopsis )         : ?><a class="asd-tab" href="#asd-sec-synopsis">📝 劇情簡介</a><?php endif; ?>
+    <?php if ( $cast_list )        : ?><a class="asd-tab" href="#asd-sec-cast">🎭 角色聲優</a><?php endif; ?>
+    <?php if ( $staff_list )       : ?><a class="asd-tab" href="#asd-sec-staff">🎬 製作人員</a><?php endif; ?>
+    <?php if ( $openings||$endings): ?><a class="asd-tab" href="#asd-sec-music">🎵 主題曲</a><?php endif; ?>
+    <?php if ( $streaming_list )   : ?><a class="asd-tab" href="#asd-sec-stream">📺 串流平台</a><?php endif; ?>
+    <?php if ( $relations_list )   : ?><a class="asd-tab" href="#asd-sec-relations">🎬 相關作品</a><?php endif; ?>
+    <?php if ( $news_posts )       : ?><a class="asd-tab" href="#asd-sec-news">📰 相關新聞</a><?php endif; ?>
 </nav>
 
-<?php /* ══ 主內容 + 側邊欄 ════════════════════════════════════ */ ?>
 <div class="asd-container">
 
-    <?php /* ── 左側主內容（70%）──────────────────────────────── */ ?>
     <main class="asd-main" id="asd-main">
 
-        <?php /* ── 基本資訊 ────────────────────────────────────── */ ?>
         <section class="asd-section" id="asd-sec-info">
             <h2 class="asd-section-title">📋 基本資訊</h2>
             <div class="asd-info-grid">
@@ -399,7 +380,6 @@ while ( have_posts() ) : the_post();
             <?php endforeach; ?>
             </div>
 
-            <?php /* 下集倒數 */ ?>
             <?php if ( $status === 'RELEASING' && ! empty( $airing_data['airingAt'] ) ) : ?>
             <div class="asd-airing-bar">
                 <span>📅 第 <?php echo esc_html( $airing_data['episode'] ?? '' ); ?> 集播出倒數：</span>
@@ -408,7 +388,6 @@ while ( have_posts() ) : the_post();
             <?php endif; ?>
         </section>
 
-        <?php /* ── 劇情簡介 ──────────────────────────────────────── */ ?>
         <?php if ( $synopsis ) : ?>
         <section class="asd-section" id="asd-sec-synopsis">
             <h2 class="asd-section-title">📝 劇情簡介</h2>
@@ -416,7 +395,6 @@ while ( have_posts() ) : the_post();
         </section>
         <?php endif; ?>
 
-        <?php /* ── 角色與聲優 ────────────────────────────────────── */ ?>
         <?php if ( $cast_list ) : ?>
         <section class="asd-section" id="asd-sec-cast">
             <h2 class="asd-section-title">🎭 角色與聲優</h2>
@@ -425,7 +403,6 @@ while ( have_posts() ) : the_post();
                     $char_name = $c['char_name_zh'] ?? ( $c['char_name_ja'] ?? '' );
                     $char_img  = $c['char_image']   ?? '';
                     $va_name   = $c['va_name']       ?? ( $c['name'] ?? '' );
-                    $va_img    = $c['va_image']      ?? '';
                     $is_extra  = $i >= 12;
                 ?>
                 <div class="asd-cast-card<?php echo $is_extra ? ' asd-cast-extra' : ''; ?>">
@@ -437,7 +414,7 @@ while ( have_posts() ) : the_post();
                     </div>
                     <div class="asd-cast-names">
                         <?php if ( $char_name ) echo '<span class="asd-cast-char">' . esc_html( $char_name ) . '</span>'; ?>
-                        <?php if ( $va_name )   echo '<span class="asd-cast-va">CV: ' . esc_html( $va_name ) . '</span>'; ?>
+                        <?php if ( $va_name )   echo '<span class="asd-cast-va">CV: '  . esc_html( $va_name )   . '</span>'; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -452,7 +429,6 @@ while ( have_posts() ) : the_post();
         </section>
         <?php endif; ?>
 
-        <?php /* ── 製作人員 ──────────────────────────────────────── */ ?>
         <?php if ( $staff_list ) : ?>
         <section class="asd-section" id="asd-sec-staff">
             <h2 class="asd-section-title">🎬 製作人員</h2>
@@ -477,7 +453,6 @@ while ( have_posts() ) : the_post();
         </section>
         <?php endif; ?>
 
-        <?php /* ── 主題曲 ──────────────────────────────────────────── */ ?>
         <?php if ( $openings || $endings ) : ?>
         <section class="asd-section" id="asd-sec-music">
             <h2 class="asd-section-title">🎵 主題曲</h2>
@@ -486,12 +461,12 @@ while ( have_posts() ) : the_post();
             <div class="asd-theme-group">
                 <h3 class="asd-theme-group-title"><?php echo esc_html( $grp_title ); ?></h3>
                 <?php foreach ( $grp as $t ) :
-                    $label      = $t['label'] ?? ( ( $t['type'] ?? 'OP' ) . ( $t['sequence'] ?? 1 ) );
-                    $song_title = $t['song_title'] ?? $t['title'] ?? '';
-                    $artists    = $t['artists'] ?? [];
+                    $label      = $t['label']      ?? ( ( $t['type'] ?? 'OP' ) . ( $t['sequence'] ?? 1 ) );
+                    $song_title = $t['song_title'] ?? $t['title']  ?? '';
+                    $artists    = $t['artists']    ?? [];
                     if ( is_string( $artists ) ) $artists = array_filter( [ $artists ] );
                     $artist_str = implode( '・', $artists );
-                    $video_url  = $t['video_url'] ?? $t['video'] ?? '';
+                    $video_url  = $t['video_url']  ?? $t['video']  ?? '';
                     $is_webm    = $video_url && str_ends_with(
                         strtolower( (string) parse_url( $video_url, PHP_URL_PATH ) ), '.webm'
                     );
@@ -499,8 +474,8 @@ while ( have_posts() ) : the_post();
                 <div class="asd-theme-row">
                     <span class="asd-theme-label"><?php echo esc_html( $label ); ?></span>
                     <div class="asd-theme-meta">
-                        <?php if ( $song_title )  echo '<span class="asd-theme-title">'  . esc_html( $song_title )  . '</span>'; ?>
-                        <?php if ( $artist_str )  echo '<span class="asd-theme-artist">' . esc_html( $artist_str )  . '</span>'; ?>
+                        <?php if ( $song_title ) echo '<span class="asd-theme-title">'  . esc_html( $song_title ) . '</span>'; ?>
+                        <?php if ( $artist_str ) echo '<span class="asd-theme-artist">' . esc_html( $artist_str ) . '</span>'; ?>
                     </div>
                     <?php if ( $video_url ) : ?>
                     <div class="asd-theme-player">
@@ -522,7 +497,6 @@ while ( have_posts() ) : the_post();
         </section>
         <?php endif; ?>
 
-        <?php /* ── 串流平台 ──────────────────────────────────────── */ ?>
         <?php if ( $streaming_list ) : ?>
         <section class="asd-section" id="asd-sec-stream">
             <h2 class="asd-section-title">📺 串流平台</h2>
@@ -541,7 +515,6 @@ while ( have_posts() ) : the_post();
         </section>
         <?php endif; ?>
 
-        <?php /* ── 預告片嵌入 ────────────────────────────────────── */ ?>
         <?php if ( $youtube_id ) : ?>
         <section class="asd-section" id="asd-sec-trailer">
             <h2 class="asd-section-title">🎞️ 預告片</h2>
@@ -555,7 +528,6 @@ while ( have_posts() ) : the_post();
         </section>
         <?php endif; ?>
 
-        <?php /* ── 關聯作品 ──────────────────────────────────────── */ ?>
         <?php if ( $relations_list ) : ?>
         <section class="asd-section" id="asd-sec-relations">
             <h2 class="asd-section-title">🎬 相關作品</h2>
@@ -567,7 +539,6 @@ while ( have_posts() ) : the_post();
                 $rel_label      = $rel['relation_label'] ?? '';
                 $rel_format     = $format_labels[ $rel['format'] ?? '' ] ?? ( $rel['format'] ?? '' );
 
-                // 嘗試找站內對應文章
                 $rel_post = null;
                 if ( $rel_anilist_id ) {
                     $rel_q = new WP_Query([
@@ -604,21 +575,19 @@ while ( have_posts() ) : the_post();
         </section>
         <?php endif; ?>
 
-        <?php /* ── 外部連結 ──────────────────────────────────────── */ ?>
         <section class="asd-section" id="asd-sec-links">
             <h2 class="asd-section-title">🔗 外部連結</h2>
             <div class="asd-ext-grid">
-                <?php if ( $official_site )  echo '<a href="' . esc_url( $official_site ) . '" class="asd-ext-link" target="_blank" rel="noopener">🌐 官方網站</a>'; ?>
-                <?php if ( $twitter_url )    echo '<a href="' . esc_url( $twitter_url ) . '" class="asd-ext-link" target="_blank" rel="noopener">𝕏 Twitter / X</a>'; ?>
-                <?php if ( $wikipedia_url )  echo '<a href="' . esc_url( $wikipedia_url ) . '" class="asd-ext-link" target="_blank" rel="noopener">📖 Wikipedia</a>'; ?>
-                <?php if ( $tiktok_url )     echo '<a href="' . esc_url( $tiktok_url ) . '" class="asd-ext-link" target="_blank" rel="noopener">🎵 TikTok</a>'; ?>
-                <?php if ( $anilist_id )     echo '<a href="https://anilist.co/anime/' . esc_attr( $anilist_id ) . '/" class="asd-ext-link" target="_blank" rel="noopener">◈ AniList</a>'; ?>
-                <?php if ( $mal_id )         echo '<a href="https://myanimelist.net/anime/' . esc_attr( $mal_id ) . '/" class="asd-ext-link" target="_blank" rel="noopener">◉ MyAnimeList</a>'; ?>
-                <?php if ( $bangumi_id )     echo '<a href="https://bgm.tv/subject/' . esc_attr( $bangumi_id ) . '" class="asd-ext-link" target="_blank" rel="noopener">◎ Bangumi</a>'; ?>
+                <?php if ( $official_site )  echo '<a href="' . esc_url( $official_site )  . '" class="asd-ext-link" target="_blank" rel="noopener">🌐 官方網站</a>'; ?>
+                <?php if ( $twitter_url )    echo '<a href="' . esc_url( $twitter_url )    . '" class="asd-ext-link" target="_blank" rel="noopener">𝕏 Twitter / X</a>'; ?>
+                <?php if ( $wikipedia_url )  echo '<a href="' . esc_url( $wikipedia_url )  . '" class="asd-ext-link" target="_blank" rel="noopener">📖 Wikipedia</a>'; ?>
+                <?php if ( $tiktok_url )     echo '<a href="' . esc_url( $tiktok_url )     . '" class="asd-ext-link" target="_blank" rel="noopener">🎵 TikTok</a>'; ?>
+                <?php if ( $anilist_id )     echo '<a href="https://anilist.co/anime/'          . esc_attr( $anilist_id )  . '/" class="asd-ext-link" target="_blank" rel="noopener">◈ AniList</a>'; ?>
+                <?php if ( $mal_id )         echo '<a href="https://myanimelist.net/anime/'      . esc_attr( $mal_id )      . '/" class="asd-ext-link" target="_blank" rel="noopener">◉ MyAnimeList</a>'; ?>
+                <?php if ( $bangumi_id )     echo '<a href="https://bgm.tv/subject/'             . esc_attr( $bangumi_id )  . '" class="asd-ext-link" target="_blank" rel="noopener">◎ Bangumi</a>'; ?>
             </div>
         </section>
 
-        <?php /* ── YASR 讀者評分 ─────────────────────────────────── */ ?>
         <?php if ( shortcode_exists( 'yasr_visitor_votes' ) ) : ?>
         <section class="asd-section">
             <h2 class="asd-section-title">⭐ 讀者評分</h2>
@@ -626,7 +595,6 @@ while ( have_posts() ) : the_post();
         </section>
         <?php endif; ?>
 
-        <?php /* ── SEO 底部：Taxonomy 內部連結 ────────────────────── */ ?>
         <div class="asd-seo-links">
             <?php if ( $genre_terms ) : ?>
             <div class="asd-seo-row">
@@ -639,7 +607,6 @@ while ( have_posts() ) : the_post();
             </div>
             <?php endif; ?>
             <?php
-            // 只顯示子層季度（有年份）
             $child_seasons = array_filter( $season_terms, fn( $t ) => $t->parent > 0 );
             if ( $child_seasons ) :
             ?>
@@ -664,14 +631,13 @@ while ( have_posts() ) : the_post();
             <?php endif; ?>
         </div>
 
-        <?php /* ── 頁尾資料來源 ─────────────────────────────────── */ ?>
         <footer class="asd-footer">
             <p class="asd-footer-src">資料來源：
             <?php
             $srcs = [];
-            if ( $anilist_id )          $srcs[] = '<a href="https://anilist.co/anime/' . esc_attr( $anilist_id ) . '/" target="_blank" rel="noopener">AniList</a>';
-            if ( $mal_id )              $srcs[] = '<a href="https://myanimelist.net/anime/' . esc_attr( $mal_id ) . '/" target="_blank" rel="noopener">MyAnimeList</a>';
-            if ( $bangumi_id )          $srcs[] = '<a href="https://bgm.tv/subject/' . esc_attr( $bangumi_id ) . '" target="_blank" rel="noopener">Bangumi</a>';
+            if ( $anilist_id )           $srcs[] = '<a href="https://anilist.co/anime/'     . esc_attr( $anilist_id ) . '/" target="_blank" rel="noopener">AniList</a>';
+            if ( $mal_id )               $srcs[] = '<a href="https://myanimelist.net/anime/' . esc_attr( $mal_id )    . '/" target="_blank" rel="noopener">MyAnimeList</a>';
+            if ( $bangumi_id )           $srcs[] = '<a href="https://bgm.tv/subject/'        . esc_attr( $bangumi_id ). '" target="_blank" rel="noopener">Bangumi</a>';
             if ( $openings || $endings ) $srcs[] = '<a href="https://animethemes.moe/" target="_blank" rel="noopener">AnimeThemes</a>';
             echo implode( ' ／ ', $srcs );
             ?>
@@ -681,7 +647,6 @@ while ( have_posts() ) : the_post();
             <?php endif; ?>
         </footer>
 
-        <?php /* ── 留言 ──────────────────────────────────────────── */ ?>
         <?php if ( comments_open() || get_comments_number() ) : ?>
         <div class="asd-comments-wrap">
             <?php comments_template(); ?>
@@ -690,10 +655,8 @@ while ( have_posts() ) : the_post();
 
     </main>
 
-    <?php /* ── 右側側邊欄（30%）──────────────────────────────── */ ?>
     <aside class="asd-sidebar">
 
-        <?php /* ── 相關新聞 ──────────────────────────────────────── */ ?>
         <?php if ( $news_posts ) : ?>
         <div class="asd-sidebar-block" id="asd-sec-news">
             <h3 class="asd-sidebar-title">📰 相關新聞</h3>
@@ -703,82 +666,43 @@ while ( have_posts() ) : the_post();
                     <a href="<?php echo esc_url( get_permalink( $news_post ) ); ?>">
                         <?php echo esc_html( get_the_title( $news_post ) ); ?>
                     </a>
-                    <span class="asd-news-date"><?php echo esc_html( get_the_date( 'Y-m-d', $news_post ) ); ?></span>
+                    <span class="asd-news-date">
+                        <?php echo esc_html( get_the_date( 'Y-m-d', $news_post ) ); ?>
+                    </span>
                 </li>
             <?php endforeach; ?>
             </ul>
         </div>
         <?php endif; ?>
 
-        <?php /* ── 關聯作品（側邊欄精簡版，僅主要關聯）────────────── */ ?>
-        <?php
-        $main_relations = array_filter( $relations_list, function( $r ) {
-            return in_array( $r['relation_type'] ?? '', [ 'PREQUEL', 'SEQUEL', 'PARENT' ], true );
-        });
-        if ( $main_relations ) :
-        ?>
-        <div class="asd-sidebar-block">
-            <h3 class="asd-sidebar-title">🔗 關聯作品</h3>
-            <ul class="asd-relation-list">
-            <?php foreach ( $main_relations as $rel ) :
-                $rel_anilist_id = (int) ( $rel['anilist_id'] ?? 0 );
-                $rel_title      = $rel['title_chinese'] ?: ( $rel['title_romaji'] ?? '' );
-                $rel_label      = $rel['relation_label'] ?? '';
-
-                $rel_post = null;
-                if ( $rel_anilist_id ) {
-                    $rel_q = new WP_Query([
-                        'post_type'      => 'anime',
-                        'post_status'    => 'publish',
-                        'meta_query'     => [[ 'key' => 'anime_anilist_id', 'value' => $rel_anilist_id ]],
-                        'fields'         => 'ids',
-                        'posts_per_page' => 1,
-                        'no_found_rows'  => true,
-                    ]);
-                    if ( $rel_q->have_posts() ) $rel_post = $rel_q->posts[0];
-                    wp_reset_postdata();
-                }
-                $rel_url = $rel_post
-                    ? get_permalink( $rel_post )
-                    : 'https://anilist.co/anime/' . $rel_anilist_id . '/';
-            ?>
-            <li>
-                <span class="asd-relation-badge"><?php echo esc_html( $rel_label ); ?></span>
-                <a href="<?php echo esc_url( $rel_url ); ?>"
-                   <?php echo ! $rel_post ? 'target="_blank" rel="noopener"' : ''; ?>>
-                    <?php echo esc_html( $rel_title ); ?>
-                </a>
-            </li>
-            <?php endforeach; ?>
-            </ul>
-        </div>
-        <?php endif; ?>
-
-        <?php /* ── 熱門推薦（同 genre + 評分最高）────────────────── */ ?>
         <?php if ( $recommend_posts ) : ?>
         <div class="asd-sidebar-block">
             <h3 class="asd-sidebar-title">🔥 熱門推薦</h3>
             <ul class="asd-recommend-list">
-            <?php foreach ( $recommend_posts as $rec_post ) :
-                $rec_cover = get_post_meta( $rec_post->ID, 'anime_cover_image', true )
-                    ?: get_the_post_thumbnail_url( $rec_post->ID, 'thumbnail' );
-                $rec_score_raw = get_post_meta( $rec_post->ID, 'anime_score_anilist', true );
-                $rec_score     = is_numeric( $rec_score_raw ) ? number_format( $rec_score_raw / 10, 1 ) : '';
-                $rec_title     = get_post_meta( $rec_post->ID, 'anime_title_chinese', true )
-                    ?: get_the_title( $rec_post );
+            <?php foreach ( $recommend_posts as $rec ) :
+                $rec_cover = get_post_meta( $rec->ID, 'anime_cover_image', true )
+                          ?: get_the_post_thumbnail_url( $rec->ID, 'thumbnail' );
+                $rec_title = get_post_meta( $rec->ID, 'anime_title_chinese', true )
+                          ?: get_the_title( $rec );
+                $rec_score_raw = get_post_meta( $rec->ID, 'anime_score_anilist', true );
+                $rec_score     = ( is_numeric( $rec_score_raw ) && (float) $rec_score_raw > 0 )
+                    ? number_format( $rec_score_raw / 10, 1 )
+                    : '';
             ?>
-            <li>
-                <a href="<?php echo esc_url( get_permalink( $rec_post ) ); ?>" class="asd-recommend-item">
-                    <?php if ( $rec_cover ) : ?>
-                    <img src="<?php echo esc_url( $rec_cover ); ?>"
-                         alt="<?php echo esc_attr( $rec_title ); ?>" loading="lazy">
-                    <?php endif; ?>
-                    <div class="asd-recommend-info">
-                        <span class="asd-recommend-title"><?php echo esc_html( $rec_title ); ?></span>
-                        <?php if ( $rec_score ) echo '<span class="asd-recommend-score">⭐ ' . esc_html( $rec_score ) . '</span>'; ?>
-                    </div>
-                </a>
-            </li>
+                <li>
+                    <a href="<?php echo esc_url( get_permalink( $rec ) ); ?>" class="asd-recommend-item">
+                        <?php if ( $rec_cover ) : ?>
+                        <img src="<?php echo esc_url( $rec_cover ); ?>"
+                             alt="<?php echo esc_attr( $rec_title ); ?>" loading="lazy">
+                        <?php endif; ?>
+                        <div class="asd-recommend-info">
+                            <span class="asd-recommend-title"><?php echo esc_html( $rec_title ); ?></span>
+                            <?php if ( $rec_score ) : ?>
+                            <span class="asd-recommend-score">⭐ <?php echo esc_html( $rec_score ); ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </a>
+                </li>
             <?php endforeach; ?>
             </ul>
         </div>
@@ -786,71 +710,46 @@ while ( have_posts() ) : the_post();
 
     </aside>
 
-</div>
-</div>
+</div><!-- .asd-container -->
+</div><!-- .asd-wrap -->
 
 <script>
+/* ── Show More Cast ─────────────────────────────────── */
 (function(){
-    'use strict';
-
-    /* ── Tab 快速導覽平滑滾動 ─────────────────────────────── */
-    document.querySelectorAll('.asd-tab').forEach(function(tab){
-        tab.addEventListener('click', function(e){
-            e.preventDefault();
-            var target = document.querySelector( tab.getAttribute('href') );
-            if ( target ) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-            document.querySelectorAll('.asd-tab').forEach(function(t){ t.classList.remove('active'); });
-            tab.classList.add('active');
-        });
+    const btn  = document.getElementById('asd-cast-more-btn');
+    const grid = document.getElementById('asd-cast-grid');
+    if ( ! btn || ! grid ) return;
+    btn.addEventListener('click', function(){
+        grid.querySelectorAll('.asd-cast-extra').forEach(el => el.style.display = 'flex');
+        btn.parentElement.style.display = 'none';
     });
+})();
 
-    /* ── 顯示全部角色 ────────────────────────────────────── */
-    var btn = document.getElementById('asd-cast-more-btn');
-    if ( btn ) {
-        btn.addEventListener('click', function(){
-            document.querySelectorAll('.asd-cast-extra').forEach(function(el){
-                el.style.display = 'flex';
-            });
-            btn.closest('.asd-cast-more-wrap').style.display = 'none';
+/* ── Countdown Timer ────────────────────────────────── */
+(function(){
+    const el = document.querySelector('.asd-countdown');
+    if ( ! el ) return;
+    const ts = parseInt( el.dataset.ts, 10 ) * 1000;
+    function update(){
+        const diff = ts - Date.now();
+        if ( diff <= 0 ) { el.textContent = '即將播出'; return; }
+        const d = Math.floor( diff / 86400000 );
+        const h = Math.floor( ( diff % 86400000 ) / 3600000 );
+        const m = Math.floor( ( diff % 3600000  ) / 60000   );
+        const s = Math.floor( ( diff % 60000    ) / 1000    );
+        el.textContent = d + ' 天 ' + h + ' 時 ' + m + ' 分 ' + s + ' 秒';
+    }
+    update();
+    setInterval( update, 1000 );
+})();
+
+/* ── Single Audio ───────────────────────────────────── */
+(function(){
+    document.addEventListener('play', function(e){
+        document.querySelectorAll('audio').forEach(function(a){
+            if ( a !== e.target ) a.pause();
         });
-    }
-
-    /* ── 倒數計時 ────────────────────────────────────────── */
-    var countdowns = document.querySelectorAll('.asd-countdown[data-ts]');
-    if ( countdowns.length ) {
-        function tick(){
-            var now = Math.floor( Date.now() / 1000 );
-            countdowns.forEach(function(el){
-                var diff = parseInt( el.dataset.ts, 10 ) - now;
-                if ( diff <= 0 ) { el.textContent = '已播出'; return; }
-                var d = Math.floor( diff / 86400 ),
-                    h = Math.floor( diff % 86400 / 3600 ),
-                    m = Math.floor( diff % 3600 / 60 ),
-                    s = diff % 60;
-                el.textContent = ( d ? d + '天 ' : '' ) +
-                    String(h).padStart(2,'0') + ':' +
-                    String(m).padStart(2,'0') + ':' +
-                    String(s).padStart(2,'0');
-            });
-        }
-        tick();
-        setInterval( tick, 1000 );
-    }
-
-    /* ── 同時只播一個 audio ──────────────────────────────── */
-    var audios = document.querySelectorAll('.asd-theme-audio');
-    if ( audios.length > 1 ) {
-        audios.forEach(function(audio){
-            audio.addEventListener('play', function(){
-                audios.forEach(function(other){
-                    if ( other !== audio && !other.paused ) other.pause();
-                });
-            });
-        });
-    }
-
+    }, true);
 })();
 </script>
 
