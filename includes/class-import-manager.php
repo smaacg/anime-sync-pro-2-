@@ -16,6 +16,7 @@
  *         ( anime_cover_image / anime_banner_image /
  *           anime_trailer_url / anime_synopsis_chinese )
  *   ABN – 匯入完成後回傳結構化摘要（方案 B）
+ *   ABO – 強制寫入 anime_bangumi_id，防止 null / 空字串靜默略過
  *
  * @package Anime_Sync_Pro
  */
@@ -240,9 +241,16 @@ class Anime_Sync_Import_Manager {
 
         $synopsis = $data['anime_synopsis_chinese'] ?? '';
         $title_zh = $data['anime_title_chinese']    ?? '';
-        $bgm_id   = $data['bangumi_id']             ?? '';
         $format   = $data['anime_format']           ?? '';
         $year     = $data['anime_season_year']      ?? 0;
+
+        // ── ABO：正規化 bangumi_id，防止 null 寫入空字串 ─────────────────────
+        // get_full_anime_data() 回傳 key 為 'bangumi_id'，
+        // 同時相容萬一上游改 key 為 'bgm_id' 的情況。
+        $bgm_id_raw = $data['bangumi_id'] ?? $data['bgm_id'] ?? null;
+        $bgm_id     = ( $bgm_id_raw !== null && (int) $bgm_id_raw > 0 )
+                      ? (int) $bgm_id_raw
+                      : '';
 
         $fields = [
             // ── IDs ───────────────────────────────────────────────────────────
@@ -334,6 +342,13 @@ class Anime_Sync_Import_Manager {
 
         foreach ( $fields as $key => $value ) {
             update_post_meta( $post_id, $key, $value );
+        }
+
+        // ── ABO：強制確認 anime_bangumi_id 已正確寫入 ────────────────────────
+        // 若 $bgm_id 為有效正整數，再 update 一次確保不被空字串覆蓋。
+        if ( $bgm_id !== '' && (int) $bgm_id > 0 ) {
+            update_post_meta( $post_id, 'anime_bangumi_id', (int) $bgm_id );
+            update_post_meta( $post_id, 'bangumi_id',       (int) $bgm_id );
         }
 
         // AT：寫入 anime_animethemes_id（從 animethemes_slug）
