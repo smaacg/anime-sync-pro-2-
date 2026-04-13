@@ -14,23 +14,32 @@ class Anime_Sync_Import_Manager {
     // ============================================================
     // 主要匯入方法
     // ============================================================
-    public function import_single( int $input_id, ?int $bangumi_id = null, string $input_type = 'auto' ): array {
+    public function import_single( int $anilist_id, ?int $bangumi_id = null ): array {
 
-        $data = $this->api_handler->get_all_data_from_input( $input_id, $input_type, $bangumi_id );
+        // 呼叫正確的方法名，post_id = 0 表示尚未建立文章
+        $data = $this->api_handler->get_full_anime_data( $anilist_id, 0, $bangumi_id );
 
-        if ( isset( $data['success'] ) && ! $data['success'] ) {
-            return [ 'success' => false, 'message' => $data['message'] ?? '資料取得失敗' ];
+        if ( is_wp_error( $data ) ) {
+            return [
+                'success' => false,
+                'message' => $data->get_error_message(),
+            ];
         }
 
-        $anilist_id = $data['anime_anilist_id'] ?? 0;
-        $mal_id     = $data['anime_mal_id']     ?? null;
+        if ( empty( $data ) || ! is_array( $data ) ) {
+            return [ 'success' => false, 'message' => '資料取得失敗' ];
+        }
 
-        if ( ! $anilist_id ) {
+        // api-handler 回傳的 key 是 anilist_id / mal_id（無 anime_ 前綴）
+        $confirmed_anilist_id = (int) ( $data['anilist_id'] ?? 0 );
+        $mal_id               = $data['mal_id'] ?? null;
+
+        if ( ! $confirmed_anilist_id ) {
             return [ 'success' => false, 'message' => 'AniList ID 無效' ];
         }
 
         // 檢查重複
-        $existing = $this->find_existing( $anilist_id, $mal_id );
+        $existing = $this->find_existing( $confirmed_anilist_id, $mal_id );
         if ( $existing ) {
             return [
                 'success'  => true,
@@ -48,7 +57,7 @@ class Anime_Sync_Import_Manager {
 
         // Post Slug（Romaji，SEO 友善）
         $romaji = $data['anime_title_romaji'] ?? '';
-        $slug   = $this->generate_slug( $romaji, $anilist_id );
+        $slug   = $this->generate_slug( $romaji, $confirmed_anilist_id );
 
         // 建立草稿
         $post_id = wp_insert_post( [
@@ -60,7 +69,10 @@ class Anime_Sync_Import_Manager {
         ] );
 
         if ( is_wp_error( $post_id ) ) {
-            return [ 'success' => false, 'message' => '建立草稿失敗：' . $post_id->get_error_message() ];
+            return [
+                'success' => false,
+                'message' => '建立草稿失敗：' . $post_id->get_error_message(),
+            ];
         }
 
         // 寫入所有 Meta
@@ -70,7 +82,7 @@ class Anime_Sync_Import_Manager {
         if ( ! empty( $data['anime_cover_image'] ) ) {
             $this->image_handler->handle_cover(
                 $data['anime_cover_image'],
-                $romaji ?: 'anime-' . $anilist_id,
+                $romaji ?: 'anime-' . $confirmed_anilist_id,
                 $post_id
             );
         }
@@ -132,68 +144,87 @@ class Anime_Sync_Import_Manager {
         $synopsis = $data['anime_synopsis_chinese'] ?? '';
         $title_zh = $data['anime_title_chinese']    ?? '';
         $bgm_id   = $data['bangumi_id']             ?? '';
-        $type     = $data['anime_type']             ?? '';
+
+        // api-handler 回傳 anime_format（非 anime_type）
+        $format   = $data['anime_format']           ?? '';
+
+        // api-handler 回傳 anime_season_year（非 anime_year）
+        $year     = $data['anime_season_year']       ?? 0;
 
         $fields = [
             // ── ID ────────────────────────────────────────────
-            'anime_anilist_id'       => $data['anime_anilist_id']     ?? '',
-            'anime_mal_id'           => $data['anime_mal_id']         ?? '',
+            // api-handler 回傳 anilist_id / mal_id（無 anime_ 前綴）
+            'anime_anilist_id'       => $data['anilist_id']            ?? '',
+            'anime_mal_id'           => $data['mal_id']                ?? '',
             'anime_bangumi_id'       => $bgm_id,
             'bangumi_id'             => $bgm_id,
 
             // ── 標題 ──────────────────────────────────────────
             'anime_title_chinese'    => $title_zh,
             'anime_title_zh'         => $title_zh,
-            'anime_title_romaji'     => $data['anime_title_romaji']   ?? '',
-            'anime_title_english'    => $data['anime_title_english']  ?? '',
-            'anime_title_native'     => $data['anime_title_native']   ?? '',
+            'anime_title_romaji'     => $data['anime_title_romaji']    ?? '',
+            'anime_title_english'    => $data['anime_title_english']   ?? '',
+            'anime_title_native'     => $data['anime_title_native']    ?? '',
 
             // ── 基本資訊 ──────────────────────────────────────
-            'anime_status'           => $data['anime_status']         ?? '',
-            'anime_format'           => $type,
-            'anime_type'             => $type,
-            'anime_episodes'         => $data['anime_episodes']       ?? 0,
+            'anime_status'           => $data['anime_status']          ?? '',
+            'anime_format'           => $format,
+            'anime_type'             => $format,
+            'anime_episodes'         => $data['anime_episodes']        ?? 0,
+            'anime_duration'         => $data['anime_duration']        ?? 0,
+            'anime_source'           => $data['anime_source']          ?? '',
 
-            // Bug AW fix: always store anime_season as uppercase
+            // Bug AW fix: always store uppercase
             'anime_season'           => strtoupper( $data['anime_season'] ?? '' ),
 
-            'anime_season_year'      => $data['anime_year']           ?? 0,
-            'anime_year'             => $data['anime_year']           ?? 0,
+            // api-handler 回傳 anime_season_year
+            'anime_season_year'      => $year,
+            'anime_year'             => $year,
 
             // ── 評分與人氣 ────────────────────────────────────
-            'anime_score_anilist'    => $data['anime_score_anilist']  ?? 0,
-            'anime_score_bangumi'    => $data['anime_score_bangumi']  ?? 0,
-            'anime_popularity'       => $data['anime_popularity']     ?? 0,
+            'anime_score_anilist'    => $data['anime_score_anilist']   ?? 0,
+            'anime_score_bangumi'    => $data['anime_score_bangumi']   ?? 0,
+            'anime_popularity'       => $data['anime_popularity']      ?? 0,
 
             // ── 圖片 ──────────────────────────────────────────
-            'anime_cover_image'      => $data['anime_cover_image']    ?? '',
-            'anime_banner_image'     => $data['anime_banner_image']   ?? '',
+            'anime_cover_image'      => $data['anime_cover_image']     ?? '',
+            'anime_banner_image'     => $data['anime_banner_image']    ?? '',
+            'anime_trailer_url'      => $data['anime_trailer_url']     ?? '',
 
             // ── 簡介 ──────────────────────────────────────────
             'anime_synopsis_chinese' => $synopsis,
             'anime_synopsis_zh'      => $synopsis,
+            'anime_synopsis_english' => $data['anime_synopsis_english'] ?? '',
 
             // ── Staff / Cast / Relations ──────────────────────
-            'anime_staff_json'       => $data['anime_staff_json']     ?? '[]',
-            'anime_cast_json'        => $data['anime_cast_json']      ?? '[]',
-            'anime_relations_json'   => $data['anime_relations_json'] ?? '[]',
+            'anime_staff_json'       => $data['anime_staff_json']      ?? '[]',
+            'anime_cast_json'        => $data['anime_cast_json']       ?? '[]',
+            'anime_relations_json'   => $data['anime_relations_json']  ?? '[]',
 
-            // ✅ 問題 L 修正：補上 anime_studios 寫入（製作公司）
-            'anime_studios'          => $data['anime_studios']        ?? '',
+            // ── 製作公司 ──────────────────────────────────────
+            'anime_studios'          => $data['anime_studios']         ?? '',
 
-            // ✅ 問題 J 修正：補上 anime_themes 寫入（OP/ED，JSON 字串）
+            // ── 日期 ──────────────────────────────────────────
+            'anime_start_date'       => $data['anime_start_date']      ?? '',
+            'anime_end_date'         => $data['anime_end_date']        ?? '',
+
+            // ── 主題曲（JSON）────────────────────────────────
             'anime_themes'           => isset( $data['anime_themes'] )
                                         ? ( is_array( $data['anime_themes'] )
                                             ? wp_json_encode( $data['anime_themes'], JSON_UNESCAPED_UNICODE )
                                             : $data['anime_themes'] )
                                         : '[]',
 
-            // ✅ 問題 K 修正：補上 anime_streaming 寫入（串流平台，JSON 字串）
+            // ── 串流平台（JSON）──────────────────────────────
             'anime_streaming'        => isset( $data['anime_streaming'] )
                                         ? ( is_array( $data['anime_streaming'] )
                                             ? wp_json_encode( $data['anime_streaming'], JSON_UNESCAPED_UNICODE )
                                             : $data['anime_streaming'] )
                                         : '[]',
+
+            // ── 外部連結 / 下集資訊 ───────────────────────────
+            'anime_external_links'   => $data['anime_external_links']  ?? '',
+            'anime_next_airing'      => $data['anime_next_airing']     ?? '',
 
             // ── 同步時間 ──────────────────────────────────────
             'anime_last_sync'        => current_time( 'mysql' ),
@@ -203,7 +234,7 @@ class Anime_Sync_Import_Manager {
             update_post_meta( $post_id, $key, $value );
         }
 
-        // Bug AT fix: write anime_animethemes_id if present in data
+        // Bug AT fix: write anime_animethemes_id if present
         if ( ! empty( $data['animethemes_id'] ) ) {
             update_post_meta(
                 $post_id,
@@ -219,7 +250,8 @@ class Anime_Sync_Import_Manager {
     private function save_taxonomies( int $post_id, array $data ): void {
 
         // ── Genre ─────────────────────────────────────────────
-        $genres = $data['_genres'] ?? [];
+        // api-handler 回傳 anime_genres（非 _genres）
+        $genres = $data['anime_genres'] ?? [];
         if ( ! empty( $genres ) && is_array( $genres ) ) {
 
             $genre_map = [
@@ -266,11 +298,18 @@ class Anime_Sync_Import_Manager {
         }
 
         // ── 播出季度（anime_season_tax）──────────────────────
-        // Bug AW: anime_season is stored uppercase; convert to lowercase for slug lookup
+        // Bug AW: meta 存大寫，slug 查詢用小寫
         $season = strtolower( $data['anime_season'] ?? '' );
-        $year   = (int) ( $data['anime_year'] ?? 0 );
 
-        $season_slug_map = [ 'winter' => 'winter', 'spring' => 'spring', 'summer' => 'summer', 'fall' => 'fall' ];
+        // api-handler 回傳 anime_season_year
+        $year = (int) ( $data['anime_season_year'] ?? 0 );
+
+        $season_slug_map = [
+            'winter' => 'winter',
+            'spring' => 'spring',
+            'summer' => 'summer',
+            'fall'   => 'fall',
+        ];
 
         if ( $year && isset( $season_slug_map[ $season ] ) ) {
             $parent_term     = get_term_by( 'slug', (string) $year, 'anime_season_tax' );
@@ -284,7 +323,8 @@ class Anime_Sync_Import_Manager {
         }
 
         // ── 動畫格式（anime_format_tax）──────────────────────
-        $format = strtoupper( $data['anime_type'] ?? '' );
+        // api-handler 回傳 anime_format
+        $format = strtoupper( $data['anime_format'] ?? '' );
 
         $format_slug_map = [
             'TV'       => 'format-tv',
