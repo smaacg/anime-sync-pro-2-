@@ -1,15 +1,20 @@
 /*
- * anime-single.css
- * Plugin : Anime Sync Pro
- * Path   : wp-content/plugins/anime-sync-pro/public/assets/css/anime-single.css
+ * anime-single.css  —  Anime Sync Pro
+ * Path : wp-content/plugins/anime-sync-pro/public/assets/css/anime-single.css
  *
- * 全部樣式以 .asd-wrap 為根 scope。
- * SCORE  – 評分列改 Glass 風格（對齊 Glass Design System），移除人氣區塊
- * ABP    – 底部推薦 & 側欄推薦圖片加 thumb-wrap 容器，防止主題 height:auto 跑版
+ * v11.1  ABQ  – 根治圖片跑版：.asd-wrap img 加 height:auto，
+ *               thumb-wrap img 用 !important 覆蓋 Hello Elementor reset.css
+ * v11.1  OPT1 – 手機關閉 backdrop-filter（效能）
+ * v11.1  OPT2 – Banner 改 100vw 全出血（overflow 修正）
+ * v11.1  OPT3 – 骨架 loading 動畫（LCP）
+ * v11.1  OPT4 – 第一個評分放大 + 品牌色框線（轉換率）
+ * v11.1  OPT5 – 推薦卡 hover translateY(-6px) scale(1.02)
+ * v11.1  OPT6 – 所有圖片容器補 aspect-ratio 防 layout shift
+ * v11.1  OPT7 – GPU 加速 will-change
  */
 
 /* ════════════════════════════════════════════════════════════════════════════
-   Reset & 根層 — 同時宣告 Glass Design System tokens
+   Reset & 根層 — Glass Design System tokens
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-wrap *,
@@ -36,15 +41,15 @@
     --asd-transition:   .2s ease;
     --asd-max-width:    1200px;
 
-    /* ── Glass Design System tokens（確保本檔案可獨立運作）── */
-    --glass-bg:         rgba(245, 247, 246, 0.07);
-    --glass-bg-mid:     rgba(245, 247, 246, 0.11);
-    --glass-border:     rgba(245, 247, 246, 0.14);
-    --glass-border-h:   rgba(245, 247, 246, 0.26);
+    /* ── Glass Design System tokens ── */
+    --glass-bg:         rgba(245,247,246,0.07);
+    --glass-bg-mid:     rgba(245,247,246,0.11);
+    --glass-border:     rgba(245,247,246,0.14);
+    --glass-border-h:   rgba(245,247,246,0.26);
     --glass-blur:       24px;
     --glass-shadow:     0 8px 40px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.08);
     --glass-shadow-h:   0 16px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12);
-    --grad-hero:        linear-gradient(135deg, #63A8FF 0%, #8F6BFF 50%, #FF6BAE 100%);
+    --grad-hero:        linear-gradient(135deg,#63A8FF 0%,#8F6BFF 50%,#FF6BAE 100%);
     --trans-smooth:     all 0.32s cubic-bezier(0.4,0,0.2,1);
 
     max-width:   var(--asd-max-width);
@@ -61,26 +66,51 @@ body.single-anime #content { padding: 0; max-width: none; }
 
 .asd-wrap a { color: var(--asd-primary); text-decoration: none; transition: color var(--asd-transition); }
 .asd-wrap a:hover { color: var(--asd-primary-dark); }
+
+/* 全域 img — 預設 height:auto（防主題污染由下方各容器個別覆蓋）*/
 .asd-wrap img { display: block; max-width: 100%; height: auto; }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   Banner
+   OPT3 — 骨架 loading 動畫（提升 LCP 感知速度）
 ════════════════════════════════════════════════════════════════════════════ */
 
+@keyframes asd-skeleton {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.asd-img-skeleton {
+    background:      linear-gradient(90deg,#1a1a1a 25%,#2a2a2a 50%,#1a1a1a 75%);
+    background-size: 200% 100%;
+    animation:       asd-skeleton 1.2s infinite;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   OPT2 — Banner：修正 overflow，改用 100vw 全出血
+════════════════════════════════════════════════════════════════════════════ */
+
+/* 基礎：在 .asd-wrap 內佔滿 */
 .asd-banner {
-    position: relative;
-    width: calc(100% + 32px);
-    margin-left: -16px;
-    height: 280px;
-    background-size: cover;
+    position:           relative;
+    width:              100%;
+    margin-left:        0;
+    height:             280px;
+    background-size:    cover;
     background-position: center 30%;
-    background-repeat: no-repeat;
+    background-repeat:  no-repeat;
+    overflow:           hidden;
+}
+
+/* 全出血：僅在有 body class 時拉伸（避免跑版） */
+body.single-anime .asd-banner {
+    width:       100vw;
+    margin-left: calc(-50vw + 50%);
 }
 
 .asd-banner-fade {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to bottom, rgba(13,13,13,.1) 0%, rgba(13,13,13,.6) 60%, rgba(13,13,13,1) 100%);
+    position:   absolute;
+    inset:      0;
+    background: linear-gradient(to bottom,rgba(13,13,13,.1) 0%,rgba(13,13,13,.6) 60%,rgba(13,13,13,1) 100%);
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -98,28 +128,31 @@ body.single-anime #content { padding: 0; max-width: none; }
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-hero {
-    display: flex;
-    gap: 28px;
-    margin-top: -60px;
-    position: relative;
-    z-index: 2;
+    display:        flex;
+    gap:            28px;
+    margin-top:     -60px;
+    position:       relative;
+    z-index:        2;
     padding-bottom: 24px;
 }
 
 .asd-hero-cover { flex-shrink: 0; width: 160px; }
 
+/* OPT6 — 封面加 aspect-ratio 防 layout shift */
 .asd-cover-img {
-    width: 160px; height: 228px;
-    object-fit: cover;
+    width:         160px;
+    height:        228px;
+    aspect-ratio:  2 / 3;       /* OPT6 */
+    object-fit:    cover;
     border-radius: var(--asd-radius);
-    box-shadow: var(--asd-shadow);
-    border: 2px solid var(--asd-border);
+    box-shadow:    var(--asd-shadow);
+    border:        2px solid var(--asd-border);
 }
 
 .asd-hero-info { flex: 1; min-width: 0; padding-top: 8px; }
 
-.asd-title { font-size: 1.75rem; font-weight: 700; margin: 0 0 6px; line-height: 1.25; color: #fff; }
-.asd-title-sub { margin: 0 0 2px; font-size: 13px; color: var(--asd-text-muted); }
+.asd-title         { font-size: 1.75rem; font-weight: 700; margin: 0 0 6px; line-height: 1.25; color: #fff; }
+.asd-title-sub     { margin: 0 0 2px; font-size: 13px; color: var(--asd-text-muted); }
 .asd-title-native  { font-size: 14px; color: #ccc; }
 .asd-title-romaji  { font-size: 13px; }
 .asd-title-english { font-size: 13px; font-style: italic; }
@@ -139,25 +172,26 @@ body.single-anime #content { padding: 0; max-width: none; }
 .asd-badge-season        { background: #1a2a2a; border-color: #2d6a6a; color: #6acfcf; }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   評分列 — Glass 風格 (SCORE)
-   平台名稱在上，數字大字在中，/ 10 在下
+   評分列 — Glass 風格
+   OPT4 — 第一個評分放大 + 品牌框線
+   OPT7 — GPU 加速 will-change
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-hero-scores {
-    display: flex;
+    display:   flex;
     flex-wrap: wrap;
-    gap: 10px;
-    margin: 14px 0;
+    gap:       10px;
+    margin:    14px 0;
 }
 
 .asd-score-block {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    display:         flex;
+    flex-direction:  column;
+    align-items:     center;
     justify-content: center;
-    gap: 2px;
-    padding: 10px 18px;
-    min-width: 80px;
+    gap:             2px;
+    padding:         10px 18px;
+    min-width:       80px;
 
     background:              var(--glass-bg);
     backdrop-filter:         blur(var(--glass-blur));
@@ -166,13 +200,24 @@ body.single-anime #content { padding: 0; max-width: none; }
     box-shadow:              var(--glass-shadow);
     border-radius:           14px;
     transition:              var(--trans-smooth);
-    cursor: default;
+    cursor:                  default;
+    will-change:             transform;   /* OPT7 */
 }
 
 .asd-score-block:hover {
     border-color: var(--glass-border-h);
     box-shadow:   var(--glass-shadow-h);
     transform:    translateY(-3px);
+}
+
+/* OPT4 — 第一個評分卡放大 + 主題色框線 */
+.asd-hero-scores .asd-score-block:first-child {
+    transform:  scale(1.1);
+    border:     2px solid var(--asd-primary);
+    box-shadow: var(--glass-shadow), 0 0 16px rgba(232,93,38,.25);
+}
+.asd-hero-scores .asd-score-block:first-child:hover {
+    transform:  scale(1.1) translateY(-3px);
 }
 
 .asd-score-platform {
@@ -185,46 +230,29 @@ body.single-anime #content { padding: 0; max-width: none; }
 }
 
 .asd-score-val {
-    font-size:   1.5rem;
-    font-weight: 800;
-    line-height: 1;
-    /* 漸層文字 */
+    font-size:               1.5rem;
+    font-weight:             800;
+    line-height:             1;
     background:              var(--grad-hero);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip:         text;
 }
 
-/* 各平台用各自品牌色覆蓋漸層 */
-.asd-score-al  .asd-score-val {
-    background: var(--asd-score-al);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-.asd-score-mal .asd-score-val {
-    background: var(--asd-score-mal);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-.asd-score-bgm .asd-score-val {
-    background: var(--asd-score-bgm);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
+.asd-score-al  .asd-score-val { background: var(--asd-score-al);  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.asd-score-mal .asd-score-val { background: var(--asd-score-mal); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.asd-score-bgm .asd-score-val { background: var(--asd-score-bgm); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
-/* 各平台頂部細線品牌色 */
 .asd-score-al  { border-top: 2px solid var(--asd-score-al);  }
 .asd-score-mal { border-top: 2px solid var(--asd-score-mal); }
 .asd-score-bgm { border-top: 2px solid var(--asd-score-bgm); }
 
-.asd-score-max {
-    font-size: 11px;
-    color:     var(--asd-text-dim);
-    margin-top: 1px;
-}
+/* OPT4 — 第一個卡的 border-top 被 border:2px solid primary 覆蓋，需補回品牌色頂線 */
+.asd-hero-scores .asd-score-block:first-child.asd-score-al  { border-top-color: var(--asd-score-al); }
+.asd-hero-scores .asd-score-block:first-child.asd-score-mal { border-top-color: var(--asd-score-mal); }
+.asd-hero-scores .asd-score-block:first-child.asd-score-bgm { border-top-color: var(--asd-score-bgm); }
+
+.asd-score-max { font-size: 11px; color: var(--asd-text-dim); margin-top: 1px; }
 
 /* ════════════════════════════════════════════════════════════════════════════
    快速連結
@@ -349,8 +377,19 @@ body.single-anime #content { padding: 0; max-width: none; }
     transition: background var(--asd-transition), transform var(--asd-transition);
 }
 .asd-cast-card:hover { background: var(--asd-bg-card-hover); transform: translateY(-2px); }
-.asd-cast-img { aspect-ratio: 3 / 4; overflow: hidden; background: var(--asd-border); }
-.asd-cast-img img { width: 100%; height: 100%; object-fit: cover; }
+
+/* OPT6 — 角色圖片用 aspect-ratio 代替固定高度，防 layout shift */
+.asd-cast-img {
+    aspect-ratio: 3 / 4;
+    overflow:     hidden;
+    background:   var(--asd-border);
+}
+.asd-cast-img img {
+    width:        100%;
+    height:       100% !important;   /* ABQ：覆蓋主題 img{height:auto} */
+    object-fit:   cover;
+    display:      block;
+}
 .asd-cast-noimg {
     width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
     color: var(--asd-text-dim); font-size: 28px; aspect-ratio: 3 / 4;
@@ -379,7 +418,10 @@ body.single-anime #content { padding: 0; max-width: none; }
     transition: background var(--asd-transition);
 }
 .asd-staff-card:hover { background: var(--asd-bg-card-hover); }
-.asd-staff-card img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.asd-staff-card img {
+    width: 44px; height: 44px !important;   /* ABQ */
+    border-radius: 50%; object-fit: cover; flex-shrink: 0;
+}
 .asd-staff-noimg {
     width: 44px; height: 44px; border-radius: 50%;
     background: var(--asd-border); display: flex; align-items: center; justify-content: center;
@@ -444,7 +486,7 @@ body.single-anime #content { padding: 0; max-width: none; }
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-trailer-wrap { position: relative; aspect-ratio: 16 / 9; border-radius: var(--asd-radius); overflow: hidden; background: #000; }
-.asd-trailer { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+.asd-trailer { position: absolute; inset: 0; width: 100%; height: 100% !important; border: none; }   /* ABQ */
 
 /* ════════════════════════════════════════════════════════════════════════════
    相關作品
@@ -459,7 +501,30 @@ body.single-anime #content { padding: 0; max-width: none; }
     color: var(--asd-text) !important;
 }
 .asd-relation-card:hover { transform: translateY(-3px); background: var(--asd-bg-card-hover); }
-.asd-relation-card img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; }
+
+/* OPT6 — 相關作品圖片 aspect-ratio */
+.asd-relation-thumb {
+    width:        100%;
+    aspect-ratio: 2 / 3;    /* OPT6：撐高度，防 layout shift */
+    overflow:     hidden;
+    background:   var(--asd-border);
+    flex-shrink:  0;
+}
+.asd-relation-thumb img {
+    width:      100%;
+    height:     100% !important;   /* ABQ */
+    object-fit: cover;
+    display:    block;
+}
+
+/* 相容舊版直接用 img 的寫法 */
+.asd-relation-card > img {
+    width:        100%;
+    aspect-ratio: 2 / 3;
+    object-fit:   cover;
+    height:       auto;
+    display:      block;
+}
 .asd-relation-noimg {
     width: 100%; aspect-ratio: 2 / 3; background: var(--asd-border);
     display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--asd-text-dim);
@@ -561,7 +626,10 @@ body.single-anime #content { padding: 0; max-width: none; }
 }
 .asd-sidebar-rel-card:last-child { border-bottom: none; }
 .asd-sidebar-rel-card:hover { color: var(--asd-primary) !important; }
-.asd-sidebar-rel-card img { width: 44px; height: 62px; object-fit: cover; border-radius: var(--asd-radius-sm); flex-shrink: 0; }
+.asd-sidebar-rel-card img {
+    width: 44px; height: 62px !important;   /* ABQ */
+    object-fit: cover; border-radius: var(--asd-radius-sm); flex-shrink: 0;
+}
 .asd-sidebar-rel-noimg {
     width: 44px; height: 62px; border-radius: var(--asd-radius-sm);
     background: var(--asd-border); display: flex; align-items: center; justify-content: center;
@@ -572,7 +640,9 @@ body.single-anime #content { padding: 0; max-width: none; }
 .asd-sidebar-rel-title { font-size: 13px; font-weight: 600; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   側欄推薦卡片 — ABP 修正：thumb-wrap 固定高度防跑版
+   側欄推薦卡片（你可能也喜歡）
+   ABQ — thumb-wrap 固定高度 + img height:100% !important
+   OPT6 — aspect-ratio 防 layout shift
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-sidebar-rec-card {
@@ -583,18 +653,18 @@ body.single-anime #content { padding: 0; max-width: none; }
 .asd-sidebar-rec-card:last-child { border-bottom: none; }
 .asd-sidebar-rec-card:hover { color: var(--asd-primary) !important; }
 
-/* ABP 核心：容器固定高度，img 填滿裁切 */
 .asd-sidebar-rec-thumb-wrap {
-    width:      44px;
-    height:     62px;          /* 固定高度，不受 img height:auto 影響 */
-    flex-shrink: 0;
-    overflow:   hidden;        /* 超出裁掉 */
+    width:         44px;
+    height:        62px;
+    aspect-ratio:  2 / 3;     /* OPT6 */
+    flex-shrink:   0;
+    overflow:      hidden;
     border-radius: var(--asd-radius-sm);
-    background: var(--asd-border);
+    background:    var(--asd-border);
 }
 .asd-sidebar-rec-thumb-wrap img {
     width:            100%;
-    height:           100% !important;  /* 覆蓋主題 reset.css img{height:auto} */
+    height:           100% !important;   /* ABQ：覆蓋主題 reset.css img{height:auto} */
     object-fit:       cover;
     object-position:  center top;
     display:          block;
@@ -613,7 +683,11 @@ body.single-anime #content { padding: 0; max-width: none; }
 .asd-sidebar-rec-score { font-size: 12px; color: var(--asd-score-al); }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   底部熱門推薦 — ABP 修正：thumb-wrap 固定高度防跑版
+   底部熱門推薦
+   ABQ — thumb-wrap 固定高度 + img height:100% !important
+   OPT5 — hover translateY(-6px) scale(1.02)
+   OPT6 — aspect-ratio 防 layout shift
+   OPT7 — GPU 加速 will-change
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-bottom-recs {
@@ -628,35 +702,44 @@ body.single-anime #content { padding: 0; max-width: none; }
 }
 
 .asd-rec-card {
-    display: flex; flex-direction: column;
-    background: var(--asd-bg-card); border: 1px solid var(--asd-border);
-    border-radius: var(--asd-radius); overflow: hidden;
-    text-decoration: none; color: var(--asd-text) !important;
-    transition: transform var(--asd-transition), box-shadow var(--asd-transition);
+    display:        flex;
+    flex-direction: column;
+    background:     var(--asd-bg-card);
+    border:         1px solid var(--asd-border);
+    border-radius:  var(--asd-radius);
+    overflow:       hidden;
+    text-decoration: none;
+    color:          var(--asd-text) !important;
+    /* OPT5 + OPT7 */
+    transition:     transform 0.28s cubic-bezier(0.4,0,0.2,1),
+                    box-shadow 0.28s cubic-bezier(0.4,0,0.2,1);
+    will-change:    transform;    /* OPT7 */
 }
+/* OPT5 — 更有動感的 hover */
 .asd-rec-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0,0,0,.5);
-    color: var(--asd-text) !important;
+    transform:  translateY(-6px) scale(1.02);
+    box-shadow: 0 12px 32px rgba(0,0,0,.6);
+    color:      var(--asd-text) !important;
 }
 
-/* ABP 核心：容器固定高度，img 填滿裁切 */
 .asd-rec-thumb-wrap {
-    width:       100%;
-    height:      210px;        /* 固定高度 */
-    overflow:    hidden;       /* 超出裁掉 */
-    background:  var(--asd-border);
-    flex-shrink: 0;
+    width:        100%;
+    height:       210px;
+    aspect-ratio: 2 / 3;     /* OPT6 */
+    overflow:     hidden;
+    background:   var(--asd-border);
+    flex-shrink:  0;
 }
 .asd-rec-thumb-wrap img {
     width:            100%;
-    height:           100% !important;  /* 覆蓋主題 reset.css img{height:auto} */
+    height:           100% !important;   /* ABQ：覆蓋主題 reset.css img{height:auto} */
     object-fit:       cover;
     object-position:  center top;
     display:          block;
     transition:       transform .35s ease;
 }
-.asd-rec-card:hover .asd-rec-thumb-wrap img { transform: scale(1.05); }
+.asd-rec-card:hover .asd-rec-thumb-wrap img { transform: scale(1.06); }
+
 .asd-rec-noimg {
     width: 100%; height: 100%;
     display: flex; align-items: center; justify-content: center;
@@ -678,10 +761,24 @@ body.single-anime #content { padding: 0; max-width: none; }
 ════════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 900px) {
-    .asd-container { grid-template-columns: 1fr; }
-    .asd-sidebar   { order: -1; }
+    .asd-container        { grid-template-columns: 1fr; }
+    .asd-sidebar          { order: -1; }
     .asd-bottom-recs-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
     .asd-rec-thumb-wrap   { height: 180px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   響應式 — 手機 ≤ 768px
+   OPT1 — 手機關閉 backdrop-filter（效能優化，節省 GPU）
+════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    /* OPT1：關閉 blur，改用純色背景 */
+    .asd-score-block {
+        backdrop-filter:         none !important;
+        -webkit-backdrop-filter: none !important;
+        background:              rgba(255,255,255,0.05);
+    }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -705,6 +802,9 @@ body.single-anime #content { padding: 0; max-width: none; }
     .asd-rec-title        { font-size: 12px; }
     .asd-score-block      { min-width: 70px; padding: 8px 12px; }
     .asd-score-val        { font-size: 1.25rem; }
+    /* OPT4 — 手機上縮放比例收小，避免擠壓其他卡 */
+    .asd-hero-scores .asd-score-block:first-child { transform: scale(1.05); }
+    .asd-hero-scores .asd-score-block:first-child:hover { transform: scale(1.05) translateY(-2px); }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
