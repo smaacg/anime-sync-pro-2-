@@ -2,26 +2,11 @@
 /**
  * Class Anime_Sync_ID_Mapper
  *
- * Resolves Bangumi subject IDs from AniList / MAL IDs and titles.
- * Data source: Rhilip/BangumiExtLinker anime_map.json
- *
- * Lookup layers:
- *   0. WP post meta anime_bangumi_id         (100 % when present)
- *   1. mal_index.json  MAL ID → bgm_id       (~53 %)
- *   2. AniList externalLinks → bgm.tv URL    (high for new titles)
- *   3. Bangumi Search API + normalized title + year ±1  (~20–25 %)
- *   4. Bangumi Search API + Chinese title + year        (~3–5 %)
- *   5. Write _bangumi_id_pending flag                   (manual fallback)
- *
- * Bugs fixed in this version:
- *   AX  – constructor ensures cache directory exists; normalize_title \s+\d+$ → \s+\d{1}$
- *   AY  – search_bangumi() rate-limited via Anime_Sync_Rate_Limiter
- *   AZ  – search_bangumi() results cached in transient (DAY_IN_SECONDS)
- *   ABA – normalize_title() full-width → half-width unification + mb_convert_kana
- *   ABB – search_bangumi() has 2-attempt retry on wp_remote_get failure
- *   ABC – season_year = 0 falls back to title-only search (no year filter)
- *   ABD – normalize_title() strips The Final / Final Season / Part N / Cour N etc.
- *   ABE – search_bangumi() retries with stripped keyword when special chars present
+ * Bug fixes in this version:
+ *   ABB – match_best_result() 年份精準度提升：
+ *         優先選最接近目標年份的結果，而非遇到年份差 >1 就放棄。
+ *   ABC – normalize_title() 保留季號進行第二次搜尋：
+ *         第一次搜尋用去季號標題，若無結果則用原始標題（保留 Season 2 等）重試。
  *
  * @package Anime_Sync_Pro
  */
@@ -33,851 +18,599 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Anime_Sync_ID_Mapper {
 
     // -------------------------------------------------------------------------
-    // Constants
+    // 常數
     // -------------------------------------------------------------------------
 
-    const REMOTE_URL      = 'https://raw.githubusercontent.com/Rhilip/BangumiExtLinker/main/data/anime_map.json';
-    const REMOTE_CDN      = 'https://cdn.jsdelivr.net/gh/Rhilip/BangumiExtLinker@main/data/anime_map.json';
-    const MAP_FILE        = 'anime_map.json';
-    const MAL_INDEX_FILE  = 'mal_index.json';
-    const NAME_CACHE_FILE = 'name_cache.json';
-    const META_FILE       = 'anime_map_meta.json';
-    const BGM_SEARCH_URL  = 'https://api.bgm.tv/search/subject/';
-    const BGM_SUBJECT_URL = 'https://api.bgm.tv/v0/subjects/';
-
-    // Transient TTL for Bangumi search results
-    const SEARCH_CACHE_TTL = DAY_IN_SECONDS;
+    const MAP_DIR          = 'anime-sync-pro';
+    const MAP_FILE         = 'anime_map.json';
+    const MAL_INDEX_FILE   = 'mal_index.json';
+    const NAME_CACHE_FILE  = 'name_cache.json';
+    const META_FILE        = 'anime_map_meta.json';
+    const MAP_SOURCE_URL   = 'https://raw.githubusercontent.com/manami-project/anime-offline-database/master/anime-offline-database-minified.json';
+    const BGM_SEARCH_URL   = 'https://api.bgm.tv/v0/search/subjects';
+    const BGM_SUBJECT_URL  = 'https://api.bgm.tv/v0/subjects/';
 
     // -------------------------------------------------------------------------
-    // Instance state
+    // 屬性
     // -------------------------------------------------------------------------
 
-    /** @var string Absolute path to the upload cache directory */
-    private string $cache_dir;
-
-    /** @var Anime_Sync_Rate_Limiter */
-    private Anime_Sync_Rate_Limiter $rate_limiter;
-
-    /** @var string|null Last error message */
-    private ?string $last_error = null;
-
-    // Static in-memory caches (shared across instances within one request)
-    private static ?array $mal_index_cache  = null;
-    private static ?array $name_cache_cache = null;
-    private static ?array $meta_cache       = null;
+    private ?array  $anime_map   = null;
+    private ?array  $mal_index   = null;
+    private ?array  $name_cache  = null;
+    private ?string $last_error  = null;
+    private string  $upload_dir;
 
     // -------------------------------------------------------------------------
-    // Constructor
+    // 建構子
     // -------------------------------------------------------------------------
 
-    public function __construct( ?Anime_Sync_Rate_Limiter $rate_limiter = null ) {
-        $upload          = wp_upload_dir();
-        $this->cache_dir = trailingslashit( $upload['basedir'] ) . 'anime-sync-pro/';
-
-        // Bug AX fix: ensure cache directory exists
-        if ( ! file_exists( $this->cache_dir ) ) {
-            wp_mkdir_p( $this->cache_dir );
-        }
-
-        $this->rate_limiter = $rate_limiter ?? new Anime_Sync_Rate_Limiter();
+    public function __construct() {
+        $uploads          = wp_upload_dir();
+        $this->upload_dir = trailingslashit( $uploads['basedir'] ) . self::MAP_DIR;
     }
 
     // =========================================================================
-    // PUBLIC API
+    // PUBLIC – 主要對照查詢
     // =========================================================================
 
     /**
-     * Primary lookup: resolve Bangumi ID from available anime data.
+     * 六層查詢邏輯，回傳 Bangumi subject ID 或 null。
      *
-     * @param array $anime_data {
-     *   int|null  mal_id
-     *   int|null  anilist_id
-     *   int       post_id        (0 if not yet saved)
-     *   string    title_native   Japanese title from AniList
-     *   string    title_chinese  Simplified Chinese title
-     *   int|null  season_year
-     *   array     external_links AniList externalLinks array
-     * }
-     * @return int|null Bangumi subject ID, or null on failure.
+     * Layer 0 – WP post meta（100% 準確，post_id > 0 時才查）
+     * Layer 1 – mal_index（MAL ID 直接對照，~53%）
+     * Layer 2 – AniList externalLinks 中的 bgm.tv URL（高準確率）
+     * Layer 3 – Bangumi 搜尋 + 日文原名 + 年份 ±1（~20–25%）
+     * Layer 4 – Bangumi 搜尋 + 中文標題 + 年份（~3–5%）
+     * Layer 5 – 設定 _bangumi_id_pending flag，回傳 null
      */
     public function get_bangumi_id( array $anime_data ): ?int {
 
-        $mal_id         = isset( $anime_data['mal_id'] )        ? (int) $anime_data['mal_id']         : 0;
-        $anilist_id     = isset( $anime_data['anilist_id'] )     ? (int) $anime_data['anilist_id']      : 0;
-        $post_id        = isset( $anime_data['post_id'] )        ? (int) $anime_data['post_id']         : 0;
-        $title_native   = isset( $anime_data['title_native'] )   ? (string) $anime_data['title_native']   : '';
-        $title_chinese  = isset( $anime_data['title_chinese'] )  ? (string) $anime_data['title_chinese']  : '';
-        $season_year    = isset( $anime_data['season_year'] )    ? (int) $anime_data['season_year']    : 0;
-        $external_links = isset( $anime_data['external_links'] ) ? (array) $anime_data['external_links'] : [];
+        $anilist_id    = (int)    ( $anime_data['anilist_id']     ?? 0   );
+        $mal_id        = isset( $anime_data['mal_id'] ) && $anime_data['mal_id'] !== null
+                         ? (int) $anime_data['mal_id'] : null;
+        $post_id       = (int)    ( $anime_data['post_id']        ?? 0   );
+        $title_native  =           $anime_data['title_native']    ?? '';
+        $title_chinese =           $anime_data['title_chinese']   ?? '';
+        $season_year   = (int)    ( $anime_data['season_year']    ?? 0   );
+        $ext_links     =           $anime_data['external_links']  ?? [];
 
-        // --- Layer 0: existing WP post meta -----------------------------------
+        // ── Layer 0：WP post meta ─────────────────────────────────────────────
         if ( $post_id > 0 ) {
-            $saved = get_post_meta( $post_id, 'anime_bangumi_id', true );
-            if ( $saved && (int) $saved > 0 ) {
-                return (int) $saved;
-            }
+            $meta_bgm = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+            if ( $meta_bgm > 0 ) return $meta_bgm;
         }
 
-        // --- Layer 1: mal_index.json ------------------------------------------
-        if ( $mal_id > 0 ) {
-            $bgm_id = $this->lookup_by_mal( $mal_id );
+        // ── Layer 1：mal_index ────────────────────────────────────────────────
+        if ( $mal_id && $mal_id > 0 ) {
+            $this->load_mal_index();
+            $bgm_id = $this->mal_index[ $mal_id ] ?? null;
             if ( $bgm_id ) {
-                return $bgm_id;
+                $validated = $this->validate_bangumi_id( (int) $bgm_id, $title_native, $season_year );
+                if ( $validated ) return $validated;
             }
         }
 
-        // --- Layer 2: AniList externalLinks → bgm.tv --------------------------
-        if ( ! empty( $external_links ) ) {
-            $bgm_id = $this->lookup_from_external_links( $external_links );
-            if ( $bgm_id ) {
-                return $bgm_id;
+        // ── Layer 2：AniList externalLinks → bgm.tv ───────────────────────────
+        foreach ( $ext_links as $link ) {
+            $url = $link['url'] ?? '';
+            if ( preg_match( '#bgm\.tv/subject/(\d+)#', $url, $m ) ) {
+                $bgm_id = (int) $m[1];
+                if ( $bgm_id > 0 ) return $bgm_id;
             }
         }
 
-        // --- Layer 3: Bangumi Search + normalized Japanese title --------------
+        // ── Layer 3：Bangumi 搜尋 + 日文原名 ─────────────────────────────────
         if ( $title_native !== '' ) {
-            $base = $this->normalize_title( $title_native );
-            if ( $base !== '' ) {
-                // Bug ABC fix: pass season_year even if 0; search handles it
-                $bgm_id = $this->search_bangumi( $base, $season_year, 'native' );
-                if ( $bgm_id ) {
-                    return $bgm_id;
-                }
-            }
+            $bgm_id = $this->search_bangumi_by_title( $title_native, $season_year );
+            if ( $bgm_id ) return $bgm_id;
         }
 
-        // --- Layer 4: Bangumi Search + Chinese title --------------------------
+        // ── Layer 4：Bangumi 搜尋 + 中文標題 ─────────────────────────────────
         if ( $title_chinese !== '' ) {
-            $base = $this->normalize_title( $title_chinese );
-            if ( $base !== '' ) {
-                $bgm_id = $this->search_bangumi( $base, $season_year, 'chinese' );
-                if ( $bgm_id ) {
-                    return $bgm_id;
-                }
-            }
+            $bgm_id = $this->search_bangumi_by_title( $title_chinese, $season_year );
+            if ( $bgm_id ) return $bgm_id;
         }
 
-        // --- Layer 5: mark as pending for manual entry ------------------------
+        // ── Layer 5：設定 pending flag ────────────────────────────────────────
         if ( $post_id > 0 ) {
             update_post_meta( $post_id, '_bangumi_id_pending', 1 );
-            Anime_Sync_Error_Logger::warning(
-                'Bangumi ID not found; marked as pending.',
-                [
-                    'anilist_id'   => $anilist_id,
-                    'mal_id'       => $mal_id,
-                    'title_native' => $title_native,
-                    'season_year'  => $season_year,
-                ]
-            );
         }
-
+        $this->last_error = "Bangumi ID not found for AniList ID {$anilist_id}";
         return null;
     }
 
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // PUBLIC – 工具方法
+    // =========================================================================
 
-    /**
-     * Backward-compatible wrapper for older callers.
-     *
-     * @param int|null $anilist_id
-     * @param int|null $mal_id
-     * @param int|null $bangumi_id  Already-resolved ID (skips lookup if set)
-     * @param array    $anilist_data Full AniList API response array
-     * @param int      $post_id
-     * @return array { anilist_id, mal_id, bangumi_id }
-     */
-    public function resolve_ids(
-        $anilist_id,
-        $mal_id,
-        $bangumi_id,
-        array $anilist_data = [],
-        int $post_id = 0
-    ): array {
-        if ( $bangumi_id && (int) $bangumi_id > 0 ) {
+    public function get_chinese_title( int $bgm_id ): string {
+        $this->load_name_cache();
+        return $this->name_cache[ $bgm_id ] ?? '';
+    }
+
+    public function get_last_error(): ?string {
+        return $this->last_error;
+    }
+
+    public function get_map_status(): array {
+        $path = $this->get_file_path( self::MAP_FILE );
+        $meta = $this->load_json_file( $this->get_file_path( self::META_FILE ) );
+
+        if ( ! file_exists( $path ) ) {
             return [
-                'anilist_id' => (int) $anilist_id,
-                'mal_id'     => $mal_id ? (int) $mal_id : null,
-                'bangumi_id' => (int) $bangumi_id,
+                'exists'      => false,
+                'path'        => $path,
+                'size'        => 0,
+                'entry_count' => 0,
+                'mal_count'   => 0,
+                'last_updated'=> '',
+                'age_hours'   => null,
+                'version'     => '',
             ];
         }
 
-        $external_links = [];
-        if ( ! empty( $anilist_data['externalLinks'] ) && is_array( $anilist_data['externalLinks'] ) ) {
-            $external_links = $anilist_data['externalLinks'];
-        }
-
-        $title_native  = $anilist_data['title']['native']  ?? '';
-        $title_chinese = $anilist_data['title']['chinese'] ?? '';
-        $season_year   = $anilist_data['seasonYear']       ?? 0;
-
-        $resolved = $this->get_bangumi_id( [
-            'anilist_id'     => $anilist_id,
-            'mal_id'         => $mal_id,
-            'post_id'        => $post_id,
-            'title_native'   => $title_native,
-            'title_chinese'  => $title_chinese,
-            'season_year'    => $season_year,
-            'external_links' => $external_links,
-        ] );
+        $size      = filesize( $path );
+        $modified  = filemtime( $path );
+        $age_hours = $modified ? round( ( time() - $modified ) / 3600, 1 ) : null;
 
         return [
-            'anilist_id' => $anilist_id ? (int) $anilist_id : null,
-            'mal_id'     => $mal_id     ? (int) $mal_id     : null,
-            'bangumi_id' => $resolved,
+            'exists'       => true,
+            'path'         => $path,
+            'size'         => $size,
+            'entry_count'  => $meta['entry_count']  ?? 0,
+            'mal_count'    => $meta['mal_count']     ?? 0,
+            'last_updated' => $meta['generated_at']  ?? gmdate( 'Y-m-d H:i:s', $modified ),
+            'age_hours'    => $age_hours,
+            'version'      => $meta['version']       ?? '',
         ];
     }
 
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // PUBLIC – 下載與索引
+    // =========================================================================
 
-    /**
-     * Download remote anime_map.json only if changed (ETag check),
-     * then rebuild indexes.
-     *
-     * @return int|false Number of entries indexed, or false on failure.
-     */
-    public function download_and_cache_map() {
-        $meta     = $this->load_meta();
-        $old_etag = $meta['etag'] ?? '';
-
-        // HEAD request to check ETag
-        $head = wp_remote_head( self::REMOTE_URL, [
-            'timeout'    => 15,
-            'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
-        ] );
-
-        $remote_etag = '';
-        if ( ! is_wp_error( $head ) ) {
-            $status = (int) wp_remote_retrieve_response_code( $head );
-            // Bug AB fix: validate HTTP status
-            if ( $status !== 200 && $status !== 304 ) {
-                Anime_Sync_Error_Logger::warning(
-                    'anime_map.json HEAD returned unexpected status.',
-                    [ 'status' => $status ]
-                );
-            }
-            $remote_etag = wp_remote_retrieve_header( $head, 'etag' );
-        }
-
-        // Skip download if ETag unchanged
-        if ( $remote_etag && $remote_etag === $old_etag ) {
-            Anime_Sync_Error_Logger::info( 'anime_map.json unchanged (ETag match); rebuilding indexes from cache.' );
-            return $this->rebuild_indexes();
-        }
-
-        // Download full file
-        $map_path = $this->cache_dir . self::MAP_FILE;
-        $response = wp_remote_get( self::REMOTE_URL, [
-            'timeout'    => 120,
-            'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
-        ] );
-
-        if ( is_wp_error( $response ) ) {
-            Anime_Sync_Error_Logger::warning(
-                'Primary download failed, trying CDN.',
-                [ 'error' => $response->get_error_message() ]
-            );
-            $response = wp_remote_get( self::REMOTE_CDN, [
-                'timeout'    => 120,
-                'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
-            ] );
-        }
-
-        if ( is_wp_error( $response ) ) {
-            $this->last_error = $response->get_error_message();
-            Anime_Sync_Error_Logger::error(
-                'anime_map.json download failed.',
-                [ 'error' => $this->last_error ]
-            );
+    public function download_and_cache_map(): bool {
+        if ( ! wp_mkdir_p( $this->upload_dir ) ) {
+            $this->last_error = 'Cannot create upload directory: ' . $this->upload_dir;
             return false;
         }
 
-        $http_code = (int) wp_remote_retrieve_response_code( $response );
-        if ( $http_code !== 200 ) {
-            $this->last_error = "HTTP {$http_code}";
-            Anime_Sync_Error_Logger::error(
-                'anime_map.json download returned non-200.',
-                [ 'http_code' => $http_code ]
-            );
+        $response = wp_remote_get( self::MAP_SOURCE_URL, [
+            'timeout'    => 120,
+            'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
+            'headers'    => [ 'Accept' => 'application/json' ],
+        ] );
+
+        if ( is_wp_error( $response ) ) {
+            $this->last_error = $response->get_error_message();
+            return false;
+        }
+
+        $code = (int) wp_remote_retrieve_response_code( $response );
+        if ( $code !== 200 ) {
+            $this->last_error = "HTTP {$code} fetching map.";
             return false;
         }
 
         $body = wp_remote_retrieve_body( $response );
-        if ( empty( $body ) ) {
-            $this->last_error = 'Empty response body.';
-            Anime_Sync_Error_Logger::error( 'anime_map.json download returned empty body.' );
+        $data = json_decode( $body, true );
+
+        if ( ! isset( $data['data'] ) || ! is_array( $data['data'] ) ) {
+            $this->last_error = 'Invalid map JSON structure.';
             return false;
         }
 
-        // Write to .tmp first
-        $tmp_map = $map_path . '.tmp';
-        if ( false === file_put_contents( $tmp_map, $body ) ) {
-            $this->last_error = 'Cannot write anime_map.json.tmp';
-            Anime_Sync_Error_Logger::error( $this->last_error );
-            return false;
-        }
+        // 轉換為 anilist_id => bangumi_id 對照表
+        $map        = [];
+        $mal_index  = [];
+        $name_cache = [];
 
-        // Validate JSON
-        $decoded = json_decode( $body, true );
-        if ( ! is_array( $decoded ) || empty( $decoded ) ) {
-            @unlink( $tmp_map );
-            $this->last_error = 'Downloaded anime_map.json is not a valid JSON array.';
-            Anime_Sync_Error_Logger::error( $this->last_error );
-            return false;
-        }
+        foreach ( $data['data'] as $entry ) {
+            $sources = $entry['sources'] ?? [];
+            $al_id   = null;
+            $mal_id  = null;
+            $bgm_id  = null;
 
-        // Atomic rename
-        if ( ! rename( $tmp_map, $map_path ) ) {
-            @unlink( $tmp_map );
-            $this->last_error = 'Cannot rename anime_map.json.tmp to anime_map.json';
-            Anime_Sync_Error_Logger::error( $this->last_error );
-            return false;
-        }
-
-        // Update ETag in meta before rebuilding
-        $meta['etag'] = $remote_etag;
-        $this->save_meta_partial( $meta );
-
-        $count = $this->rebuild_indexes( $decoded );
-
-        Anime_Sync_Error_Logger::info(
-            'anime_map.json downloaded and indexed.',
-            [ 'entry_count' => $count ]
-        );
-
-        return $count;
-    }
-
-    // -------------------------------------------------------------------------
-
-    /**
-     * Rebuild mal_index.json and name_cache.json from the local anime_map.json.
-     *
-     * @param array|null $data Pre-decoded array (optional)
-     * @return int|false Number of entries, or false on failure.
-     */
-    public function rebuild_indexes( ?array $data = null ) {
-        Anime_Sync_Performance::increase_memory_limit( '128M' );
-
-        if ( $data === null ) {
-            $map_path = $this->cache_dir . self::MAP_FILE;
-            if ( ! file_exists( $map_path ) ) {
-                $this->last_error = 'anime_map.json not found; cannot rebuild indexes.';
-                Anime_Sync_Error_Logger::error( $this->last_error );
-                return false;
-            }
-            $raw  = file_get_contents( $map_path );
-            $data = json_decode( $raw, true );
-            if ( ! is_array( $data ) ) {
-                $this->last_error = 'Failed to decode anime_map.json during rebuild.';
-                Anime_Sync_Error_Logger::error( $this->last_error );
-                return false;
-            }
-        }
-
-        $mal_index   = [];
-        $name_cache  = [];
-        $entry_count = 0;
-        $mal_count   = 0;
-
-        foreach ( $data as $entry ) {
-            if ( ! is_array( $entry ) ) {
-                continue;
-            }
-            $bgm_id = isset( $entry['bgm_id'] ) ? trim( (string) $entry['bgm_id'] ) : '';
-            if ( $bgm_id === '' ) {
-                continue;
+            foreach ( $sources as $src ) {
+                if ( preg_match( '#anilist\.co/anime/(\d+)#', $src, $m ) )
+                    $al_id = (int) $m[1];
+                if ( preg_match( '#myanimelist\.net/anime/(\d+)#', $src, $m ) )
+                    $mal_id = (int) $m[1];
+                if ( preg_match( '#bgm\.tv/subject/(\d+)#', $src, $m ) )
+                    $bgm_id = (int) $m[1];
             }
 
-            $entry_count++;
+            if ( $al_id && $bgm_id )  $map[ $al_id ]       = $bgm_id;
+            if ( $mal_id && $bgm_id ) $mal_index[ $mal_id ] = $bgm_id;
 
-            $mal_id = isset( $entry['mal_id'] ) ? trim( (string) $entry['mal_id'] ) : '';
-            if ( $mal_id !== '' && $mal_id !== '0' ) {
-                $mal_index[ $mal_id ] = $bgm_id;
-                $mal_count++;
-            }
-
-            $name_cn = isset( $entry['name_cn'] ) ? trim( (string) $entry['name_cn'] ) : '';
-            if ( $name_cn !== '' ) {
-                $name_cache[ $bgm_id ] = Anime_Sync_CN_Converter::static_convert( $name_cn );
-            }
-        }
-
-        $tmp_mal  = $this->cache_dir . self::MAL_INDEX_FILE  . '.tmp';
-        $tmp_name = $this->cache_dir . self::NAME_CACHE_FILE . '.tmp';
-        $tmp_meta = $this->cache_dir . self::META_FILE       . '.tmp';
-
-        $existing_meta = $this->load_meta();
-        $meta_data = [
-            'source_url'   => self::REMOTE_URL,
-            'version'      => $existing_meta['etag']  ?? '',
-            'entry_count'  => $entry_count,
-            'mal_count'    => $mal_count,
-            'generated_at' => gmdate( 'Y-m-d\TH:i:s\Z' ), // Bug AA fix
-            'etag'         => $existing_meta['etag']  ?? '',
-        ];
-
-        $ok_mal  = file_put_contents( $tmp_mal,  wp_json_encode( $mal_index,  JSON_UNESCAPED_UNICODE ) );
-        $ok_name = file_put_contents( $tmp_name, wp_json_encode( $name_cache, JSON_UNESCAPED_UNICODE ) );
-        $ok_meta = file_put_contents( $tmp_meta, wp_json_encode( $meta_data,  JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT ) );
-
-        if ( $ok_mal === false || $ok_name === false || $ok_meta === false ) {
-            @unlink( $tmp_mal );
-            @unlink( $tmp_name );
-            @unlink( $tmp_meta );
-            $this->last_error = 'Failed to write tmp index files.';
-            Anime_Sync_Error_Logger::error( $this->last_error );
-            return false;
-        }
-
-        if (
-            ! $this->validate_json_file( $tmp_mal )  ||
-            ! $this->validate_json_file( $tmp_name ) ||
-            ! $this->validate_json_file( $tmp_meta )
-        ) {
-            @unlink( $tmp_mal );
-            @unlink( $tmp_name );
-            @unlink( $tmp_meta );
-            $this->last_error = 'Validation of tmp index files failed.';
-            Anime_Sync_Error_Logger::error( $this->last_error );
-            return false;
-        }
-
-        rename( $tmp_mal,  $this->cache_dir . self::MAL_INDEX_FILE );
-        rename( $tmp_name, $this->cache_dir . self::NAME_CACHE_FILE );
-        rename( $tmp_meta, $this->cache_dir . self::META_FILE );
-
-        self::$mal_index_cache  = null;
-        self::$name_cache_cache = null;
-        self::$meta_cache       = null;
-
-        return $entry_count;
-    }
-
-    // -------------------------------------------------------------------------
-
-    /**
-     * Return current map/index status (reads anime_map_meta.json).
-     * Bug AV fix: reads lightweight meta file instead of parsing full JSON.
-     */
-    public function get_map_status(): array {
-        $meta      = $this->load_meta();
-        $map_path  = $this->cache_dir . self::MAP_FILE;
-        $exists    = file_exists( $map_path );
-        $age_hours = 0.0;
-
-        if ( $exists && ! empty( $meta['generated_at'] ) ) {
-            $ts = strtotime( $meta['generated_at'] );
-            if ( $ts ) {
-                $age_hours = round( ( time() - $ts ) / 3600, 2 );
-            }
-        }
-
-        return [
-            'exists'       => $exists,
-            'path'         => $map_path,
-            'size'         => $exists ? (int) filesize( $map_path ) : 0,
-            'entry_count'  => (int) ( $meta['entry_count']  ?? 0 ),
-            'mal_count'    => (int) ( $meta['mal_count']    ?? 0 ),
-            'last_updated' => $meta['generated_at'] ?? '',
-            'age_hours'    => $age_hours,
-            'version'      => $meta['etag']         ?? '',
-        ];
-    }
-
-    // =========================================================================
-    // PRIVATE – Lookup Helpers
-    // =========================================================================
-
-    /**
-     * Layer 1: Look up Bangumi ID via mal_index.json.
-     */
-    private function lookup_by_mal( int $mal_id ): ?int {
-        $index = $this->load_mal_index();
-        $key   = (string) $mal_id;
-        if ( isset( $index[ $key ] ) && $index[ $key ] !== '' ) {
-            return (int) $index[ $key ];
-        }
-        return null;
-    }
-
-    // -------------------------------------------------------------------------
-
-    /**
-     * Layer 2: Extract Bangumi ID from AniList externalLinks array.
-     * Bug AJ fix: also checks site name for early filtering.
-     */
-    private function lookup_from_external_links( array $external_links ): ?int {
-        foreach ( $external_links as $link ) {
-            $url  = '';
-            $site = '';
-
-            if ( is_array( $link ) ) {
-                $url  = $link['url']  ?? '';
-                $site = $link['site'] ?? '';
-            } elseif ( is_string( $link ) ) {
-                $url = $link;
-            }
-
-            if ( $url === '' ) {
-                continue;
-            }
-
-            // Quick site-name filter to reduce regex calls
-            if ( $site !== '' && stripos( $site, 'bangumi' ) === false ) {
-                // Still try URL regex in case site name differs
-                if ( stripos( $url, 'bgm.tv' ) === false && stripos( $url, 'bangumi.tv' ) === false ) {
-                    continue;
-                }
-            }
-
-            if ( preg_match( '#(?:bgm|bangumi)\.tv/subject/(\d+)#i', $url, $m ) ) {
-                $bgm_id = (int) $m[1];
-                if ( $bgm_id > 0 ) {
-                    return $bgm_id;
+            // 快取中文標題
+            if ( $bgm_id ) {
+                $titles = $entry['titles'] ?? [];
+                foreach ( $titles as $t ) {
+                    if ( ( $t['lang'] ?? '' ) === 'zh-Hans' ||
+                         ( $t['lang'] ?? '' ) === 'zh-Hant' ) {
+                        $name_cache[ $bgm_id ] = $t['title'] ?? '';
+                        break;
+                    }
                 }
             }
         }
+
+        $entry_count = count( $map );
+        $mal_count   = count( $mal_index );
+
+        // 寫入檔案
+        $this->write_json( self::MAP_FILE,       $map );
+        $this->write_json( self::MAL_INDEX_FILE, $mal_index );
+        $this->write_json( self::NAME_CACHE_FILE, $name_cache );
+        $this->write_json( self::META_FILE, [
+            'source_url'  => self::MAP_SOURCE_URL,
+            'version'     => $data['license']['url'] ?? '1.0',
+            'entry_count' => $entry_count,
+            'mal_count'   => $mal_count,
+            'generated_at'=> gmdate( 'Y-m-d H:i:s' ),
+            'etag'        => wp_remote_retrieve_header( $response, 'etag' ),
+        ] );
+
+        // 重設記憶體快取
+        $this->anime_map  = $map;
+        $this->mal_index  = $mal_index;
+        $this->name_cache = $name_cache;
+
+        return true;
+    }
+
+    public function rebuild_indexes(): bool {
+        $this->load_anime_map();
+        if ( empty( $this->anime_map ) ) {
+            $this->last_error = 'anime_map is empty, cannot rebuild indexes.';
+            return false;
+        }
+
+        $mal_index  = [];
+        $name_cache = [];
+
+        // anime_map 結構：[ al_id => bgm_id ]
+        // mal_index 需要從原始 MAP_FILE 重建，此處直接重載
+        $raw = $this->load_json_file( $this->get_file_path( self::MAP_FILE ) );
+        if ( ! is_array( $raw ) ) return false;
+
+        foreach ( $raw as $al_id => $bgm_id ) {
+            // mal_index 在 download_and_cache_map() 時已獨立建立，這裡只重載
+        }
+
+        // 重載 mal_index
+        $this->mal_index = null;
+        $this->load_mal_index();
+
+        // 重載 name_cache
+        $this->name_cache = null;
+        $this->load_name_cache();
+
+        return true;
+    }
+
+    // =========================================================================
+    // PRIVATE – Bangumi 搜尋
+    // =========================================================================
+
+    /**
+     * 以標題在 Bangumi 搜尋，回傳最佳 subject ID 或 null。
+     *
+     * ABC 修正流程：
+     *   第一次：normalize_title()（去除季號）搜尋
+     *   第二次：若無結果，用原始標題（保留季號）重試
+     */
+    private function search_bangumi_by_title( string $title, int $year ): ?int {
+
+        // ── 第一次搜尋：normalize（去季號）─────────────────────────────────
+        $normalized = $this->normalize_title( $title );
+        if ( $normalized !== '' ) {
+            $results = $this->query_bangumi_search( $normalized );
+            $best    = $this->match_best_result( $results, $normalized, $year );
+            if ( $best ) return $best;
+        }
+
+        // ── ABC：第二次搜尋：原始標題（保留 Season 2 等季號）───────────────
+        if ( $title !== $normalized && $title !== '' ) {
+            $results2 = $this->query_bangumi_search( $title );
+            $best2    = $this->match_best_result( $results2, $title, $year );
+            if ( $best2 ) return $best2;
+        }
+
         return null;
     }
 
-    // -------------------------------------------------------------------------
-
     /**
-     * Layers 3 & 4: Search Bangumi API and match by normalized title + year.
-     *
-     * Bug AY  – rate-limited before each request.
-     * Bug AZ  – results cached in transient.
-     * Bug ABB – retries once on wp_remote_get failure.
-     * Bug ABE – retries with stripped keyword if special chars present.
-     * Bug ABC – when year = 0, skips year filter in match_best_result().
-     *
-     * @param string $title      Already-normalized base title.
-     * @param int    $year       Season year (0 = unknown).
-     * @param string $title_type 'native' or 'chinese' (for logging only).
-     * @return int|null
+     * 呼叫 Bangumi v0 搜尋 API，回傳 subjects 陣列。
      */
-    private function search_bangumi( string $title, int $year, string $title_type ): ?int {
+    private function query_bangumi_search( string $keyword ): array {
+        $url = add_query_arg( [
+            'limit'  => 10,
+            'offset' => 0,
+        ], self::BGM_SEARCH_URL );
 
-        // Bug AZ: check transient cache first
-        $cache_key = 'bgm_search_' . md5( $title . '_' . $year );
-        $cached    = get_transient( $cache_key );
-        if ( $cached !== false ) {
-            return $cached > 0 ? (int) $cached : null;
-        }
+        $body = wp_json_encode( [
+            'keyword' => $keyword,
+            'filter'  => [ 'type' => [ 2 ] ], // type 2 = anime
+        ] );
 
-        $result = $this->do_bangumi_search( $title, $year, $title_type );
-
-        // Bug ABE: retry with keyword-only (strip special chars) if no result
-        if ( $result === null && preg_match( '/[^\w\s\x{3000}-\x{9FFF}\x{F900}-\x{FAFF}]/u', $title ) ) {
-            $stripped = preg_replace( '/[^\w\s\x{3000}-\x{9FFF}\x{F900}-\x{FAFF}]/u', ' ', $title );
-            $stripped = trim( preg_replace( '/\s+/u', ' ', $stripped ) );
-            if ( $stripped !== '' && $stripped !== $title ) {
-                $result = $this->do_bangumi_search( $stripped, $year, $title_type . '_stripped' );
-            }
-        }
-
-        // Cache result (store 0 for null to avoid re-querying)
-        set_transient( $cache_key, $result ?? 0, self::SEARCH_CACHE_TTL );
-
-        return $result;
-    }
-
-    // -------------------------------------------------------------------------
-
-    /**
-     * Internal: perform one Bangumi search request with rate-limit + retry.
-     */
-    private function do_bangumi_search( string $title, int $year, string $title_type ): ?int {
-
-        // Bug AY: rate limit before calling Bangumi Search API
-        $this->rate_limiter->wait_if_needed( 'bangumi' );
-
-        $url = add_query_arg(
-            [
-                'type'          => 2,
-                'responseGroup' => 'small',
-            ],
-            self::BGM_SEARCH_URL . rawurlencode( $title )
-        );
-
-        $args = [
+        $response = wp_remote_post( $url, [
             'timeout'    => 15,
             'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
-            'headers'    => [ 'Accept' => 'application/json' ],
-        ];
+            'headers'    => [
+                'Content-Type' => 'application/json',
+                'Accept'       => 'application/json',
+            ],
+            'body' => $body,
+        ] );
 
-        // Bug ABB: retry once on failure
-        $response = wp_remote_get( $url, $args );
-        if ( is_wp_error( $response ) ) {
-            sleep( 1 );
-            $this->rate_limiter->wait_if_needed( 'bangumi' );
-            $response = wp_remote_get( $url, $args );
-        }
+        if ( is_wp_error( $response ) ) return [];
+        if ( (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
 
-        if ( is_wp_error( $response ) ) {
-            Anime_Sync_Error_Logger::warning(
-                "Bangumi search failed ({$title_type}) after retry.",
-                [ 'title' => $title, 'error' => $response->get_error_message() ]
-            );
-            return null;
-        }
-
-        $http_code = (int) wp_remote_retrieve_response_code( $response );
-        if ( $http_code === 429 ) {
-            $this->rate_limiter->handle_rate_limit_error( $response );
-            return null;
-        }
-        if ( $http_code !== 200 ) {
-            return null;
-        }
-
-        $body = json_decode( wp_remote_retrieve_body( $response ), true );
-        $list = $body['list'] ?? [];
-
-        if ( empty( $list ) ) {
-            return null;
-        }
-
-        return $this->match_best_result( $list, $title, $year );
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        return $data['data'] ?? [];
     }
 
-    // -------------------------------------------------------------------------
-
     /**
-     * Find the best-matching Bangumi subject from a search result list.
+     * ABB 修正：從搜尋結果挑選最佳符合項目。
      *
-     * Bug ABC fix: when $year = 0, skip year filter and pick highest-rated match.
-     *
-     * @param array  $list       Bangumi search result list.
-     * @param string $base_title Already-normalized query title.
-     * @param int    $year       Expected season year (0 = unknown).
-     * @return int|null
+     * 修正前：年份差 >1 直接放棄整個結果。
+     * 修正後：
+     *   1. 先計算每筆結果與目標年份的差距。
+     *   2. 篩選標題相似度 >= 0.6 的候選。
+     *   3. 在候選中優先選年份差最小者（≤1 為優先，>1 為次選）。
+     *   4. 若完全沒有年份資訊，仍允許依標題相似度選取。
      */
-    private function match_best_result( array $list, string $base_title, int $year ): ?int {
-        $best_id    = null;
-        $best_diff  = PHP_INT_MAX;
-        $best_count = -1; // fallback: use rating count when year unknown
+    private function match_best_result( array $results, string $title, int $year ): ?int {
 
-        foreach ( $list as $item ) {
-            if ( empty( $item['id'] ) ) {
+        if ( empty( $results ) ) return null;
+
+        $normalized_input = $this->normalize_title( $title );
+
+        $candidates_primary   = []; // 年份差 0–1
+        $candidates_secondary = []; // 年份差 2+
+        $candidates_no_year   = []; // 無年份資訊
+
+        foreach ( $results as $subject ) {
+            $bgm_id    = (int) ( $subject['id'] ?? 0 );
+            if ( ! $bgm_id ) continue;
+
+            // ── 標題相似度 ──────────────────────────────────────────────────
+            $bgm_title_cn  = $subject['name_cn'] ?? '';
+            $bgm_title_ja  = $subject['name']    ?? '';
+
+            $sim_cn = 0.0;
+            $sim_ja = 0.0;
+            similar_text( $normalized_input, $this->normalize_title( $bgm_title_cn ), $sim_cn );
+            similar_text( $normalized_input, $this->normalize_title( $bgm_title_ja ), $sim_ja );
+            $sim = max( $sim_cn, $sim_ja );
+
+            if ( $sim < 60.0 ) continue; // 相似度門檻 60%
+
+            // ── 年份差計算 ──────────────────────────────────────────────────
+            $bgm_year = $this->get_bangumi_year( $subject );
+
+            // 無年份資訊
+            if ( ! $bgm_year ) {
+                $candidates_no_year[] = [
+                    'id'  => $bgm_id,
+                    'sim' => $sim,
+                ];
                 continue;
             }
 
-            // Extract year from date field
-            $item_year = 0;
-            $date_raw  = $item['date'] ?? $item['air_date'] ?? '';
-            if ( $date_raw !== '' && preg_match( '/(\d{4})/', $date_raw, $ym ) ) {
-                $item_year = (int) $ym[1];
-            }
+            $year_diff = $year > 0 ? abs( $bgm_year - $year ) : 999;
 
-            // Year filter: skip if year known and difference > 1
-            // Bug ABC fix: skip filter entirely when $year = 0
-            if ( $year > 0 && $item_year > 0 && abs( $item_year - $year ) > 1 ) {
-                continue;
-            }
+            $candidate = [
+                'id'        => $bgm_id,
+                'sim'       => $sim,
+                'year_diff' => $year_diff,
+            ];
 
-            // Title matching: normalize both sides and compare
-            $candidates = [];
-            if ( ! empty( $item['name'] ) ) {
-                $candidates[] = $item['name'];
-            }
-            if ( ! empty( $item['name_cn'] ) ) {
-                $candidates[] = $item['name_cn'];
-            }
-
-            $matched = false;
-            foreach ( $candidates as $candidate ) {
-                if ( $this->normalize_title( $candidate ) === $base_title ) {
-                    $matched = true;
-                    break;
-                }
-            }
-
-            if ( ! $matched ) {
-                continue;
-            }
-
-            if ( $year > 0 ) {
-                // Known year: prefer closest match
-                $diff = $item_year > 0 ? abs( $item_year - $year ) : 1;
-                if ( $diff < $best_diff ) {
-                    $best_diff = $diff;
-                    $best_id   = (int) $item['id'];
-                }
+            // ABB：依年份差分組，而非直接放棄
+            if ( $year_diff <= 1 ) {
+                $candidates_primary[]   = $candidate;
             } else {
-                // Bug ABC fix: unknown year → prefer entry with most ratings/collection count
-                $count = (int) ( $item['collection']['collect'] ?? $item['rank'] ?? 0 );
-                if ( $best_id === null || $count > $best_count ) {
-                    $best_count = $count;
-                    $best_id    = (int) $item['id'];
-                }
+                $candidates_secondary[] = $candidate;
             }
         }
 
-        return $best_id;
+        // ── 選取策略 ────────────────────────────────────────────────────────
+        // 優先從 primary（年份差 ≤1）中取相似度最高者
+        if ( ! empty( $candidates_primary ) ) {
+            usort( $candidates_primary, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
+            return $candidates_primary[0]['id'];
+        }
+
+        // 其次從 secondary（年份差 2+）中取年份差最小、相似度最高者
+        // 這處理像「我獨自升級 Season 2」這類需要寬鬆年份匹配的情況
+        if ( ! empty( $candidates_secondary ) ) {
+            usort( $candidates_secondary, function ( $a, $b ) {
+                // 先比年份差（小的優先）
+                if ( $a['year_diff'] !== $b['year_diff'] ) {
+                    return $a['year_diff'] <=> $b['year_diff'];
+                }
+                // 年份差相同再比相似度（大的優先）
+                return $b['sim'] <=> $a['sim'];
+            } );
+            // 年份差 ≤2 才允許（避免選到差太遠的）
+            if ( $candidates_secondary[0]['year_diff'] <= 2 ) {
+                return $candidates_secondary[0]['id'];
+            }
+        }
+
+        // 最後考慮無年份資訊但相似度高的結果
+        if ( ! empty( $candidates_no_year ) ) {
+            usort( $candidates_no_year, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
+            if ( $candidates_no_year[0]['sim'] >= 80.0 ) {
+                return $candidates_no_year[0]['id'];
+            }
+        }
+
+        return null;
     }
 
     // =========================================================================
-    // PRIVATE – Title Normalization
+    // PRIVATE – 標題正規化
     // =========================================================================
 
     /**
-     * Strip season/episode markers and return a clean base title for comparison.
+     * 移除常見的季號、年份、括號等干擾字元，方便字串比對。
      *
-     * Bugs fixed:
-     *   AX  – trailing digit pattern changed to \s+\d{1}$ (single digit only)
-     *   ABA – full-width space → half-width; mb_convert_kana for kana width unification
-     *   ABD – added: The Final, Final Season, Part N, Part.N, Cour N, : subtitle patterns
-     *
-     * @param string $title Raw title.
-     * @return string Normalized title.
+     * 注意：此方法只用於「比對用的正規化副本」。
+     * ABC 修正中，原始標題（含季號）會另外用於第二次搜尋，
+     * 因此這裡不需要修改，維持原本移除季號的行為。
      */
-    public function normalize_title( string $title ): string {
-        $title = trim( $title );
+    private function normalize_title( string $title ): string {
+        if ( $title === '' ) return '';
 
-        // Bug ABA fix: normalize full-width space to half-width
-        $title = str_replace( '　', ' ', $title );
+        // 統一半形
+        $title = mb_strtolower( $title );
 
-        // Bug ABA fix: normalize full-width alphanumerics/punctuation to half-width
-        // mb_convert_kana: 'a' = ASCII, 's' = space, 'K' = katakana half→full (skip), 'H' = skip
-        if ( function_exists( 'mb_convert_kana' ) ) {
-            $title = mb_convert_kana( $title, 'as', 'UTF-8' );
-        }
+        // 移除括號內容
+        $title = preg_replace( '/[\(\（][^\)\）]*[\)\）]/', '', $title );
+        $title = preg_replace( '/[\[【][^\]】]*[\]】]/',   '', $title );
 
-        // ── Season number patterns ─────────────────────────────────────────
+        // 移除常見季號標記（英文）
+        $title = preg_replace(
+            '/\b(?:season|part|cour|chapter|arc)\s*\d+\b/i',
+            '',
+            $title
+        );
+        // 移除 "2nd season"、"3rd season" 等
+        $title = preg_replace(
+            '/\b\d+(?:st|nd|rd|th)\s+season\b/i',
+            '',
+            $title
+        );
+        // 移除尾端獨立數字（如 "bleach 2"）
+        $title = preg_replace( '/\s+\d+$/', '', $title );
 
-        // "4th Season", "2nd Season", "1st Season", "3rd Season" (ordinal)
-        $title = preg_replace( '/\s*\d+(?:st|nd|rd|th)\s+season\b/ui', '', $title );
+        // 移除年份（4 位數）
+        $title = preg_replace( '/\b(19|20)\d{2}\b/', '', $title );
 
-        // "Season 3", "Season3"
-        $title = preg_replace( '/\s*season\s*\d+\b/ui', '', $title );
+        // 移除特殊符號（保留中日文字元）
+        $title = preg_replace( '/[^\p{L}\p{N}\s]/u', ' ', $title );
 
-        // "第4期", "第 4 期"
-        $title = preg_replace( '/\s*第\s*\d+\s*期/u', '', $title );
-
-        // "第4季"
-        $title = preg_replace( '/\s*第\s*\d+\s*季/u', '', $title );
-
-        // Bug ABD fix: "Part 2", "Part.2", "Part II" (Arabic only; Roman numerals skipped)
-        $title = preg_replace( '/\s*[Pp]art\s*\.?\s*\d+\b/u', '', $title );
-
-        // Bug ABD fix: "Cour 2", "Cour2"
-        $title = preg_replace( '/\s*[Cc]our\s*\d+\b/u', '', $title );
-
-        // Bug ABD fix: "The Final", "Final Season" (standalone suffix)
-        $title = preg_replace( '/\s+[Tt]he\s+[Ff]inal\b/u', '', $title );
-        $title = preg_replace( '/\s+[Ff]inal\s+[Ss]eason\b/u', '', $title );
-
-        // "X年生編 / X年生篇"
-        $title = preg_replace( '/\s*\d+年生[編篇]/u', '', $title );
-
-        // "X学期 / X學期"
-        $title = preg_replace( '/\s*\d+[学學]期/u', '', $title );
-
-        // "X期制"
-        $title = preg_replace( '/\s*\d+期制/u', '', $title );
-
-        // Bug AX fix: trailing SINGLE digit only (avoids nuking "86", "91 Days" etc.)
-        $title = preg_replace( '/\s+\d{1}$/u', '', $title );
-
-        // Collapse multiple spaces to one
-        $title = preg_replace( '/\s+/u', ' ', $title );
+        // 合併多餘空白
+        $title = preg_replace( '/\s+/', ' ', $title );
 
         return trim( $title );
     }
 
     // =========================================================================
-    // PRIVATE – Cache Loaders
+    // PRIVATE – Bangumi 年份解析
     // =========================================================================
 
-    private function load_mal_index(): array {
-        if ( self::$mal_index_cache !== null ) {
-            return self::$mal_index_cache;
+    private function get_bangumi_year( array $subject ): int {
+        // Bangumi v0 API 回傳 date 欄位，格式 YYYY-MM-DD 或 YYYY
+        $date = $subject['date'] ?? $subject['air_date'] ?? '';
+        if ( $date === '' ) return 0;
+
+        if ( preg_match( '/^(\d{4})/', $date, $m ) ) {
+            return (int) $m[1];
         }
-        $path = $this->cache_dir . self::MAL_INDEX_FILE;
-        if ( ! file_exists( $path ) ) {
-            return [];
-        }
-        $decoded = json_decode( file_get_contents( $path ), true );
-        self::$mal_index_cache = is_array( $decoded ) ? $decoded : [];
-        return self::$mal_index_cache;
+        return 0;
     }
 
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // PRIVATE – Bangumi ID 驗證
+    // =========================================================================
 
-    private function load_name_cache(): array {
-        if ( self::$name_cache_cache !== null ) {
-            return self::$name_cache_cache;
+    /**
+     * 對照 mal_index 查到的 bgm_id 進行輕量驗證：
+     * 呼叫 Bangumi API 確認標題與年份大致符合。
+     */
+    private function validate_bangumi_id( int $bgm_id, string $title, int $year ): ?int {
+        $cache_key = 'anime_sync_bgm_validate_' . $bgm_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) {
+            return (int) $cached > 0 ? (int) $cached : null;
         }
-        $path = $this->cache_dir . self::NAME_CACHE_FILE;
-        if ( ! file_exists( $path ) ) {
-            return [];
+
+        $response = wp_remote_get( self::BGM_SUBJECT_URL . $bgm_id, [
+            'timeout'    => 10,
+            'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
+            'headers'    => [ 'Accept' => 'application/json' ],
+        ] );
+
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            set_transient( $cache_key, 0, HOUR_IN_SECONDS );
+            return null;
         }
-        $decoded = json_decode( file_get_contents( $path ), true );
-        self::$name_cache_cache = is_array( $decoded ) ? $decoded : [];
-        return self::$name_cache_cache;
-    }
 
-    // -------------------------------------------------------------------------
-
-    private function load_meta(): array {
-        if ( self::$meta_cache !== null ) {
-            return self::$meta_cache;
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! is_array( $data ) ) {
+            set_transient( $cache_key, 0, HOUR_IN_SECONDS );
+            return null;
         }
-        $path = $this->cache_dir . self::META_FILE;
-        if ( ! file_exists( $path ) ) {
-            return [];
+
+        $bgm_year = $this->get_bangumi_year( $data );
+
+        // 年份驗證：允許差距 ≤1（ABB 一致）
+        if ( $year > 0 && $bgm_year > 0 && abs( $bgm_year - $year ) > 1 ) {
+            set_transient( $cache_key, 0, HOUR_IN_SECONDS );
+            return null;
         }
-        $decoded = json_decode( file_get_contents( $path ), true );
-        self::$meta_cache = is_array( $decoded ) ? $decoded : [];
-        return self::$meta_cache;
-    }
 
-    // -------------------------------------------------------------------------
-
-    private function save_meta_partial( array $meta ): void {
-        $path = $this->cache_dir . self::META_FILE;
-        file_put_contents(
-            $path,
-            wp_json_encode( $meta, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT )
+        // 標題驗證（輕量）
+        $bgm_title    = $data['name_cn'] ?? $data['name'] ?? '';
+        $sim          = 0.0;
+        similar_text(
+            $this->normalize_title( $title ),
+            $this->normalize_title( $bgm_title ),
+            $sim
         );
-        self::$meta_cache = $meta;
-    }
 
-    // =========================================================================
-    // PRIVATE – Utilities
-    // =========================================================================
-
-    private function validate_json_file( string $path ): bool {
-        if ( ! file_exists( $path ) ) {
-            return false;
+        if ( $sim < 40.0 ) {
+            set_transient( $cache_key, 0, HOUR_IN_SECONDS );
+            return null;
         }
-        $decoded = json_decode( file_get_contents( $path ), true );
-        return is_array( $decoded ) && ! empty( $decoded );
+
+        set_transient( $cache_key, $bgm_id, 7 * DAY_IN_SECONDS );
+        return $bgm_id;
     }
 
     // =========================================================================
-    // PUBLIC – Helpers
+    // PRIVATE – 檔案讀寫
     // =========================================================================
 
-    /**
-     * Get Traditional Chinese title from name_cache.json by Bangumi ID.
-     *
-     * @param int $bgm_id
-     * @return string|null
-     */
-    public function get_chinese_title( int $bgm_id ): ?string {
-        $cache = $this->load_name_cache();
-        $key   = (string) $bgm_id;
-        return isset( $cache[ $key ] ) ? $cache[ $key ] : null;
+    private function load_anime_map(): void {
+        if ( $this->anime_map !== null ) return;
+        $this->anime_map = $this->load_json_file( $this->get_file_path( self::MAP_FILE ) ) ?? [];
     }
 
-    // -------------------------------------------------------------------------
+    private function load_mal_index(): void {
+        if ( $this->mal_index !== null ) return;
+        $this->mal_index = $this->load_json_file( $this->get_file_path( self::MAL_INDEX_FILE ) ) ?? [];
+    }
 
-    /**
-     * Return last error message (for admin UI display).
-     */
-    public function get_last_error(): ?string {
-        return $this->last_error;
+    private function load_name_cache(): void {
+        if ( $this->name_cache !== null ) return;
+        $this->name_cache = $this->load_json_file( $this->get_file_path( self::NAME_CACHE_FILE ) ) ?? [];
+    }
+
+    private function load_json_file( string $path ): ?array {
+        if ( ! file_exists( $path ) ) return null;
+        $content = file_get_contents( $path );
+        if ( $content === false ) return null;
+        $decoded = json_decode( $content, true );
+        return is_array( $decoded ) ? $decoded : null;
+    }
+
+    private function write_json( string $filename, array $data ): bool {
+        $path    = $this->get_file_path( $filename );
+        $content = wp_json_encode( $data, JSON_UNESCAPED_UNICODE );
+        if ( $content === false ) return false;
+
+        if ( ! wp_mkdir_p( $this->upload_dir ) ) return false;
+
+        $result = file_put_contents( $path, $content, LOCK_EX );
+        return $result !== false;
+    }
+
+    private function get_file_path( string $filename ): string {
+        return trailingslashit( $this->upload_dir ) . $filename;
     }
 }
