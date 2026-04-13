@@ -1,6 +1,17 @@
 <?php
 /**
- * 檔案名稱: includes/class-cn-converter.php
+ * Class Anime_Sync_CN_Converter
+ *
+ * 簡繁轉換類別。
+ *
+ * 優先使用 overtrue/php-opencc（Composer 套件，S2TWP 策略）。
+ * 若 vendor/autoload.php 不存在（尚未執行 composer install），
+ * 自動 fallback 至原本的靜態字典邏輯，不會造成白屏或 Fatal Error。
+ *
+ * 安裝方式（SSH 至插件根目錄執行一次）：
+ *   composer install --no-dev --optimize-autoloader
+ *
+ * @package Anime_Sync_Pro
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -9,102 +20,132 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Anime_Sync_CN_Converter {
 
-    private static $dict = null;
-    private static $dict_path = '';
+    // =========================================================================
+    // 狀態旗標
+    // =========================================================================
+
+    /** @var bool|null OpenCC 是否可用（null = 尚未偵測） */
+    private static ?bool $opencc_available = null;
+
+    /** @var array|null fallback 靜態字典快取 */
+    private static ?array $dict_cache = null;
+
+    // =========================================================================
+    // 公開介面（對外 API 不變）
+    // =========================================================================
 
     /**
-     * 支援非靜態呼叫：讓 $this->converter->convert() 能運作
-     * 解決 API_Handler 在呼叫時產生的致命錯誤
+     * 將簡體中文字串轉換為繁體中文（台灣正體 + 詞彙本地化）。
+     *
+     * @param  string $text 輸入字串（簡體中文）
+     * @return string       轉換後字串（繁體中文）
      */
-    public function convert( $text ) {
-        return self::static_convert( $text );
+    public static function static_convert( string $text ): string {
+        if ( $text === '' ) return '';
+
+        if ( self::is_opencc_available() ) {
+            return self::convert_with_opencc( $text );
+        }
+
+        return self::convert_with_dict( $text );
+    }
+
+    // =========================================================================
+    // PRIVATE – OpenCC 路徑
+    // =========================================================================
+
+    /**
+     * 偵測 Composer autoload 與 OpenCC 類別是否存在。
+     */
+    private static function is_opencc_available(): bool {
+        if ( self::$opencc_available !== null ) {
+            return self::$opencc_available;
+        }
+
+        $autoload = plugin_dir_path( __FILE__ )
+                    . '../vendor/autoload.php';
+
+        if ( ! file_exists( $autoload ) ) {
+            self::$opencc_available = false;
+            return false;
+        }
+
+        // 只載入一次
+        if ( ! class_exists( 'Overtrue\\PHPOpenCC\\OpenCC', false ) ) {
+            require_once $autoload;
+        }
+
+        self::$opencc_available = class_exists( 'Overtrue\\PHPOpenCC\\OpenCC', false );
+        return self::$opencc_available;
     }
 
     /**
-     * 載入字典檔並處理編碼問題
+     * 使用 overtrue/php-opencc 進行轉換。
+     * 策略：S2TWP（簡體→台灣正體，含詞彙本地化）
+     * 例：软件→軟體、网络→網路、服务器→伺服器
      */
-    private static function load_dict() {
-        if ( self::$dict !== null ) {
-            return true;
+    private static function convert_with_opencc( string $text ): string {
+        try {
+            return \Overtrue\PHPOpenCC\OpenCC::convert( $text, 'S2TWP' );
+        } catch ( \Throwable $e ) {
+            // OpenCC 轉換失敗時 fallback 字典
+            return self::convert_with_dict( $text );
+        }
+    }
+
+    // =========================================================================
+    // PRIVATE – Fallback 靜態字典路徑
+    // =========================================================================
+
+    /**
+     * 載入 data/cn-tw-dict.json 字典並快取。
+     */
+    private static function load_dict(): array {
+        if ( self::$dict_cache !== null ) {
+            return self::$dict_cache;
         }
 
-        if ( empty( self::$dict_path ) ) {
-            self::$dict_path = defined( 'ANIME_SYNC_PRO_DIR' )
-                ? ANIME_SYNC_PRO_DIR . 'data/cn-tw-dict.json'
-                : plugin_dir_path( dirname( __FILE__ ) ) . 'data/cn-tw-dict.json';
+        $dict_file = plugin_dir_path( __FILE__ ) . '../data/cn-tw-dict.json';
+
+        if ( ! file_exists( $dict_file ) ) {
+            self::$dict_cache = [];
+            return [];
         }
 
-        if ( ! file_exists( self::$dict_path ) ) {
-            error_log( "Anime Sync Pro: 找不到字典檔 - " . self::$dict_path );
-            self::$dict = array();
-            return false;
+        $json = file_get_contents( $dict_file );
+        if ( $json === false ) {
+            self::$dict_cache = [];
+            return [];
         }
 
-        $json = file_get_contents( self::$dict_path );
-        if ( false === $json ) {
-            self::$dict = array();
-            return false;
-        }
-
-        // 處理 UTF-8 BOM 頭，確保 JSON 解析不會出錯
-        if ( substr( $json, 0, 3 ) === pack( "CCC", 0xef, 0xbb, 0xbf ) ) {
-            $json = substr( $json, 3 );
-        }
-        
         $decoded = json_decode( $json, true );
-
-        if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $decoded ) ) {
-            error_log( "Anime Sync Pro: 字典 JSON 解析失敗 - " . json_last_error_msg() );
-            self::$dict = array();
-            return false;
+        if ( ! is_array( $decoded ) ) {
+            self::$dict_cache = [];
+            return [];
         }
 
-        // 移除 JSON 內的註解欄位
-        unset( $decoded['_comment'] );
-        self::$dict = $decoded;
-        return true;
+        // 依 key 長度降序排序，確保長詞優先匹配
+        uksort( $decoded, function( $a, $b ) {
+            return mb_strlen( $b ) - mb_strlen( $a );
+        } );
+
+        self::$dict_cache = $decoded;
+        return self::$dict_cache;
     }
 
     /**
-     * 靜態轉換核心方法
+     * 使用靜態字典進行簡繁轉換（fallback）。
      */
-    public static function static_convert( $text ) {
-        if ( empty( $text ) || ! is_string( $text ) ) {
+    private static function convert_with_dict( string $text ): string {
+        $dict = self::load_dict();
+        if ( empty( $dict ) ) {
             return $text;
         }
 
-        if ( ! self::load_dict() || empty( self::$dict ) ) {
-            return $text;
-        }
-
-        return strtr( $text, self::$dict );
-    }
-
-    /**
-     * 批次轉換陣列內容
-     */
-    public static function convert_array( $data ) {
-        if ( ! is_array( $data ) ) return $data;
-        foreach ( $data as $key => $value ) {
-            if ( is_string( $value ) ) {
-                $data[ $key ] = self::static_convert( $value );
-            } elseif ( is_array( $value ) ) {
-                $data[ $key ] = self::convert_array( $value );
-            }
-        }
-        return $data;
-    }
-
-    /**
-     * 獲取字典載入狀態（供後台診斷使用）
-     */
-    public static function get_stats() {
-        self::load_dict();
-        return array(
-            'loaded'      => ( ! empty( self::$dict ) ),
-            'entry_count' => is_array( self::$dict ) ? count( self::$dict ) : 0,
-            'dict_path'   => self::$dict_path,
-            'file_size'   => file_exists( self::$dict_path ) ? filesize( self::$dict_path ) : -1,
+        return str_replace(
+            array_keys( $dict ),
+            array_values( $dict ),
+            $text
         );
     }
 }
