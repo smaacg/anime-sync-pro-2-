@@ -2,10 +2,13 @@
 /**
  * Plugin Name:       Anime Sync Pro
  * Description:       從 AniList、Bangumi 自動同步動畫資料。
- * Version:           1.0.1
+ * Version:           1.0.2
  * Author:            Your Name
  * Requires PHP:      8.0
  * Text Domain:       anime-sync-pro
+ *
+ * Bug fixes in this version:
+ *   問題 6 – CPT 註冊加入 post_tag，讓動畫文章支援 WordPress 內建標籤
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -15,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ============================================================
 // 1. 常數定義
 // ============================================================
-define( 'ANIME_SYNC_PRO_VERSION',  '1.0.1' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.0.2' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -49,7 +52,10 @@ spl_autoload_register( function ( $class ) {
 // ============================================================
 add_action( 'init', function () {
 
+    // ----------------------------------------------------------
     // Post Type: anime
+    // 問題 6 修正：taxonomies 加入 'post_tag'
+    // ----------------------------------------------------------
     register_post_type( 'anime', [
         'labels' => [
             'name'          => '動畫',
@@ -69,12 +75,15 @@ add_action( 'init', function () {
         'menu_icon'       => 'dashicons-format-video',
         'menu_position'   => 5,
         'supports'        => [ 'title', 'editor', 'thumbnail', 'custom-fields', 'comments' ],
+        'taxonomies'      => [ 'post_tag' ],   // 問題 6：加入 post_tag 讓後台顯示標籤欄位
         'capability_type' => 'post',
         'map_meta_cap'    => true,
         'rewrite'         => [ 'slug' => 'anime', 'with_front' => false ],
     ] );
 
+    // ----------------------------------------------------------
     // Taxonomy: genre
+    // ----------------------------------------------------------
     register_taxonomy( 'genre', [ 'anime', 'manga', 'novel' ], [
         'labels' => [
             'name'          => '類型',
@@ -90,7 +99,9 @@ add_action( 'init', function () {
         'rewrite'           => [ 'slug' => 'genre', 'with_front' => false ],
     ] );
 
+    // ----------------------------------------------------------
     // Taxonomy: anime_season_tax
+    // ----------------------------------------------------------
     register_taxonomy( 'anime_season_tax', [ 'anime' ], [
         'labels' => [
             'name'          => '播出季度',
@@ -106,7 +117,9 @@ add_action( 'init', function () {
         'rewrite'           => [ 'slug' => 'season', 'with_front' => false ],
     ] );
 
+    // ----------------------------------------------------------
     // Taxonomy: anime_format_tax
+    // ----------------------------------------------------------
     register_taxonomy( 'anime_format_tax', [ 'anime' ], [
         'labels' => [
             'name'          => '動畫格式',
