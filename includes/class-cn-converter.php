@@ -31,7 +31,7 @@ class Anime_Sync_CN_Converter {
     private static ?array $dict_cache = null;
 
     // =========================================================================
-    // 公開介面（對外 API 不變）
+    // 公開靜態介面
     // =========================================================================
 
     /**
@@ -48,6 +48,54 @@ class Anime_Sync_CN_Converter {
         }
 
         return self::convert_with_dict( $text );
+    }
+
+    // =========================================================================
+    // 相容 dashboard.php / import-tool.php 的實例方法
+    // =========================================================================
+
+    /**
+     * 非靜態包裝，讓 dashboard.php / import-tool.php 可用
+     * $cn_converter->convert() 呼叫。
+     *
+     * @param  string $text 輸入字串（簡體中文）
+     * @return string       轉換後字串（繁體中文）
+     */
+    public function convert( string $text ): string {
+        return self::static_convert( $text );
+    }
+
+    /**
+     * 回傳轉換器狀態資訊，供 dashboard.php / import-tool.php 顯示。
+     * 包含 loaded key，相容 import-tool.php 第 23、24 行的判斷。
+     *
+     * @return array{dict_path: string, file_size: int, entry_count: int|string, mode: string, loaded: bool}
+     */
+    public function get_stats(): array {
+        $dict_file = plugin_dir_path( __FILE__ ) . '../data/cn-tw-dict.json';
+        $opencc_ok = self::is_opencc_available();
+
+        if ( $opencc_ok ) {
+            return [
+                'dict_path'   => plugin_dir_path( __FILE__ ) . '../vendor/overtrue/php-opencc',
+                'file_size'   => 1,
+                'entry_count' => 'OpenCC S2TWP（詞庫完整）',
+                'mode'        => 'opencc',
+                'loaded'      => true,
+            ];
+        }
+
+        // fallback 字典模式
+        $file_size = file_exists( $dict_file ) ? filesize( $dict_file ) : 0;
+        $dict      = self::load_dict();
+
+        return [
+            'dict_path'   => $dict_file,
+            'file_size'   => (int) $file_size,
+            'entry_count' => count( $dict ),
+            'mode'        => 'dict',
+            'loaded'      => $file_size > 0,
+        ];
     }
 
     // =========================================================================
