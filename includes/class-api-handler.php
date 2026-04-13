@@ -17,6 +17,9 @@
  *         同時回傳 slug 供 import_manager 寫入 anime_animethemes_id
  *   ABA – parse_streaming_links() 加入 type === STREAMING 判斷 + 白名單擴充
  *   ABL – fetch_bgm_episodes() 新增，抓取 Bangumi 集數列表
+ *   ABQ – fetch_wikipedia_url() 新增 English Wikipedia REST API fallback；
+ *         中文維基找不到時改以 title_english / title_romaji 查英文維基，
+ *         並將結果快取，避免重複 API 呼叫
  *
  * @package Anime_Sync_Pro
  */
@@ -37,6 +40,7 @@ class Anime_Sync_API_Handler {
     const ANIMETHEMES_URL   = 'https://api.animethemes.moe/anime';
     const JIKAN_ANIME_URL   = 'https://api.jikan.moe/v4/anime/';
     const WIKI_ZH_API       = 'https://zh.wikipedia.org/w/api.php';
+    const WIKI_EN_REST      = 'https://en.wikipedia.org/api/rest_v1/page/summary/'; // ABQ
 
     // -------------------------------------------------------------------------
     // Dependencies
@@ -182,8 +186,13 @@ class Anime_Sync_API_Handler {
         $streaming    = $this->parse_streaming_links( $external_links );
         $parsed_links = $this->parse_external_links( $external_links );
 
-        // --- 11. Wikipedia URL (ABJ) ----------------------------------------
-        $wikipedia_url = $this->fetch_wikipedia_url( $title_chinese, $title_native, $title_romaji );
+        // --- 11. Wikipedia URL (ABJ + ABQ fallback) -------------------------
+        $wikipedia_url = $this->fetch_wikipedia_url(
+            $title_chinese,
+            $title_native,
+            $title_romaji,
+            $title_english  // ABQ：傳入英文標題供 EN fallback
+        );
 
         // --- 12. Themes (AnimeThemes) – AX 修正 -----------------------------
         $animethemes_result  = $this->fetch_animethemes( $mal_id );
@@ -452,23 +461,44 @@ class Anime_Sync_API_Handler {
     }
 
     // =========================================================================
-    // PRIVATE – Wikipedia URL (ABJ)
+    // PRIVATE – Wikipedia URL (ABJ + ABQ fallback)
     // =========================================================================
 
+    /**
+     * ABQ 修正說明：
+     *
+     * 原本只查中文維基（zh.wikipedia.org），遇到冷門作品或新作時容易找不到。
+     * 此版本在中文維基全部候選都找不到後，自動以以下順序 fallback 到英文維基：
+     *   1. title_english（AniList 英文標題）
+     *   2. title_romaji（羅馬拼音標題）
+     *
+     * 英文維基使用 REST Summary API（/api/rest_v1/page/summary/{title}），
+     * 回應中 content_urls.desktop.page 為完整頁面 URL。
+     * 結果同樣快取 30 天；找不到則快取空字串 7 天。
+     *
+     * @param string $title_chinese  繁體中文標題（從 Bangumi 轉換）
+     * @param string $title_native   日文原名
+     * @param string $title_romaji   羅馬拼音標題
+     * @param string $title_english  英文標題（AniList）
+     * @return string Wikipedia 頁面 URL，找不到時回傳空字串
+     */
     private function fetch_wikipedia_url(
         string $title_chinese,
         string $title_native,
-        string $title_romaji
+        string $title_romaji,
+        string $title_english = ''
     ): string {
 
-        $candidates = array_filter( [ $title_chinese, $title_native, $title_romaji ] );
+        // ── 第一階段：查中文維基（zh.wikipedia.org）──────────────────────────
+        $zh_candidates = array_filter( [ $title_chinese, $title_native, $title_romaji ] );
 
-        foreach ( $candidates as $title ) {
-            $cache_key = 'anime_sync_wiki_' . md5( $title );
+        foreach ( $zh_candidates as $title ) {
+            $cache_key = 'anime_sync_wiki_zh_' . md5( $title );
             $cached    = get_transient( $cache_key );
 
             if ( $cached !== false ) {
-                return (string) $cached;
+                if ( $cached !== '' ) return (string) $cached;
+                continue; // 快取到空字串代表之前查過找不到，跳下一個候選
             }
 
             $url = add_query_arg( [
@@ -494,7 +524,10 @@ class Anime_Sync_API_Handler {
             $pages = $data['query']['pages'] ?? [];
 
             foreach ( $pages as $page ) {
-                if ( ! empty( $page['missing'] ) ) continue;
+                if ( ! empty( $page['missing'] ) ) {
+                    set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
+                    continue 2; // 頁面不存在，快取並跳下一個候選
+                }
 
                 $wiki_url = $page['fullurl'] ?? '';
                 if ( $wiki_url === '' ) continue;
@@ -503,8 +536,62 @@ class Anime_Sync_API_Handler {
                 return $wiki_url;
             }
 
-            // 頁面不存在：快取 7 天，避免重複查詢
             set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
+        }
+
+        // ── 第二階段：ABQ fallback → 查英文維基（en.wikipedia.org）─────────
+        // 候選順序：英文標題 → 羅馬拼音標題
+        $en_candidates = array_filter( [ $title_english, $title_romaji ] );
+
+        foreach ( $en_candidates as $title ) {
+            $cache_key = 'anime_sync_wiki_en_' . md5( $title );
+            $cached    = get_transient( $cache_key );
+
+            if ( $cached !== false ) {
+                if ( $cached !== '' ) return (string) $cached;
+                continue;
+            }
+
+            // Wikipedia REST API：title 中空格改為底線
+            $title_slug = str_replace( ' ', '_', trim( $title ) );
+            $rest_url   = self::WIKI_EN_REST . rawurlencode( $title_slug );
+
+            $response = wp_remote_get( $rest_url, [
+                'timeout'    => 10,
+                'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
+                'headers'    => [ 'Accept' => 'application/json' ],
+            ] );
+
+            if ( is_wp_error( $response ) ) continue;
+
+            $code = (int) wp_remote_retrieve_response_code( $response );
+
+            // 404 = 頁面不存在，快取 7 天後繼續嘗試下一個候選
+            if ( $code === 404 ) {
+                set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
+                continue;
+            }
+
+            if ( $code !== 200 ) continue;
+
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+            // REST API 回傳的頁面 URL
+            $wiki_url = $body['content_urls']['desktop']['page'] ?? '';
+
+            // 若 type 為 'disambiguation' 則視為無效（消歧義頁）
+            if ( ( $body['type'] ?? '' ) === 'disambiguation' ) {
+                set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
+                continue;
+            }
+
+            if ( $wiki_url === '' ) {
+                set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
+                continue;
+            }
+
+            set_transient( $cache_key, $wiki_url, 30 * DAY_IN_SECONDS );
+            return $wiki_url;
         }
 
         return '';
