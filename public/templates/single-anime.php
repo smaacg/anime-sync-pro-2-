@@ -3,6 +3,10 @@
  * Single Anime Template
  * Plugin: Anime Sync Pro
  * Path: wp-content/plugins/anime-sync-pro/public/templates/single-anime.php
+ *
+ * Bug fixes in this version:
+ *   Bug 4  – Bangumi 評分除以 10 顯示
+ *   Bug 6  – Relations key 對齊 parse_relations() 實際回傳結構
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
@@ -39,7 +43,6 @@ while ( have_posts() ) : the_post();
     $ep_aired    = (int) get_post_meta( $post_id, 'anime_episodes_aired', true );
     $duration    = (int) get_post_meta( $post_id, 'anime_duration',       true );
     $source      = get_post_meta( $post_id, 'anime_source',               true );
-    // ✅ 問題 W 修正：key 改為 anime_studios（有 s），與 import-manager 寫入對齊
     $studio      = get_post_meta( $post_id, 'anime_studios',              true );
     $tw_dist     = get_post_meta( $post_id, 'anime_tw_distributor',       true );
     $tw_bc       = get_post_meta( $post_id, 'anime_tw_broadcast',         true );
@@ -59,15 +62,27 @@ while ( have_posts() ) : the_post();
     $end_date   = $format_date( get_post_meta( $post_id, 'anime_end_date',   true ) );
 
     /* ── 評分 ───────────────────────────────────────────────── */
+
+    // AniList：原始值 0–100，除以 10 顯示
     $score_anilist_raw = get_post_meta( $post_id, 'anime_score_anilist', true );
-    // ✅ Bug 6 修正：score 為 0 時不輸出 aggregateRating Schema
-    // AniList 原始值 0–100，除以 10 顯示為 0–10 分制
     $score_anilist_num = is_numeric( $score_anilist_raw ) ? (float) $score_anilist_raw : 0;
     $score_anilist     = $score_anilist_num > 0
         ? number_format( $score_anilist_num / 10, 1 )
         : '';
-    $score_mal         = get_post_meta( $post_id, 'anime_score_mal',     true );
-    $score_bangumi     = get_post_meta( $post_id, 'anime_score_bangumi', true );
+
+    // MAL：原始值 0–10，直接顯示
+    $score_mal_raw = get_post_meta( $post_id, 'anime_score_mal', true );
+    $score_mal_num = is_numeric( $score_mal_raw ) ? (float) $score_mal_raw : 0;
+    $score_mal     = $score_mal_num > 0
+        ? number_format( $score_mal_num, 1 )
+        : '';
+
+    // Bug 4 修正：Bangumi 儲存值為原始 ×10（如 6.9 → 69），除以 10 顯示
+    $score_bangumi_raw = get_post_meta( $post_id, 'anime_score_bangumi', true );
+    $score_bangumi_num = is_numeric( $score_bangumi_raw ) ? (float) $score_bangumi_raw : 0;
+    $score_bangumi     = $score_bangumi_num > 0
+        ? number_format( $score_bangumi_num / 10, 1 )
+        : '';
 
     /* ── 圖片 / 預告 ────────────────────────────────────────── */
     $cover_image  = get_post_meta( $post_id, 'anime_cover_image',  true );
@@ -76,7 +91,6 @@ while ( have_posts() ) : the_post();
 
     $youtube_id = '';
     if ( $trailer_url ) {
-        // 支援多個網址（textarea 格式），取第一個有效的 YouTube URL
         $trailer_urls = array_filter( array_map( 'trim', preg_split( '/[,\n]+/', $trailer_url ) ) );
         foreach ( $trailer_urls as $t_url ) {
             if ( preg_match( '/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/))([A-Za-z0-9_-]{11})/', $t_url, $ym ) ) {
@@ -119,12 +133,12 @@ while ( have_posts() ) : the_post();
         $d = json_decode( $raw, true );
         return is_array( $d ) ? $d : [];
     };
-    // ✅ 問題 V 修正：key 改為 anime_streaming / anime_themes，與 import-manager 寫入對齊
-    $streaming_list = $decode_json( get_post_meta( $post_id, 'anime_streaming',     true ) );
-    $themes_list    = $decode_json( get_post_meta( $post_id, 'anime_themes',        true ) );
-    $cast_list      = $decode_json( get_post_meta( $post_id, 'anime_cast_json',     true ) );
-    $staff_list     = $decode_json( get_post_meta( $post_id, 'anime_staff_json',    true ) );
-    $relations_list = $decode_json( get_post_meta( $post_id, 'anime_relations_json',true ) );
+
+    $streaming_list = $decode_json( get_post_meta( $post_id, 'anime_streaming',      true ) );
+    $themes_list    = $decode_json( get_post_meta( $post_id, 'anime_themes',         true ) );
+    $cast_list      = $decode_json( get_post_meta( $post_id, 'anime_cast_json',      true ) );
+    $staff_list     = $decode_json( get_post_meta( $post_id, 'anime_staff_json',     true ) );
+    $relations_list = $decode_json( get_post_meta( $post_id, 'anime_relations_json', true ) );
 
     /* ── OP/ED 分組去重 ─────────────────────────────────────── */
     $seen = []; $openings = []; $endings = [];
@@ -222,7 +236,6 @@ while ( have_posts() ) : the_post();
     $schema_genres = [];
     foreach ( $genre_terms as $gt ) $schema_genres[] = $gt->name;
 
-    // ✅ Bug 9 修正：alternateName 全空時不輸出該欄位
     $alternate_names = array_values( array_filter( [ $title_native, $title_romaji, $title_english ] ) );
 
     $schema = [
@@ -236,7 +249,6 @@ while ( have_posts() ) : the_post();
         'url'           => get_permalink( $post_id ),
     ];
 
-    // ✅ Bug 9 修正：只在有值時才加入 alternateName
     if ( ! empty( $alternate_names ) ) {
         $schema['alternateName'] = $alternate_names;
     }
@@ -245,7 +257,7 @@ while ( have_posts() ) : the_post();
         $schema['numberOfEpisodes'] = $episodes;
     }
 
-    // ✅ Bug 6 修正：score > 0 才輸出 aggregateRating
+    // Bug 4 修正：Schema aggregateRating 也使用除以 10 後的值
     if ( $score_anilist_num > 0 ) {
         $schema['aggregateRating'] = [
             '@type'       => 'AggregateRating',
@@ -409,9 +421,9 @@ while ( have_posts() ) : the_post();
             <h2 class="asd-section-title">🎭 角色與聲優</h2>
             <div class="asd-cast-grid" id="asd-cast-grid">
                 <?php foreach ( $cast_list as $i => $c ) :
-                    $char_name = $c['char_name_zh'] ?? ( $c['char_name_ja'] ?? '' );
+                    $char_name = $c['char_name_zh'] ?? ( $c['char_name_ja'] ?? ( $c['character'] ?? '' ) );
                     $char_img  = $c['char_image']   ?? '';
-                    $va_name   = $c['va_name']       ?? ( $c['name'] ?? '' );
+                    $va_name   = $c['va_name']       ?? ( $c['voice_actor'] ?? ( $c['name'] ?? '' ) );
                     $is_extra  = $i >= 12;
                 ?>
                 <div class="asd-cast-card<?php echo $is_extra ? ' asd-cast-extra' : ''; ?>">
@@ -542,12 +554,21 @@ while ( have_posts() ) : the_post();
             <h2 class="asd-section-title">🎬 相關作品</h2>
             <div class="asd-relations-grid">
             <?php foreach ( $relations_list as $rel ) :
-                $rel_anilist_id = (int) ( $rel['anilist_id'] ?? 0 );
-                $rel_title      = $rel['title_chinese'] ?: ( $rel['title_romaji'] ?? '' );
-                $rel_cover      = $rel['cover_image']   ?? '';
-                $rel_label      = $rel['relation_label'] ?? '';
-                $rel_format     = $format_labels[ $rel['format'] ?? '' ] ?? ( $rel['format'] ?? '' );
 
+                // Bug 6 修正：key 對齊 parse_relations() 實際回傳結構
+                // 新 key：anilist_id / title_chinese / title_romaji / relation_label / cover_image
+                // 舊 key（相容）：id / title / type
+                $rel_anilist_id = (int)    ( $rel['anilist_id']     ?? $rel['id']    ?? 0  );
+                $rel_title_zh   =           $rel['title_chinese']   ?? '';
+                $rel_title_ro   =           $rel['title_romaji']    ?? $rel['title'] ?? '';
+                $rel_title      = $rel_title_zh !== '' ? $rel_title_zh : $rel_title_ro;
+                $rel_native     =           $rel['native']          ?? '';
+                $rel_cover      =           $rel['cover_image']     ?? '';
+                $rel_label      =           $rel['relation_label']  ?? $rel['type']  ?? '';
+                $rel_format_key =           $rel['format']          ?? '';
+                $rel_format     = $format_labels[ $rel_format_key ] ?? $rel_format_key;
+
+                // 查本站是否有對應動畫文章
                 $rel_post = null;
                 if ( $rel_anilist_id ) {
                     $rel_q = new WP_Query( [
@@ -572,10 +593,16 @@ while ( have_posts() ) : the_post();
                 <?php if ( $rel_cover ) : ?>
                 <img src="<?php echo esc_url( $rel_cover ); ?>"
                      alt="<?php echo esc_attr( $rel_title ); ?>" loading="lazy">
+                <?php else : ?>
+                <div class="asd-relation-noimg">
+                    <?php echo esc_html( mb_substr( $rel_title ?: $rel_native, 0, 2 ) ); ?>
+                </div>
                 <?php endif; ?>
                 <div class="asd-relation-info">
-                    <span class="asd-relation-type"><?php echo esc_html( $rel_label ); ?></span>
-                    <span class="asd-relation-title"><?php echo esc_html( $rel_title ); ?></span>
+                    <?php if ( $rel_label )  echo '<span class="asd-relation-type">'   . esc_html( $rel_label )  . '</span>'; ?>
+                    <?php if ( $rel_title )  echo '<span class="asd-relation-title">'  . esc_html( $rel_title )  . '</span>'; ?>
+                    <?php if ( $rel_native && $rel_native !== $rel_title )
+                                             echo '<span class="asd-relation-native">' . esc_html( $rel_native ) . '</span>'; ?>
                     <?php if ( $rel_format ) echo '<span class="asd-relation-format">' . esc_html( $rel_format ) . '</span>'; ?>
                 </div>
             </a>
@@ -721,51 +748,6 @@ while ( have_posts() ) : the_post();
 
 </div><!-- .asd-container -->
 </div><!-- .asd-wrap -->
-
-<script>
-/* ── Show More Cast ─────────────────────────────────── */
-(function(){
-    const btn  = document.getElementById('asd-cast-more-btn');
-    const grid = document.getElementById('asd-cast-grid');
-    if ( ! btn || ! grid ) return;
-    btn.addEventListener('click', function(){
-        grid.querySelectorAll('.asd-cast-extra').forEach(el => el.style.display = 'flex');
-        btn.parentElement.style.display = 'none';
-    });
-})();
-
-/* ── Tab 切換 ───────────────────────────────────────── */
-(function(){
-    const tabs = document.querySelectorAll('.asd-tab');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', function(e){
-            tabs.forEach(t => t.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-})();
-
-/* ── Countdown Timer ────────────────────────────────── */
-(function(){
-    const el = document.querySelector('.asd-countdown');
-    if ( ! el ) return;
-    const ts = parseInt( el.dataset.ts, 10 ) * 1000;
-    function update(){
-        const diff = ts - Date.now();
-        if ( diff <= 0 ) { el.textContent = '即將播出'; return; }
-        const d = Math.floor( diff / 86400000 );
-        const h = Math.floor( ( diff % 86400000 ) / 3600000 );
-        const m = Math.floor( ( diff % 3600000  ) / 60000   );
-        const s = Math.floor( ( diff % 60000    ) / 1000    );
-        el.textContent = ( d > 0 ? d + ' 天 ' : '' ) +
-            String(h).padStart(2,'0') + ':' +
-            String(m).padStart(2,'0') + ':' +
-            String(s).padStart(2,'0');
-    }
-    update();
-    setInterval( update, 1000 );
-})();
-</script>
 
 <?php endwhile; ?>
 <?php get_footer(); ?>
