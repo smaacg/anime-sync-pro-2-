@@ -7,9 +7,12 @@
  *   AK  – normalize \r\n in clean_synopsis()
  *   AL  – convert synopsis + title via CN_Converter
  *   AR  – handle null idMal safely
- *   ABF – add fetch_mal_score() via Jikan API (MAL 評分空白)
+ *   ABF – add fetch_mal_score() via Jikan API
  *   ABG – add parse_external_links() for official_site / twitter_url
  *   ABH – add tags { name isMediaSpoiler } to GraphQL query
+ *   ABI – truncate [简介原文] in clean_synopsis()
+ *   ABJ – add fetch_wikipedia_url() via Wikipedia API
+ *   ABK – parse_relations() returns title_chinese / relation_label / cover_image / anilist_id
  *
  * @package Anime_Sync_Pro
  */
@@ -27,7 +30,7 @@ class Anime_Sync_API_Handler {
     const ANILIST_ENDPOINT = 'https://graphql.anilist.co';
     const BGM_SUBJECT_URL  = 'https://api.bgm.tv/v0/subjects/';
     const ANIMETHEMES_URL  = 'https://api.animethemes.moe/anime';
-    const JIKAN_ANIME_URL  = 'https://api.jikan.moe/v4/anime/';   // Bug ABF
+    const JIKAN_ANIME_URL  = 'https://api.jikan.moe/v4/anime/';
 
     // -------------------------------------------------------------------------
     // Dependencies
@@ -52,14 +55,6 @@ class Anime_Sync_API_Handler {
     // PUBLIC – Main Entry Point
     // =========================================================================
 
-    /**
-     * Fetch full anime data for a given AniList ID.
-     *
-     * @param int      $anilist_id AniList media ID.
-     * @param int      $post_id    WP post ID (0 if not yet created).
-     * @param int|null $bangumi_id Pre-known Bangumi ID (skip lookup if set).
-     * @return array|WP_Error
-     */
     public function get_full_anime_data( int $anilist_id, int $post_id = 0, ?int $bangumi_id = null ) {
 
         // --- 1. Fetch AniList data -------------------------------------------
@@ -76,7 +71,6 @@ class Anime_Sync_API_Handler {
         }
 
         // --- 2. Extract core fields -----------------------------------------
-        // Bug AR: idMal may be null
         $mal_id         = isset( $media['idMal'] ) && $media['idMal'] !== null
                           ? (int) $media['idMal']
                           : null;
@@ -87,7 +81,7 @@ class Anime_Sync_API_Handler {
         $season_year    = $media['seasonYear']        ?? 0;
         $external_links = $media['externalLinks']     ?? [];
 
-        // --- 3. Resolve Bangumi ID -------------------------------------------
+        // --- 3. Resolve Bangumi ID ------------------------------------------
         if ( ! $bangumi_id || $bangumi_id <= 0 ) {
             $anime_data_for_mapper = [
                 'anilist_id'     => $anilist_id,
@@ -101,7 +95,7 @@ class Anime_Sync_API_Handler {
             $bangumi_id = $this->id_mapper->get_bangumi_id( $anime_data_for_mapper );
         }
 
-        // --- 4. Fetch Bangumi data -------------------------------------------
+        // --- 4. Fetch Bangumi data ------------------------------------------
         $bgm_data  = null;
         $bgm_staff = [];
         $bgm_chars = [];
@@ -133,7 +127,6 @@ class Anime_Sync_API_Handler {
             }
         }
 
-        // Bug AL: convert title to Traditional Chinese
         $title_chinese = $title_chinese_raw !== ''
             ? Anime_Sync_CN_Converter::static_convert( $title_chinese_raw )
             : '';
@@ -144,7 +137,6 @@ class Anime_Sync_API_Handler {
 
         if ( $bgm_data && ! empty( $bgm_data['summary'] ) ) {
             $synopsis_chinese = $this->clean_synopsis( $bgm_data['summary'] );
-            // Bug AL: Bangumi summary is Simplified Chinese – convert to Traditional
             if ( $synopsis_chinese !== '' ) {
                 $synopsis_chinese = Anime_Sync_CN_Converter::static_convert( $synopsis_chinese );
             }
@@ -153,11 +145,9 @@ class Anime_Sync_API_Handler {
             $synopsis_english = $this->clean_synopsis( $media['description'] );
         }
 
-        // --- 7. Scores -------------------------------------------------------
-        // AniList: store raw 0-100
+        // --- 7. Scores ------------------------------------------------------
         $score_anilist = isset( $media['averageScore'] ) ? (int) $media['averageScore'] : 0;
 
-        // Bangumi: store ×10 integer (raw 0-10 float → stored 0-100 int)
         $score_bangumi = 0;
         if ( $bgm_data ) {
             $raw_rating = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
@@ -166,10 +156,9 @@ class Anime_Sync_API_Handler {
             }
         }
 
-        // Bug ABF: fetch MAL score via Jikan API (0-10 float, stored as-is)
         $score_mal = $this->fetch_mal_score( $mal_id );
 
-        // --- 8. Studios ------------------------------------------------------
+        // --- 8. Studios -----------------------------------------------------
         $studios = [];
         if ( ! empty( $media['studios']['nodes'] ) ) {
             foreach ( $media['studios']['nodes'] as $studio ) {
@@ -179,19 +168,21 @@ class Anime_Sync_API_Handler {
             }
         }
 
-        // --- 9. Dates --------------------------------------------------------
+        // --- 9. Dates -------------------------------------------------------
         $start_date = $this->parse_fuzzy_date( $media['startDate'] ?? [] );
         $end_date   = $this->parse_fuzzy_date( $media['endDate']   ?? [] );
 
-        // --- 10. Streaming + External Links ----------------------------------
-        $streaming      = $this->parse_streaming_links( $external_links );
-        // Bug ABG: parse individual external link fields
-        $parsed_links   = $this->parse_external_links( $external_links );
+        // --- 10. Streaming + External Links ---------------------------------
+        $streaming    = $this->parse_streaming_links( $external_links );
+        $parsed_links = $this->parse_external_links( $external_links );
 
-        // --- 11. Themes (AnimeThemes) ----------------------------------------
+        // --- 11. Wikipedia URL (Bug ABJ) ------------------------------------
+        $wikipedia_url = $this->fetch_wikipedia_url( $title_chinese, $title_native, $title_romaji );
+
+        // --- 12. Themes (AnimeThemes) ---------------------------------------
         $themes = $this->fetch_animethemes( $mal_id );
 
-        // --- 12. Staff / Cast / Relations ------------------------------------
+        // --- 13. Staff / Cast / Relations -----------------------------------
         $staff     = $this->parse_staff( $media['staff']['edges']         ?? [] );
         $cast      = $this->parse_cast(  $media['characters']['edges']    ?? [] );
         $relations = $this->parse_relations( $media['relations']['edges'] ?? [] );
@@ -203,7 +194,7 @@ class Anime_Sync_API_Handler {
             $cast = array_merge( $cast, $bgm_chars );
         }
 
-        // --- 13. Trailer -----------------------------------------------------
+        // --- 14. Trailer ----------------------------------------------------
         $trailer_url = '';
         if ( ! empty( $media['trailer'] ) ) {
             $t_id   = $media['trailer']['id']  ?? '';
@@ -213,7 +204,7 @@ class Anime_Sync_API_Handler {
             }
         }
 
-        // --- 14. Next Airing -------------------------------------------------
+        // --- 15. Next Airing ------------------------------------------------
         $next_airing = null;
         if ( ! empty( $media['nextAiringEpisode'] ) ) {
             $next_airing = [
@@ -222,8 +213,7 @@ class Anime_Sync_API_Handler {
             ];
         }
 
-        // --- 15. Tags (Bug ABH) ----------------------------------------------
-        // Filter out spoiler tags; keep only safe tag names
+        // --- 16. Tags (Bug ABH) ---------------------------------------------
         $anime_tags = [];
         foreach ( $media['tags'] ?? [] as $tag ) {
             if ( ! empty( $tag['isMediaSpoiler'] ) ) {
@@ -234,7 +224,7 @@ class Anime_Sync_API_Handler {
             }
         }
 
-        // --- 16. Assemble return array --------------------------------------
+        // --- 17. Assemble return array --------------------------------------
         return [
             // IDs
             'anilist_id'             => $anilist_id,
@@ -262,7 +252,7 @@ class Anime_Sync_API_Handler {
             // Scores
             'anime_score_anilist'    => $score_anilist,
             'anime_score_bangumi'    => $score_bangumi,
-            'anime_score_mal'        => $score_mal,        // Bug ABF
+            'anime_score_mal'        => $score_mal,
             'anime_popularity'       => (int) ( $media['popularity'] ?? 0 ),
 
             // Images
@@ -287,15 +277,16 @@ class Anime_Sync_API_Handler {
             'anime_cast_json'        => wp_json_encode( $cast,       JSON_UNESCAPED_UNICODE ),
             'anime_relations_json'   => wp_json_encode( $relations,  JSON_UNESCAPED_UNICODE ),
 
-            // External links – individual fields (Bug ABG)
+            // External links
             'anime_official_site'    => $parsed_links['official_site'] ?? '',
             'anime_twitter_url'      => $parsed_links['twitter_url']   ?? '',
+            'anime_wikipedia_url'    => $wikipedia_url,
 
             // Misc
             'anime_external_links'   => wp_json_encode( $external_links, JSON_UNESCAPED_UNICODE ),
             'anime_next_airing'      => $next_airing ? wp_json_encode( $next_airing ) : '',
             'anime_genres'           => $media['genres'] ?? [],
-            'anime_tags'             => $anime_tags,       // Bug ABH
+            'anime_tags'             => $anime_tags,
 
             // Raw Bangumi
             '_bgm_raw'               => $bgm_data,
@@ -366,7 +357,7 @@ class Anime_Sync_API_Handler {
                 'Content-Type' => 'application/json',
                 'Accept'       => 'application/json',
             ],
-            'body'    => $payload,
+            'body' => $payload,
         ] );
 
         if ( is_wp_error( $response ) ) {
@@ -384,11 +375,9 @@ class Anime_Sync_API_Handler {
                     'Content-Type' => 'application/json',
                     'Accept'       => 'application/json',
                 ],
-                'body'    => $payload,
+                'body' => $payload,
             ] );
-            if ( is_wp_error( $response ) ) {
-                return $response;
-            }
+            if ( is_wp_error( $response ) ) return $response;
             $code = (int) wp_remote_retrieve_response_code( $response );
         }
 
@@ -405,24 +394,15 @@ class Anime_Sync_API_Handler {
     }
 
     // =========================================================================
-    // PRIVATE – MAL Score via Jikan (Bug ABF)
+    // PRIVATE – MAL Score via Jikan
     // =========================================================================
 
-    /**
-     * Fetch MAL score via Jikan API.
-     * Returns float 0-10, or 0.0 on failure.
-     */
     private function fetch_mal_score( ?int $mal_id ): float {
-        if ( ! $mal_id || $mal_id <= 0 ) {
-            return 0.0;
-        }
+        if ( ! $mal_id || $mal_id <= 0 ) return 0.0;
 
-        // Transient cache: avoid repeated calls for same MAL ID
         $cache_key = 'anime_sync_mal_score_' . $mal_id;
         $cached    = get_transient( $cache_key );
-        if ( $cached !== false ) {
-            return (float) $cached;
-        }
+        if ( $cached !== false ) return (float) $cached;
 
         $this->rate_limiter->wait_if_needed( 'jikan' );
 
@@ -432,13 +412,9 @@ class Anime_Sync_API_Handler {
             'headers'    => [ 'Accept' => 'application/json' ],
         ] );
 
-        if ( is_wp_error( $response ) ) {
-            return 0.0;
-        }
+        if ( is_wp_error( $response ) ) return 0.0;
 
         $code = (int) wp_remote_retrieve_response_code( $response );
-
-        // Jikan rate limit: 60 req/min; retry once on 429
         if ( $code === 429 ) {
             sleep( 2 );
             $response = wp_remote_get( self::JIKAN_ANIME_URL . $mal_id, [
@@ -446,29 +422,81 @@ class Anime_Sync_API_Handler {
                 'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
                 'headers'    => [ 'Accept' => 'application/json' ],
             ] );
-            if ( is_wp_error( $response ) ) {
-                return 0.0;
-            }
+            if ( is_wp_error( $response ) ) return 0.0;
             $code = (int) wp_remote_retrieve_response_code( $response );
         }
 
-        if ( $code !== 200 ) {
-            return 0.0;
-        }
+        if ( $code !== 200 ) return 0.0;
 
         $data  = json_decode( wp_remote_retrieve_body( $response ), true );
         $score = $data['data']['score'] ?? null;
-
-        if ( $score === null ) {
-            return 0.0;
-        }
+        if ( $score === null ) return 0.0;
 
         $score_float = (float) $score;
-
-        // Cache for 12 hours
         set_transient( $cache_key, $score_float, 12 * HOUR_IN_SECONDS );
 
         return $score_float;
+    }
+
+    // =========================================================================
+    // PRIVATE – Wikipedia URL (Bug ABJ)
+    // =========================================================================
+
+    /**
+     * 依繁中標題 → 日文原名 → Romaji 順序查詢 Wikipedia zh 頁面 URL。
+     * 使用 transient 快取 30 天。
+     */
+    private function fetch_wikipedia_url( string $title_chinese, string $title_native, string $title_romaji ): string {
+
+        $candidates = array_filter( [ $title_chinese, $title_native, $title_romaji ] );
+
+        foreach ( $candidates as $title ) {
+            $cache_key = 'anime_sync_wiki_' . md5( $title );
+            $cached    = get_transient( $cache_key );
+
+            if ( $cached !== false ) {
+                return (string) $cached;
+            }
+
+            $url = add_query_arg( [
+                'action'      => 'query',
+                'titles'      => $title,
+                'format'      => 'json',
+                'prop'        => 'info',
+                'inprop'      => 'url',
+                'redirects'   => '1',
+                'formatversion' => '2',
+            ], 'https://zh.wikipedia.org/w/api.php' );
+
+            $response = wp_remote_get( $url, [
+                'timeout'    => 10,
+                'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
+                'headers'    => [ 'Accept' => 'application/json' ],
+            ] );
+
+            if ( is_wp_error( $response ) ) continue;
+            if ( (int) wp_remote_retrieve_response_code( $response ) !== 200 ) continue;
+
+            $data  = json_decode( wp_remote_retrieve_body( $response ), true );
+            $pages = $data['query']['pages'] ?? [];
+
+            foreach ( $pages as $page ) {
+                // missing = true 代表頁面不存在
+                if ( ! empty( $page['missing'] ) ) continue;
+
+                $wiki_url = $page['fullurl'] ?? '';
+                if ( $wiki_url === '' ) continue;
+
+                // 快取 30 天
+                set_transient( $cache_key, $wiki_url, 30 * DAY_IN_SECONDS );
+                return $wiki_url;
+            }
+
+            // 頁面不存在，快取空字串 7 天避免重複查詢
+            set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
+        }
+
+        return '';
     }
 
     // =========================================================================
@@ -483,9 +511,7 @@ class Anime_Sync_API_Handler {
             'headers'    => [ 'Accept' => 'application/json' ],
         ] );
 
-        if ( is_wp_error( $response ) ) {
-            return $response;
-        }
+        if ( is_wp_error( $response ) ) return $response;
 
         $code = (int) wp_remote_retrieve_response_code( $response );
         if ( $code === 429 ) {
@@ -496,9 +522,7 @@ class Anime_Sync_API_Handler {
                 'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
                 'headers'    => [ 'Accept' => 'application/json' ],
             ] );
-            if ( is_wp_error( $response ) ) {
-                return $response;
-            }
+            if ( is_wp_error( $response ) ) return $response;
             $code = (int) wp_remote_retrieve_response_code( $response );
         }
 
@@ -518,9 +542,7 @@ class Anime_Sync_API_Handler {
             'headers'    => [ 'Accept' => 'application/json' ],
         ] );
 
-        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
-            return [];
-        }
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
 
         $data   = json_decode( wp_remote_retrieve_body( $response ), true );
         $result = [];
@@ -543,9 +565,7 @@ class Anime_Sync_API_Handler {
             'headers'    => [ 'Accept' => 'application/json' ],
         ] );
 
-        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
-            return [];
-        }
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
 
         $data   = json_decode( wp_remote_retrieve_body( $response ), true );
         $result = [];
@@ -571,9 +591,7 @@ class Anime_Sync_API_Handler {
     // =========================================================================
 
     private function fetch_animethemes( ?int $mal_id ): array {
-        if ( ! $mal_id || $mal_id <= 0 ) {
-            return [];
-        }
+        if ( ! $mal_id || $mal_id <= 0 ) return [];
 
         $this->rate_limiter->wait_if_needed( 'animethemes' );
 
@@ -591,16 +609,11 @@ class Anime_Sync_API_Handler {
             'headers'    => [ 'Accept' => 'application/json' ],
         ] );
 
-        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
-            return [];
-        }
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
 
         $data  = json_decode( wp_remote_retrieve_body( $response ), true );
         $anime = $data['anime'][0] ?? null;
-
-        if ( ! $anime || empty( $anime['animethemes'] ) ) {
-            return [];
-        }
+        if ( ! $anime || empty( $anime['animethemes'] ) ) return [];
 
         $themes = [];
         foreach ( $anime['animethemes'] as $theme ) {
@@ -625,20 +638,30 @@ class Anime_Sync_API_Handler {
     }
 
     /**
-     * Bug AK: clean synopsis, normalize line endings first.
+     * Bug AK + ABI: 清理簡介，截斷 [简介原文] 及其後所有內容。
      */
     private function clean_synopsis( string $text ): string {
+        // AK: normalize line endings
         $text = str_replace( [ "\r\n", "\r" ], "\n", $text );
+
+        // ABI: 截斷 [简介原文] 及其後所有內容（含全形方括號變體）
+        $text = preg_replace( '/[\[【]简介原文[\]】].*/su', '', $text );
+
+        // 移除 spoiler 標籤
         $text = preg_replace( '/<spoiler>.*?<\/spoiler>/si', '', $text );
+
+        // 移除來源標註
         $text = preg_replace( '/\(Source:.*?\)/si', '', $text );
+
+        // 去除 HTML
         $text = wp_strip_all_tags( $text );
+
+        // 合併多餘空行
         $text = preg_replace( '/\n{3,}/', "\n\n", $text );
+
         return trim( $text );
     }
 
-    /**
-     * Extract streaming platform links.
-     */
     private function parse_streaming_links( array $external_links ): array {
         $streaming_sites = [
             'crunchyroll', 'funimation', 'netflix', 'amazon',
@@ -662,10 +685,6 @@ class Anime_Sync_API_Handler {
         return $streaming;
     }
 
-    /**
-     * Bug ABG: Parse individual external link fields.
-     * Returns [ 'official_site' => '', 'twitter_url' => '' ]
-     */
     private function parse_external_links( array $external_links ): array {
         $result = [
             'official_site' => '',
@@ -678,15 +697,12 @@ class Anime_Sync_API_Handler {
             $url  = $link['url'] ?? '';
             if ( $url === '' ) continue;
 
-            // Official site: site name contains 'official' or common JP official keywords
             if ( $result['official_site'] === '' &&
                  ( strpos( $site, 'official' ) !== false ||
-                   $site === 'website' ||
-                   $site === 'homepage' ) ) {
+                   $site === 'website' || $site === 'homepage' ) ) {
                 $result['official_site'] = $url;
             }
 
-            // Twitter / X
             if ( $result['twitter_url'] === '' &&
                  ( strpos( $site, 'twitter' ) !== false ||
                    strpos( $site, ' x ' ) !== false ||
@@ -725,6 +741,10 @@ class Anime_Sync_API_Handler {
         return $result;
     }
 
+    /**
+     * Bug ABK: 回傳 key 對齊 single-anime.php 讀取需求。
+     * 新增 title_chinese、relation_label、cover_image、anilist_id。
+     */
     private function parse_relations( array $edges ): array {
         $type_map = [
             'PREQUEL'     => '前作',   'SEQUEL'      => '續作',
@@ -739,14 +759,25 @@ class Anime_Sync_API_Handler {
 
         $result = [];
         foreach ( $edges as $edge ) {
-            $type_raw = $edge['relationType'] ?? 'OTHER';
-            $label    = $type_map[ $type_raw ] ?? '其他';
+            $type_raw      = $edge['relationType'] ?? 'OTHER';
+            $label         = $type_map[ $type_raw ] ?? '其他';
+            $title_romaji  = $edge['node']['title']['romaji'] ?? '';
+            $title_native  = $edge['node']['title']['native'] ?? '';
+
             $result[] = [
-                'id'     => $edge['node']['id']              ?? 0,
-                'title'  => $edge['node']['title']['romaji'] ?? '',
-                'native' => $edge['node']['title']['native'] ?? '',
-                'format' => $edge['node']['format']          ?? '',
-                'type'   => $label,
+                // 舊 key（保留相容）
+                'id'             => $edge['node']['id'] ?? 0,
+                'title'          => $title_romaji,
+                'native'         => $title_native,
+                'format'         => $edge['node']['format'] ?? '',
+                'type'           => $label,
+
+                // Bug ABK: 新增對齊 single-anime.php 的 key
+                'anilist_id'     => $edge['node']['id'] ?? 0,
+                'title_chinese'  => '',          // 同步時無法即時查中文，留空由後台補
+                'title_romaji'   => $title_romaji,
+                'relation_label' => $label,
+                'cover_image'    => '',          // AniList relations 不帶封面圖
             ];
         }
 
