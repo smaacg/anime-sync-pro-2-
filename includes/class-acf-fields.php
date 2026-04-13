@@ -4,9 +4,13 @@
  *
  * Bug fixes in this version:
  *   Bug 1  – anime_score_bangumi max 改為 100，step 改為 1
- *   Bug 5  – YouTube 預告片 JS 移到 admin_footer
  *   Bug 7  – 移除英文簡介欄位
  *   Bug 8  – 鎖定欄位顯示中文標籤
+ *   F1     – 移除 trailer preview message 欄位及 render_trailer_preview_script()
+ *   F2     – 台灣串流平台改為多選 checkbox（16 個選項）
+ *   F3     – 台灣代理商改為 select + 自訂文字欄位
+ *   F4     – 新增「重新同步 Bangumi」按鈕（message 欄位 + AJAX）
+ *   F5     – 新增 anime_episodes_json 欄位（唯讀 textarea）
  *
  * @package Anime_Sync_Pro
  */
@@ -18,8 +22,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Anime_Sync_ACF_Fields {
 
     public function __construct() {
-        add_action( 'acf/init', [ $this, 'register_field_groups' ] );
-        add_action( 'admin_footer', [ $this, 'render_trailer_preview_script' ] );
+        add_action( 'acf/init',      [ $this, 'register_field_groups' ] );
+        add_action( 'admin_footer',  [ $this, 'render_resync_bangumi_script' ] );
+        add_action( 'wp_ajax_anime_sync_resync_bangumi', [ $this, 'ajax_resync_bangumi' ] );
     }
 
     public function register_field_groups(): void {
@@ -71,16 +76,16 @@ class Anime_Sync_ACF_Fields {
                     'label'        => 'Bangumi ID',
                     'name'         => 'anime_bangumi_id',
                     'type'         => 'number',
-                    'instructions' => '來自 Bangumi 的動畫 ID',
+                    'instructions' => '來自 Bangumi 的動畫 ID（可手動填入後點「重新同步 Bangumi」）',
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '25' ],
                 ],
                 [
                     'key'          => 'field_anime_animethemes_id',
-                    'label'        => 'AnimeThemes ID',
+                    'label'        => 'AnimeThemes Slug',
                     'name'         => 'anime_animethemes_id',
                     'type'         => 'text',
-                    'instructions' => '來自 AnimeThemes 的動畫 slug',
+                    'instructions' => '來自 AnimeThemes 的動畫 slug（自動同步）',
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '25' ],
                 ],
@@ -251,7 +256,7 @@ class Anime_Sync_ACF_Fields {
                     'label'        => '下集播出資訊',
                     'name'         => 'anime_next_airing',
                     'type'         => 'textarea',
-                    'instructions' => 'JSON 格式：{"airingAt": Unix時間戳, "episode": 集數}',
+                    'instructions' => 'JSON 格式：{"airingAt": Unix時間戳, "episode": 集數}（自動同步，已完結為空）',
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '50' ],
                     'readonly'     => 1,
@@ -297,7 +302,7 @@ class Anime_Sync_ACF_Fields {
                     'step'         => 0.01,
                 ],
                 [
-                    // Bug 1 修正：max 改為 100，前台除以 10 顯示
+                    // Bug 1 修正：max 改為 100，step 改為 1，前台除以 10 顯示
                     'key'          => 'field_anime_score_bangumi',
                     'label'        => 'Bangumi 評分',
                     'name'         => 'anime_score_bangumi',
@@ -346,13 +351,13 @@ class Anime_Sync_ACF_Fields {
                     'rows'         => 6,
                 ],
                 // Bug 7：英文簡介欄位已移除，不在後台顯示
-                // anime_synopsis_english 仍會由 API 寫入資料庫供其他用途
+                // anime_synopsis_english 仍由 API 寫入資料庫供其他用途
             ],
         ] );
     }
 
     // =========================================================================
-    // 4. 媒體素材
+    // 4. 媒體素材（F1：移除預告片 preview message 欄位）
     // =========================================================================
 
     private function register_media(): void {
@@ -391,21 +396,14 @@ class Anime_Sync_ACF_Fields {
                     'wrapper'      => [ 'width' => '100' ],
                     'rows'         => 3,
                 ],
-                [
-                    'key'          => 'field_anime_trailer_preview',
-                    'label'        => '預告片預覽',
-                    'name'         => 'anime_trailer_preview',
-                    'type'         => 'message',
-                    'instructions' => '',
-                    'message'      => '<div id="anime-trailer-preview-wrap"></div>',
-                    'wrapper'      => [ 'width' => '100' ],
-                ],
+                // F1：移除 field_anime_trailer_preview message 欄位
+                // render_trailer_preview_script() 也已一併移除
             ],
         ] );
     }
 
     // =========================================================================
-    // 5. 製作資訊
+    // 5. 製作資訊（F5：新增 anime_episodes_json）
     // =========================================================================
 
     private function register_production(): void {
@@ -458,6 +456,18 @@ class Anime_Sync_ACF_Fields {
                     'rows'         => 4,
                     'readonly'     => 1,
                 ],
+                [
+                    // F5：新增 Bangumi 集數列表欄位
+                    'key'          => 'field_anime_episodes_json',
+                    'label'        => '集數列表 JSON',
+                    'name'         => 'anime_episodes_json',
+                    'type'         => 'textarea',
+                    'instructions' => 'JSON 格式（來自 Bangumi），自動同步，請勿手動修改',
+                    'required'     => 0,
+                    'wrapper'      => [ 'width' => '100' ],
+                    'rows'         => 4,
+                    'readonly'     => 1,
+                ],
             ],
         ] );
     }
@@ -490,7 +500,7 @@ class Anime_Sync_ACF_Fields {
                     'label'        => '串流平台 JSON',
                     'name'         => 'anime_streaming',
                     'type'         => 'textarea',
-                    'instructions' => 'JSON 格式（平台清單），自動同步，請勿手動修改',
+                    'instructions' => 'JSON 格式（自動從 AniList 同步），請勿手動修改',
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '100' ],
                     'rows'         => 4,
@@ -553,7 +563,7 @@ class Anime_Sync_ACF_Fields {
     }
 
     // =========================================================================
-    // 8. 台灣在地資訊
+    // 8. 台灣在地資訊（F2：串流 checkbox；F3：代理商 select + 自訂）
     // =========================================================================
 
     private function register_taiwan_info(): void {
@@ -564,40 +574,114 @@ class Anime_Sync_ACF_Fields {
             'position' => 'normal',
             'style'    => 'default',
             'fields'   => [
+
+                // F2：台灣串流平台 → 多選 checkbox
+                [
+                    'key'          => 'field_anime_tw_streaming',
+                    'label'        => '台灣串流平台',
+                    'name'         => 'anime_tw_streaming',
+                    'type'         => 'checkbox',
+                    'instructions' => '可複選；特殊平台請手動於「其他串流平台」欄填寫',
+                    'required'     => 0,
+                    'wrapper'      => [ 'width' => '100' ],
+                    'choices'      => [
+                        'bahamut'    => '巴哈姆特動畫瘋',
+                        'netflix'    => 'Netflix',
+                        'disney'     => 'Disney+',
+                        'amazon'     => 'Amazon Prime Video',
+                        'kktv'       => 'KKTV',
+                        'friday'     => 'friDay 影音',
+                        'catchplay'  => 'CatchPlay+',
+                        'bilibili'   => 'Bilibili 台灣',
+                        'crunchyroll'=> 'Crunchyroll',
+                        'hulu'       => 'Hulu',
+                        'hidive'     => 'HIDIVE',
+                        'ani-one'    => 'Ani-One',
+                        'muse'       => 'Muse 木棉花',
+                        'viu'        => 'Viu',
+                        'wetv'       => 'WeTV',
+                        'youtube'    => 'YouTube（官方頻道）',
+                    ],
+                    'layout'       => 'horizontal',
+                    'toggle'       => 0,
+                    'return_format'=> 'value',
+                ],
+
+                // F2：其他串流平台（手動補充）
+                [
+                    'key'          => 'field_anime_tw_streaming_other',
+                    'label'        => '其他串流平台',
+                    'name'         => 'anime_tw_streaming_other',
+                    'type'         => 'text',
+                    'instructions' => '清單以外的台灣串流平台，手動填寫（如：MyVideo、LineTV）',
+                    'required'     => 0,
+                    'wrapper'      => [ 'width' => '100' ],
+                ],
+
+                // F3：台灣代理商 → select
                 [
                     'key'          => 'field_anime_tw_distributor',
                     'label'        => '台灣代理商',
                     'name'         => 'anime_tw_distributor',
-                    'type'         => 'text',
-                    'instructions' => '台灣代理或發行商名稱',
+                    'type'         => 'select',
+                    'instructions' => '選擇台灣代理或發行商；不在清單中請選「其他」並填寫下方欄位',
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '50' ],
+                    'choices'      => [
+                        ''           => '— 請選擇 —',
+                        'muse'       => '木棉花（Muse）',
+                        'medialink'  => '曼迪傳播（Medialink）',
+                        'jbf'        => '日本橋文化（JBF）',
+                        'righttime'  => '正確時間',
+                        'gaga'       => 'GaGa OOLala',
+                        'catchplay'  => 'CatchPlay',
+                        'netflix'    => 'Netflix 台灣',
+                        'disney'     => 'Disney+ 台灣',
+                        'kktv'       => 'KKTV',
+                        'crunchyroll'=> 'Crunchyroll',
+                        'ani-one'    => 'Ani-One Asia',
+                        'other'      => '其他（請填寫下方）',
+                    ],
+                    'allow_null'   => 1,
+                    'default_value'=> '',
                 ],
+
+                // F3：自訂代理商（僅選「其他」時填寫）
+                [
+                    'key'               => 'field_anime_tw_distributor_custom',
+                    'label'             => '其他代理商名稱',
+                    'name'              => 'anime_tw_distributor_custom',
+                    'type'              => 'text',
+                    'instructions'      => '選擇「其他」時填寫代理商名稱',
+                    'required'          => 0,
+                    'wrapper'           => [ 'width' => '50' ],
+                    'conditional_logic' => [
+                        [
+                            [
+                                'field'    => 'field_anime_tw_distributor',
+                                'operator' => '==',
+                                'value'    => 'other',
+                            ],
+                        ],
+                    ],
+                ],
+
+                // 台灣播出時間（保留）
                 [
                     'key'          => 'field_anime_tw_broadcast',
                     'label'        => '台灣播出時間',
                     'name'         => 'anime_tw_broadcast',
                     'type'         => 'text',
-                    'instructions' => '台灣播出頻道與時間',
-                    'required'     => 0,
-                    'wrapper'      => [ 'width' => '50' ],
-                ],
-                [
-                    'key'          => 'field_anime_tw_streaming',
-                    'label'        => '台灣串流平台',
-                    'name'         => 'anime_tw_streaming',
-                    'type'         => 'textarea',
-                    'instructions' => '台灣可收看的串流平台（每行一個）',
+                    'instructions' => '台灣播出頻道與時間（如：每週六 23:00 BAHAMUT）',
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '100' ],
-                    'rows'         => 3,
                 ],
             ],
         ] );
     }
 
     // =========================================================================
-    // 9. 同步控制（Bug 8：鎖定欄位顯示中文標籤）
+    // 9. 同步控制（F4：重新同步 Bangumi 按鈕；Bug 8：鎖定欄位中文標籤）
     // =========================================================================
 
     private function register_sync_control(): void {
@@ -618,6 +702,24 @@ class Anime_Sync_ACF_Fields {
                     'wrapper'      => [ 'width' => '100' ],
                     'readonly'     => 1,
                 ],
+
+                // F4：重新同步 Bangumi 按鈕
+                [
+                    'key'     => 'field_anime_resync_bangumi',
+                    'label'   => '重新同步 Bangumi',
+                    'name'    => 'anime_resync_bangumi',
+                    'type'    => 'message',
+                    'message' => '<button type="button" id="anime-resync-bangumi-btn"
+                                    class="button button-secondary"
+                                    style="width:100%;margin-bottom:6px;">
+                                    🔄 重新同步 Bangumi
+                                  </button>
+                                  <div id="anime-resync-bangumi-result"
+                                       style="font-size:12px;margin-top:4px;"></div>',
+                    'wrapper' => [ 'width' => '100' ],
+                ],
+
+                // Bug 8：鎖定欄位顯示中文標籤
                 [
                     'key'          => 'field_anime_locked_fields',
                     'label'        => '鎖定欄位（不自動更新）',
@@ -626,18 +728,33 @@ class Anime_Sync_ACF_Fields {
                     'instructions' => '勾選後，該欄位不會被自動同步覆蓋',
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '100' ],
-                    // Bug 8 修正：value 為 meta key，label 顯示中文
                     'choices'      => self::get_auto_update_fields_labeled(),
+                    'layout'       => 'vertical',
+                    'toggle'       => 0,
+                    'return_format'=> 'value',
+                ],
+
+                // 匯入狀態訊息
+                [
+                    'key'          => 'field_anime_import_status',
+                    'label'        => '匯入狀態',
+                    'name'         => 'anime_import_status',
+                    'type'         => 'textarea',
+                    'instructions' => '最後一次匯入的結果摘要（自動寫入）',
+                    'required'     => 0,
+                    'wrapper'      => [ 'width' => '100' ],
+                    'rows'         => 5,
+                    'readonly'     => 1,
                 ],
             ],
         ] );
     }
 
     // =========================================================================
-    // YouTube 預告片預覽 JS
+    // F4：重新同步 Bangumi — 前端 JS
     // =========================================================================
 
-    public function render_trailer_preview_script(): void {
+    public function render_resync_bangumi_script(): void {
         $screen = get_current_screen();
         if ( ! $screen || $screen->post_type !== 'anime' ) return;
         ?>
@@ -645,59 +762,179 @@ class Anime_Sync_ACF_Fields {
         (function () {
             'use strict';
 
-            function extractYouTubeId(url) {
-                var m = url.match(/(?:v=|youtu\.be\/|embed\/|v\/)([A-Za-z0-9_-]{11})/);
-                return m ? m[1] : null;
-            }
+            document.addEventListener( 'DOMContentLoaded', function () {
+                var btn    = document.getElementById( 'anime-resync-bangumi-btn' );
+                var result = document.getElementById( 'anime-resync-bangumi-result' );
+                if ( ! btn ) return;
 
-            function buildIframe(videoId) {
-                return '<div style="display:inline-block;margin:4px;">' +
-                    '<iframe width="280" height="158" ' +
-                    'src="https://www.youtube.com/embed/' + videoId + '?rel=0" ' +
-                    'frameborder="0" allowfullscreen loading="lazy"></iframe>' +
-                    '</div>';
-            }
+                btn.addEventListener( 'click', function () {
+                    var postId = <?php echo (int) ( $_GET['post'] ?? 0 ); ?>;
+                    if ( ! postId ) {
+                        result.style.color = '#cc0000';
+                        result.textContent = '❌ 請先儲存文章再重新同步。';
+                        return;
+                    }
 
-            function renderPreviews() {
-                var textarea = document.querySelector("textarea[name='anime_trailer_url']");
-                var wrap     = document.getElementById('anime-trailer-preview-wrap');
-                if (!textarea || !wrap) return;
+                    btn.disabled       = true;
+                    result.style.color = '#555';
+                    result.textContent = '⏳ 同步中，請稍候…';
 
-                var raw  = textarea.value || '';
-                var urls = raw.split(/[,\n]+/).map(function (s) {
-                    return s.trim();
-                }).filter(Boolean);
+                    var data = new FormData();
+                    data.append( 'action',  'anime_sync_resync_bangumi' );
+                    data.append( 'post_id', postId );
+                    data.append( 'nonce',   '<?php echo esc_js( wp_create_nonce( 'anime_sync_resync_bangumi' ) ); ?>' );
 
-                if (!urls.length) {
-                    wrap.innerHTML = '<p style="color:#999;">尚無預告片網址。</p>';
-                    return;
-                }
-
-                var html = '';
-                urls.forEach(function (url) {
-                    var vid = extractYouTubeId(url);
-                    if (vid) html += buildIframe(vid);
-                });
-
-                wrap.innerHTML = html || '<p style="color:#999;">無法解析 YouTube 網址。</p>';
-            }
-
-            function init() {
-                renderPreviews();
-                var textarea = document.querySelector("textarea[name='anime_trailer_url']");
-                if (textarea) {
-                    textarea.addEventListener('input', renderPreviews);
-                }
-            }
-
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', init);
-            } else {
-                setTimeout(init, 300);
-            }
+                    fetch( ajaxurl, { method: 'POST', body: data } )
+                        .then( function ( r ) { return r.json(); } )
+                        .then( function ( res ) {
+                            btn.disabled = false;
+                            if ( res.success ) {
+                                result.style.color = '#007a29';
+                                result.textContent = '✅ ' + ( res.data.message || '同步完成，請重新整理頁面。' );
+                            } else {
+                                result.style.color = '#cc0000';
+                                result.textContent = '❌ ' + ( res.data.message || '同步失敗。' );
+                            }
+                        } )
+                        .catch( function () {
+                            btn.disabled       = false;
+                            result.style.color = '#cc0000';
+                            result.textContent = '❌ 網路錯誤，請重試。';
+                        } );
+                } );
+            } );
         })();
         </script>
         <?php
+    }
+
+    // =========================================================================
+    // F4：重新同步 Bangumi — AJAX Handler
+    // =========================================================================
+
+    public function ajax_resync_bangumi(): void {
+        // 驗證 nonce
+        if ( ! check_ajax_referer( 'anime_sync_resync_bangumi', 'nonce', false ) ) {
+            wp_send_json_error( [ 'message' => 'Nonce 驗證失敗' ] );
+        }
+
+        // 驗證權限
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            wp_send_json_error( [ 'message' => '權限不足' ] );
+        }
+
+        $post_id    = (int) ( $_POST['post_id'] ?? 0 );
+        $bangumi_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+
+        if ( ! $post_id || get_post_type( $post_id ) !== 'anime' ) {
+            wp_send_json_error( [ 'message' => '無效的文章 ID' ] );
+        }
+
+        if ( ! $bangumi_id ) {
+            wp_send_json_error( [ 'message' => '此文章尚未設定 Bangumi ID，請先在基本資訊欄位填入後儲存，再重試。' ] );
+        }
+
+        // 取得 API Handler
+        global $anime_sync_pro;
+        $api_handler = $anime_sync_pro->get_api_handler()
+                       ?? new Anime_Sync_API_Handler();
+
+        // 重新抓取 Bangumi 資料
+        $bgm_data  = $api_handler->fetch_bgm_data_public( $bangumi_id );
+        $bgm_staff = $api_handler->get_bgm_staff_public( $bangumi_id );
+        $bgm_chars = $api_handler->get_bgm_chars_public( $bangumi_id );
+        $bgm_eps   = $api_handler->fetch_bgm_episodes( $bangumi_id );
+
+        if ( is_wp_error( $bgm_data ) || ! is_array( $bgm_data ) ) {
+            wp_send_json_error( [
+                'message' => 'Bangumi API 回傳錯誤：' . ( is_wp_error( $bgm_data ) ? $bgm_data->get_error_message() : '無資料' ),
+            ] );
+        }
+
+        $updated = [];
+
+        // ── 中文標題 ──────────────────────────────────────────────────────────
+        $title_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
+        if ( $title_raw !== '' ) {
+            $title_zh = Anime_Sync_CN_Converter::static_convert( $title_raw );
+            if ( ! Anime_Sync_ACF_Fields::is_field_locked( $post_id, 'anime_title_chinese' ) ) {
+                update_post_meta( $post_id, 'anime_title_chinese', $title_zh );
+                update_post_meta( $post_id, 'anime_title_zh',      $title_zh );
+                $updated[] = '中文標題';
+            }
+        }
+
+        // ── 中文簡介 ──────────────────────────────────────────────────────────
+        if ( ! empty( $bgm_data['summary'] ) ) {
+            $synopsis = Anime_Sync_CN_Converter::static_convert(
+                $api_handler->clean_synopsis_public( $bgm_data['summary'] )
+            );
+            if ( ! Anime_Sync_ACF_Fields::is_field_locked( $post_id, 'anime_synopsis_chinese' ) ) {
+                update_post_meta( $post_id, 'anime_synopsis_chinese', $synopsis );
+                update_post_meta( $post_id, 'anime_synopsis_zh',      $synopsis );
+                $updated[] = '中文簡介';
+            }
+        }
+
+        // ── Bangumi 評分 ──────────────────────────────────────────────────────
+        $raw_rating = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
+        if ( $raw_rating !== null ) {
+            $score_bgm = (int) round( (float) $raw_rating * 10 );
+            if ( ! Anime_Sync_ACF_Fields::is_field_locked( $post_id, 'anime_score_bangumi' ) ) {
+                update_post_meta( $post_id, 'anime_score_bangumi', $score_bgm );
+                $updated[] = 'Bangumi 評分';
+            }
+        }
+
+        // ── 封面圖片（Bangumi 來源） ──────────────────────────────────────────
+        $bgm_cover = $bgm_data['images']['large'] ?? $bgm_data['images']['medium'] ?? '';
+        if ( $bgm_cover !== '' && ! Anime_Sync_ACF_Fields::is_field_locked( $post_id, 'anime_cover_image' ) ) {
+            update_post_meta( $post_id, 'anime_cover_image', $bgm_cover );
+            $updated[] = '封面圖片';
+        }
+
+        // ── Staff ─────────────────────────────────────────────────────────────
+        if ( ! empty( $bgm_staff ) && ! is_wp_error( $bgm_staff ) ) {
+            if ( ! Anime_Sync_ACF_Fields::is_field_locked( $post_id, 'anime_staff_json' ) ) {
+                update_post_meta(
+                    $post_id,
+                    'anime_staff_json',
+                    wp_json_encode( $bgm_staff, JSON_UNESCAPED_UNICODE )
+                );
+                $updated[] = '製作人員';
+            }
+        }
+
+        // ── Cast ──────────────────────────────────────────────────────────────
+        if ( ! empty( $bgm_chars ) && ! is_wp_error( $bgm_chars ) ) {
+            if ( ! Anime_Sync_ACF_Fields::is_field_locked( $post_id, 'anime_cast_json' ) ) {
+                update_post_meta(
+                    $post_id,
+                    'anime_cast_json',
+                    wp_json_encode( $bgm_chars, JSON_UNESCAPED_UNICODE )
+                );
+                $updated[] = '角色聲優';
+            }
+        }
+
+        // ── 集數列表 ──────────────────────────────────────────────────────────
+        if ( ! empty( $bgm_eps ) ) {
+            update_post_meta(
+                $post_id,
+                'anime_episodes_json',
+                wp_json_encode( $bgm_eps, JSON_UNESCAPED_UNICODE )
+            );
+            $updated[] = '集數列表';
+        }
+
+        // ── 更新同步時間 ──────────────────────────────────────────────────────
+        update_post_meta( $post_id, 'anime_last_sync', current_time( 'mysql' ) );
+
+        $msg = empty( $updated )
+               ? '同步完成（無欄位更新，可能均已鎖定）'
+               : '已更新：' . implode( '、', $updated );
+
+        wp_send_json_success( [ 'message' => $msg ] );
     }
 
     // =========================================================================
@@ -721,6 +958,7 @@ class Anime_Sync_ACF_Fields {
             'anime_staff_json'       => '製作人員',
             'anime_cast_json'        => '角色聲優',
             'anime_relations_json'   => '關聯作品',
+            'anime_episodes_json'    => '集數列表',
             'anime_cover_image'      => '封面圖片',
             'anime_banner_image'     => '橫幅圖片',
             'anime_trailer_url'      => '預告片網址',
@@ -734,9 +972,6 @@ class Anime_Sync_ACF_Fields {
         ];
     }
 
-    /**
-     * 回傳自動更新欄位的 meta key 陣列（相容舊有呼叫）。
-     */
     public static function get_auto_update_fields(): array {
         return array_keys( self::get_auto_update_fields_labeled() );
     }
