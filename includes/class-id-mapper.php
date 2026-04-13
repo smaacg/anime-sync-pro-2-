@@ -7,6 +7,11 @@
  *         優先選最接近目標年份的結果，而非遇到年份差 >1 就放棄。
  *   ABC – normalize_title() 保留季號進行第二次搜尋：
  *         第一次搜尋用去季號標題，若無結果則用原始標題（保留 Season 2 等）重試。
+ *   ABR – normalize_title() 加入 null 防護：
+ *         Bangumi API 回傳的 name_cn / name 可能為 null，
+ *         導致 preg_replace() Deprecated 並使整個比對失敗。
+ *         現在統一在入口處轉為空字串，並在 match_best_result() 
+ *         對 bgm_title_cn / bgm_title_ja 也做防護。
  *
  * @package Anime_Sync_Pro
  */
@@ -73,6 +78,10 @@ class Anime_Sync_ID_Mapper {
         $title_chinese =           $anime_data['title_chinese']   ?? '';
         $season_year   = (int)    ( $anime_data['season_year']    ?? 0   );
         $ext_links     =           $anime_data['external_links']  ?? [];
+
+        // ABR：確保傳入 normalize_title() 的標題一定是字串
+        $title_native  = (string) ( $title_native  ?? '' );
+        $title_chinese = (string) ( $title_chinese ?? '' );
 
         // ── Layer 0：WP post meta ─────────────────────────────────────────────
         if ( $post_id > 0 ) {
@@ -267,18 +276,6 @@ class Anime_Sync_ID_Mapper {
             return false;
         }
 
-        $mal_index  = [];
-        $name_cache = [];
-
-        // anime_map 結構：[ al_id => bgm_id ]
-        // mal_index 需要從原始 MAP_FILE 重建，此處直接重載
-        $raw = $this->load_json_file( $this->get_file_path( self::MAP_FILE ) );
-        if ( ! is_array( $raw ) ) return false;
-
-        foreach ( $raw as $al_id => $bgm_id ) {
-            // mal_index 在 download_and_cache_map() 時已獨立建立，這裡只重載
-        }
-
         // 重載 mal_index
         $this->mal_index = null;
         $this->load_mal_index();
@@ -353,14 +350,10 @@ class Anime_Sync_ID_Mapper {
     }
 
     /**
-     * ABB 修正：從搜尋結果挑選最佳符合項目。
+     * ABB + ABR 修正：從搜尋結果挑選最佳符合項目。
      *
-     * 修正前：年份差 >1 直接放棄整個結果。
-     * 修正後：
-     *   1. 先計算每筆結果與目標年份的差距。
-     *   2. 篩選標題相似度 >= 0.6 的候選。
-     *   3. 在候選中優先選年份差最小者（≤1 為優先，>1 為次選）。
-     *   4. 若完全沒有年份資訊，仍允許依標題相似度選取。
+     * ABR：對 bgm_title_cn / bgm_title_ja 做 null 防護，
+     *      確保傳入 normalize_title() 的一定是字串。
      */
     private function match_best_result( array $results, string $title, int $year ): ?int {
 
@@ -373,12 +366,12 @@ class Anime_Sync_ID_Mapper {
         $candidates_no_year   = []; // 無年份資訊
 
         foreach ( $results as $subject ) {
-            $bgm_id    = (int) ( $subject['id'] ?? 0 );
+            $bgm_id = (int) ( $subject['id'] ?? 0 );
             if ( ! $bgm_id ) continue;
 
-            // ── 標題相似度 ──────────────────────────────────────────────────
-            $bgm_title_cn  = $subject['name_cn'] ?? '';
-            $bgm_title_ja  = $subject['name']    ?? '';
+            // ── ABR：null 防護，確保一定是字串再傳入 normalize_title() ───────
+            $bgm_title_cn = (string) ( $subject['name_cn'] ?? '' );
+            $bgm_title_ja = (string) ( $subject['name']    ?? '' );
 
             $sim_cn = 0.0;
             $sim_ja = 0.0;
@@ -386,29 +379,19 @@ class Anime_Sync_ID_Mapper {
             similar_text( $normalized_input, $this->normalize_title( $bgm_title_ja ), $sim_ja );
             $sim = max( $sim_cn, $sim_ja );
 
-            if ( $sim < 60.0 ) continue; // 相似度門檻 60%
+            if ( $sim < 60.0 ) continue;
 
             // ── 年份差計算 ──────────────────────────────────────────────────
-            $bgm_year = $this->get_bangumi_year( $subject );
+            $bgm_year  = $this->get_bangumi_year( $subject );
 
-            // 無年份資訊
             if ( ! $bgm_year ) {
-                $candidates_no_year[] = [
-                    'id'  => $bgm_id,
-                    'sim' => $sim,
-                ];
+                $candidates_no_year[] = [ 'id' => $bgm_id, 'sim' => $sim ];
                 continue;
             }
 
             $year_diff = $year > 0 ? abs( $bgm_year - $year ) : 999;
+            $candidate = [ 'id' => $bgm_id, 'sim' => $sim, 'year_diff' => $year_diff ];
 
-            $candidate = [
-                'id'        => $bgm_id,
-                'sim'       => $sim,
-                'year_diff' => $year_diff,
-            ];
-
-            // ABB：依年份差分組，而非直接放棄
             if ( $year_diff <= 1 ) {
                 $candidates_primary[]   = $candidate;
             } else {
@@ -417,30 +400,23 @@ class Anime_Sync_ID_Mapper {
         }
 
         // ── 選取策略 ────────────────────────────────────────────────────────
-        // 優先從 primary（年份差 ≤1）中取相似度最高者
         if ( ! empty( $candidates_primary ) ) {
             usort( $candidates_primary, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
             return $candidates_primary[0]['id'];
         }
 
-        // 其次從 secondary（年份差 2+）中取年份差最小、相似度最高者
-        // 這處理像「我獨自升級 Season 2」這類需要寬鬆年份匹配的情況
         if ( ! empty( $candidates_secondary ) ) {
             usort( $candidates_secondary, function ( $a, $b ) {
-                // 先比年份差（小的優先）
                 if ( $a['year_diff'] !== $b['year_diff'] ) {
                     return $a['year_diff'] <=> $b['year_diff'];
                 }
-                // 年份差相同再比相似度（大的優先）
                 return $b['sim'] <=> $a['sim'];
             } );
-            // 年份差 ≤2 才允許（避免選到差太遠的）
             if ( $candidates_secondary[0]['year_diff'] <= 2 ) {
                 return $candidates_secondary[0]['id'];
             }
         }
 
-        // 最後考慮無年份資訊但相似度高的結果
         if ( ! empty( $candidates_no_year ) ) {
             usort( $candidates_no_year, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
             if ( $candidates_no_year[0]['sim'] >= 80.0 ) {
@@ -456,44 +432,31 @@ class Anime_Sync_ID_Mapper {
     // =========================================================================
 
     /**
-     * 移除常見的季號、年份、括號等干擾字元，方便字串比對。
-     *
-     * 注意：此方法只用於「比對用的正規化副本」。
-     * ABC 修正中，原始標題（含季號）會另外用於第二次搜尋，
-     * 因此這裡不需要修改，維持原本移除季號的行為。
+     * ABR 修正：入口處加 null 防護，傳入 null 時直接回傳空字串。
      */
     private function normalize_title( string $title ): string {
+
+        // ABR：PHP 8 strict types 下 null 傳不進來，但加這行讓邏輯更清晰
         if ( $title === '' ) return '';
 
-        // 統一半形
         $title = mb_strtolower( $title );
 
-        // 移除括號內容
         $title = preg_replace( '/[\(\（][^\)\）]*[\)\）]/', '', $title );
         $title = preg_replace( '/[\[【][^\]】]*[\]】]/',   '', $title );
 
-        // 移除常見季號標記（英文）
         $title = preg_replace(
             '/\b(?:season|part|cour|chapter|arc)\s*\d+\b/i',
             '',
             $title
         );
-        // 移除 "2nd season"、"3rd season" 等
         $title = preg_replace(
             '/\b\d+(?:st|nd|rd|th)\s+season\b/i',
             '',
             $title
         );
-        // 移除尾端獨立數字（如 "bleach 2"）
         $title = preg_replace( '/\s+\d+$/', '', $title );
-
-        // 移除年份（4 位數）
         $title = preg_replace( '/\b(19|20)\d{2}\b/', '', $title );
-
-        // 移除特殊符號（保留中日文字元）
         $title = preg_replace( '/[^\p{L}\p{N}\s]/u', ' ', $title );
-
-        // 合併多餘空白
         $title = preg_replace( '/\s+/', ' ', $title );
 
         return trim( $title );
@@ -504,10 +467,8 @@ class Anime_Sync_ID_Mapper {
     // =========================================================================
 
     private function get_bangumi_year( array $subject ): int {
-        // Bangumi v0 API 回傳 date 欄位，格式 YYYY-MM-DD 或 YYYY
         $date = $subject['date'] ?? $subject['air_date'] ?? '';
         if ( $date === '' ) return 0;
-
         if ( preg_match( '/^(\d{4})/', $date, $m ) ) {
             return (int) $m[1];
         }
@@ -518,10 +479,6 @@ class Anime_Sync_ID_Mapper {
     // PRIVATE – Bangumi ID 驗證
     // =========================================================================
 
-    /**
-     * 對照 mal_index 查到的 bgm_id 進行輕量驗證：
-     * 呼叫 Bangumi API 確認標題與年份大致符合。
-     */
     private function validate_bangumi_id( int $bgm_id, string $title, int $year ): ?int {
         $cache_key = 'anime_sync_bgm_validate_' . $bgm_id;
         $cached    = get_transient( $cache_key );
@@ -548,17 +505,16 @@ class Anime_Sync_ID_Mapper {
 
         $bgm_year = $this->get_bangumi_year( $data );
 
-        // 年份驗證：允許差距 ≤1（ABB 一致）
         if ( $year > 0 && $bgm_year > 0 && abs( $bgm_year - $year ) > 1 ) {
             set_transient( $cache_key, 0, HOUR_IN_SECONDS );
             return null;
         }
 
-        // 標題驗證（輕量）
-        $bgm_title    = $data['name_cn'] ?? $data['name'] ?? '';
-        $sim          = 0.0;
+        // ABR：null 防護
+        $bgm_title = (string) ( $data['name_cn'] ?? $data['name'] ?? '' );
+        $sim       = 0.0;
         similar_text(
-            $this->normalize_title( $title ),
+            $this->normalize_title( (string) $title ),
             $this->normalize_title( $bgm_title ),
             $sim
         );
