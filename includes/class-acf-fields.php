@@ -2,6 +2,10 @@
 /**
  * 檔案名稱: includes/class-acf-fields.php
  *
+ * Bug fixes in this version:
+ *   問題 1 – anime_score_bangumi max 從 10 改為 100，step 改為 1
+ *   問題 5 – YouTube 預告片預覽改為純 JS 動態讀取，不依賴 get_the_ID()
+ *
  * @package Anime_Sync_Pro
  */
 
@@ -13,10 +17,6 @@ class Anime_Sync_ACF_Fields {
 
     public function __construct() {
         add_action( 'acf/init', [ $this, 'register_all_field_groups' ] );
-
-        // ✅ 問題 M 修正：移除 ACF filter 除以 10 的轉換
-        // AniList 原始分數儲存為 0–100，前端模板統一自行除以 10 顯示
-        // 不在 ACF 層做轉換，避免後台顯示與前端讀值不一致
     }
 
     public function register_all_field_groups(): void {
@@ -43,7 +43,6 @@ class Anime_Sync_ACF_Fields {
             'key'                   => 'group_anime_basic_info',
             'title'                 => '📋 基本資訊',
             'fields'                => [
-
                 [
                     'key'          => 'field_anime_anilist_id',
                     'label'        => 'AniList ID',
@@ -86,7 +85,6 @@ class Anime_Sync_ACF_Fields {
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '25' ],
                 ],
-
                 [
                     'key'          => 'field_anime_title_chinese',
                     'label'        => '中文標題（台灣繁體）',
@@ -123,7 +121,6 @@ class Anime_Sync_ACF_Fields {
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '50' ],
                 ],
-
                 [
                     'key'           => 'field_anime_format',
                     'label'         => '作品類型',
@@ -187,7 +184,6 @@ class Anime_Sync_ACF_Fields {
                     'default_value' => 'ORIGINAL',
                     'wrapper'       => [ 'width' => '34' ],
                 ],
-
                 [
                     'key'          => 'field_anime_season',
                     'label'        => '播出季度',
@@ -215,7 +211,6 @@ class Anime_Sync_ACF_Fields {
                     'step'         => 1,
                     'wrapper'      => [ 'width' => '50' ],
                 ],
-
                 [
                     'key'          => 'field_anime_episodes',
                     'label'        => '總集數',
@@ -249,7 +244,6 @@ class Anime_Sync_ACF_Fields {
                     'step'         => 1,
                     'wrapper'      => [ 'width' => '25' ],
                 ],
-
                 [
                     'key'            => 'field_anime_start_date',
                     'label'          => '開播日期',
@@ -309,12 +303,11 @@ class Anime_Sync_ACF_Fields {
                     'label'        => 'AniList 評分（原始值）',
                     'name'         => 'anime_score_anilist',
                     'type'         => 'number',
-                    // ✅ 問題 M 修正：說明儲存 0–100，前端模板顯示時自行除以 10
                     'instructions' => '儲存範圍 0–100（AniList 原始值）。前端自動換算為 0–10 分制顯示。由每週 cron 自動更新。',
                     'required'     => 0,
                     'min'          => 0,
                     'max'          => 100,
-                    'step'         => 0.01,
+                    'step'         => 1,
                     'wrapper'      => [ 'width' => '25' ],
                 ],
                 [
@@ -322,7 +315,7 @@ class Anime_Sync_ACF_Fields {
                     'label'        => 'MyAnimeList 評分',
                     'name'         => 'anime_score_mal',
                     'type'         => 'number',
-                    'instructions' => '範圍 0–10。由每週 cron 透過 Jikan API 自動更新。',
+                    'instructions' => '範圍 0–10（Jikan API 原始值）。由匯入時自動抓取，每週 cron 更新。',
                     'required'     => 0,
                     'min'          => 0,
                     'max'          => 10,
@@ -330,15 +323,17 @@ class Anime_Sync_ACF_Fields {
                     'wrapper'      => [ 'width' => '25' ],
                 ],
                 [
+                    // 問題 1 修正：max 從 10 改為 100，step 改為 1
+                    // Bangumi 評分存入時已 ×10（例：7.9 → 79），ACF 驗證需對應調整
                     'key'          => 'field_anime_score_bangumi',
                     'label'        => 'Bangumi 評分',
                     'name'         => 'anime_score_bangumi',
                     'type'         => 'number',
-                    'instructions' => '範圍 0–10。由每週 cron 自動更新。',
+                    'instructions' => '儲存範圍 0–100（Bangumi 原始值 ×10）。前端自動換算為 0–10 分制顯示。由每週 cron 自動更新。',
                     'required'     => 0,
                     'min'          => 0,
-                    'max'          => 10,
-                    'step'         => 0.01,
+                    'max'          => 100,
+                    'step'         => 1,
                     'wrapper'      => [ 'width' => '25' ],
                 ],
                 [
@@ -442,11 +437,13 @@ class Anime_Sync_ACF_Fields {
                     'wrapper'      => [ 'width' => '100' ],
                 ],
                 [
+                    // 問題 5 修正：改為純 JS 動態讀取，不依賴 PHP get_the_ID()
+                    // acf/init 執行時 get_the_ID() 永遠回傳 0，舊寫法導致已存在文章也無法即時預覽
                     'key'          => 'field_anime_trailer_preview',
                     'label'        => '預告片預覽',
                     'name'         => 'anime_trailer_preview',
                     'type'         => 'message',
-                    'instructions' => '自動從上方第一個 YouTube 網址產生預覽。',
+                    'instructions' => '自動從上方第一個 YouTube 網址產生預覽，輸入後即時更新。',
                     'message'      => $this->get_trailer_preview_html(),
                     'wrapper'      => [ 'width' => '100' ],
                 ],
@@ -461,51 +458,80 @@ class Anime_Sync_ACF_Fields {
         ] );
     }
 
+    /**
+     * 問題 5 修正：純 JS 實作，完全不依賴 PHP get_the_ID()。
+     * JS 直接讀取同頁 textarea[name="anime_trailer_url"] 的值，
+     * 新文章和已存在文章均可即時預覽。
+     */
     private function get_trailer_preview_html(): string {
-        if ( ! is_admin() ) return '';
-
-        $post_id = get_the_ID();
-        if ( empty( $post_id ) ) {
-            return '<div id="anime-trailer-preview-wrap">
-                <p style="color:#999;">儲存後重新整理即可看到預覽。</p>
-            </div>
-            <script>
-            (function(){
-                function updatePreview(){
-                    var el = document.querySelector("[name=\'anime_trailer_url\']");
-                    var wrap = document.getElementById("anime-trailer-preview-wrap");
-                    if(!el||!wrap) return;
-                    var urls = el.value.split(/[,\n]+/).map(s=>s.trim()).filter(Boolean);
-                    if(!urls.length){ wrap.innerHTML="<p style=\'color:#999;\'>尚無預告片網址。</p>"; return; }
-                    var m = urls[0].match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
-                    wrap.innerHTML = m
-                        ? "<iframe width=\'560\' height=\'315\' src=\'https://www.youtube.com/embed/"+m[1]+"?rel=0\' allowfullscreen loading=\'lazy\' style=\'border:0;max-width:100%;\'></iframe>"
-                        : "<p style=\'color:#999;\'>無法解析 YouTube 網址。</p>";
-                }
-                document.addEventListener("DOMContentLoaded",function(){
-                    updatePreview();
-                    var f=document.querySelector("[name=\'anime_trailer_url\']");
-                    if(f) f.addEventListener("input",updatePreview);
-                });
-            })();
-            </script>';
+        if ( ! is_admin() ) {
+            return '';
         }
 
-        $raw  = get_post_meta( $post_id, 'anime_trailer_url', true );
-        $urls = array_filter( array_map( 'trim', preg_split( '/[,\n]+/', $raw ?? '' ) ) );
-        if ( empty( $urls ) ) return '<p style="color:#999;">尚無預告片網址。</p>';
+        return '
+<div id="anime-trailer-preview-wrap" style="margin-top:8px;"></div>
+<script>
+(function () {
+    "use strict";
 
-        $html = '';
-        foreach ( $urls as $url ) {
-            preg_match( '/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/', $url, $m );
-            if ( ! empty( $m[1] ) ) {
-                $html .= sprintf(
-                    '<div style="margin-bottom:12px;"><iframe width="560" height="315" src="https://www.youtube.com/embed/%s?rel=0" allowfullscreen loading="lazy" style="border:0;max-width:100%%;"></iframe></div>',
-                    esc_attr( $m[1] )
-                );
+    function extractYouTubeId( url ) {
+        var m = url.match( /(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/ );
+        return m ? m[1] : null;
+    }
+
+    function buildIframe( videoId ) {
+        return "<div style=\"margin-bottom:12px;\">"
+             + "<iframe width=\"560\" height=\"315\""
+             + " src=\"https://www.youtube.com/embed/" + videoId + "?rel=0\""
+             + " allowfullscreen loading=\"lazy\""
+             + " style=\"border:0;max-width:100%;\"></iframe>"
+             + "</div>";
+    }
+
+    function renderPreviews() {
+        var textarea = document.querySelector( "textarea[name=\'anime_trailer_url\']" );
+        var wrap     = document.getElementById( "anime-trailer-preview-wrap" );
+        if ( ! textarea || ! wrap ) return;
+
+        var raw  = textarea.value || "";
+        var urls = raw.split( /[,\n]+/ )
+                      .map( function(s){ return s.trim(); } )
+                      .filter( Boolean );
+
+        if ( ! urls.length ) {
+            wrap.innerHTML = "<p style=\"color:#999;\">尚無預告片網址。</p>";
+            return;
+        }
+
+        var html = "";
+        urls.forEach( function( url ) {
+            var vid = extractYouTubeId( url );
+            if ( vid ) {
+                html += buildIframe( vid );
             }
+        } );
+
+        wrap.innerHTML = html || "<p style=\"color:#999;\">無法解析 YouTube 網址。</p>";
+    }
+
+    // 初始化：等 ACF 欄位完全渲染後執行
+    function init() {
+        renderPreviews();
+        var textarea = document.querySelector( "textarea[name=\'anime_trailer_url\']" );
+        if ( textarea ) {
+            textarea.addEventListener( "input", renderPreviews );
         }
-        return $html ?: '<p style="color:#999;">無法解析 YouTube 網址。</p>';
+    }
+
+    if ( document.readyState === "loading" ) {
+        document.addEventListener( "DOMContentLoaded", init );
+    } else {
+        // DOM 已就緒（ACF message 欄位可能在 DOMContentLoaded 後才插入）
+        // 用 setTimeout 確保 ACF 完成渲染
+        setTimeout( init, 300 );
+    }
+})();
+</script>';
     }
 
     // =========================================================================
@@ -519,7 +545,6 @@ class Anime_Sync_ACF_Fields {
                 [
                     'key'          => 'field_anime_studios',
                     'label'        => '製作公司',
-                    // ✅ 問題 L 修正：name 從 anime_studio 改為 anime_studios，與 import-manager 寫入 key 對齊
                     'name'         => 'anime_studios',
                     'type'         => 'text',
                     'instructions' => '由 AniList studios（isMain: true）自動填入主要製作公司名稱。',
@@ -572,7 +597,6 @@ class Anime_Sync_ACF_Fields {
                 [
                     'key'          => 'field_anime_themes',
                     'label'        => 'OP/ED 主題曲資料（JSON）',
-                    // ✅ 問題 J 修正：name 從 anime_themes_json 改為 anime_themes
                     'name'         => 'anime_themes',
                     'type'         => 'textarea',
                     'instructions' => '由 AnimeThemes API 透過 MAL ID 自動抓取。請勿手動編輯。',
@@ -585,7 +609,6 @@ class Anime_Sync_ACF_Fields {
                 [
                     'key'          => 'field_anime_streaming',
                     'label'        => '串流平台資料（JSON）',
-                    // ✅ 問題 K 修正：name 從 anime_streaming_json 改為 anime_streaming
                     'name'         => 'anime_streaming',
                     'type'         => 'textarea',
                     'instructions' => '由 AniList externalLinks（type: STREAMING）自動填入。請勿手動編輯。',
@@ -759,7 +782,6 @@ class Anime_Sync_ACF_Fields {
                         'anime_tw_streaming'     => '台灣串流平台',
                         'anime_cast_json'        => 'CAST 角色資料',
                         'anime_staff_json'       => 'STAFF 製作資料',
-                        // ✅ 問題 J/K 修正：鎖定欄位 key 同步更新
                         'anime_themes'           => 'OP/ED 主題曲',
                         'anime_streaming'        => '串流平台資料',
                     ],
@@ -795,7 +817,6 @@ class Anime_Sync_ACF_Fields {
             'anime_score_bangumi'  => 'Bangumi 評分',
             'anime_popularity'     => 'AniList 人氣數',
             'anime_ranking'        => 'AniList 排名',
-            // ✅ 問題 J 修正：key 改為 anime_themes
             'anime_themes'         => 'OP/ED 主題曲',
         ];
     }
@@ -817,11 +838,9 @@ class Anime_Sync_ACF_Fields {
             'anime_start_date'     => '開播日期',
             'anime_cover_image'    => '封面圖片',
             'anime_banner_image'   => '橫幅圖片',
-            // ✅ 問題 L 修正：key 改為 anime_studios
             'anime_studios'        => '製作公司',
             'anime_staff_json'     => 'STAFF 資料',
             'anime_cast_json'      => 'CAST 資料',
-            // ✅ 問題 K 修正：key 改為 anime_streaming
             'anime_streaming'      => '串流平台資料',
             'anime_official_site'  => '官方網站',
             'anime_twitter_url'    => 'Twitter 連結',
