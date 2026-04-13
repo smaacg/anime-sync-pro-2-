@@ -593,11 +593,11 @@ body.single-anime #content { padding: 0; max-width: none; }
     background: var(--asd-border);
 }
 .asd-sidebar-rec-thumb-wrap img {
-    width:       100%;
-    height:      100%;         /* 填滿容器 */
-    object-fit:  cover;        /* 保比例裁切 */
-    object-position: center top;
-    display:     block;
+    width:            100%;
+    height:           100% !important;  /* 覆蓋主題 reset.css img{height:auto} */
+    object-fit:       cover;
+    object-position:  center top;
+    display:          block;
 }
 .asd-sidebar-rec-noimg {
     width: 100%; height: 100%;
@@ -649,12 +649,12 @@ body.single-anime #content { padding: 0; max-width: none; }
     flex-shrink: 0;
 }
 .asd-rec-thumb-wrap img {
-    width:       100%;
-    height:      100%;         /* 填滿容器 */
-    object-fit:  cover;
-    object-position: center top;
-    display:     block;
-    transition:  transform .35s ease;
+    width:            100%;
+    height:           100% !important;  /* 覆蓋主題 reset.css img{height:auto} */
+    object-fit:       cover;
+    object-position:  center top;
+    display:          block;
+    transition:       transform .35s ease;
 }
 .asd-rec-card:hover .asd-rec-thumb-wrap img { transform: scale(1.05); }
 .asd-rec-noimg {
