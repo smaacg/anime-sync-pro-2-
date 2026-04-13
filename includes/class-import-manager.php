@@ -1,13 +1,16 @@
 <?php
 /**
- * 檔案名稱: includes/class-import-manager.php
+ * Class Anime_Sync_Import_Manager
  *
  * Bug fixes in this version:
  *   AW  – anime_season 統一大寫儲存；taxonomy slug 查詢用小寫
  *   AT  – 寫入 anime_animethemes_id
  *   ABF – 儲存 anime_score_mal
  *   ABG – 儲存 anime_official_site / anime_twitter_url
- *   ABH – 寫入 post_tag（AniList tags，過濾 spoiler）
+ *   ABH – 寫入 post_tag（AniList tags）
+ *   ABI – 儲存 anime_wikipedia_url
+ *   ABJ – tag 查重邏輯（繁中名稱優先，英文原文相容）
+ *   ABK – Google 免費翻譯 fallback
  *
  * @package Anime_Sync_Pro
  */
@@ -155,7 +158,7 @@ class Anime_Sync_Import_Manager {
         $title_zh = $data['anime_title_chinese']    ?? '';
         $bgm_id   = $data['bangumi_id']             ?? '';
         $format   = $data['anime_format']           ?? '';
-        $year     = $data['anime_season_year']       ?? 0;
+        $year     = $data['anime_season_year']      ?? 0;
 
         $fields = [
             // ── ID ────────────────────────────────────────────────────────────
@@ -232,6 +235,8 @@ class Anime_Sync_Import_Manager {
             // Bug ABG: 個別外部連結欄位
             'anime_official_site'    => $data['anime_official_site']    ?? '',
             'anime_twitter_url'      => $data['anime_twitter_url']      ?? '',
+            // Bug ABI: Wikipedia URL
+            'anime_wikipedia_url'    => $data['anime_wikipedia_url']    ?? '',
 
             // ── 下集資訊 ──────────────────────────────────────────────────────
             'anime_next_airing'      => $data['anime_next_airing']      ?? '',
@@ -244,7 +249,7 @@ class Anime_Sync_Import_Manager {
             update_post_meta( $post_id, $key, $value );
         }
 
-        // Bug AT: 寫入 anime_animethemes_id（AnimeThemes slug）
+        // Bug AT: 寫入 anime_animethemes_id
         if ( ! empty( $data['animethemes_id'] ) ) {
             update_post_meta(
                 $post_id,
@@ -342,31 +347,334 @@ class Anime_Sync_Import_Manager {
             }
         }
 
-        // ── post_tag（Bug ABH：AniList tags，過濾 spoiler）────────────────────
+        // ── post_tag（Bug ABH/ABJ/ABK）───────────────────────────────────────
         $anime_tags = $data['anime_tags'] ?? [];
         if ( ! empty( $anime_tags ) && is_array( $anime_tags ) ) {
-
             $tag_ids = [];
-            foreach ( $anime_tags as $tag_name ) {
-                if ( empty( $tag_name ) ) continue;
-
-                // 取得或建立 tag（wp_insert_term 若已存在會回傳現有 term）
-                $term = get_term_by( 'name', $tag_name, 'post_tag' );
-                if ( $term ) {
-                    $tag_ids[] = $term->term_id;
-                } else {
-                    $inserted = wp_insert_term( $tag_name, 'post_tag' );
-                    if ( ! is_wp_error( $inserted ) ) {
-                        $tag_ids[] = $inserted['term_id'];
-                    }
+            foreach ( $anime_tags as $tag_en ) {
+                if ( empty( $tag_en ) ) continue;
+                $tag_name = $this->resolve_tag_name( $tag_en );
+                $term_id  = $this->find_or_create_tag( $tag_en, $tag_name );
+                if ( $term_id ) {
+                    $tag_ids[] = $term_id;
                 }
             }
-
             if ( ! empty( $tag_ids ) ) {
-                // append = false：完整覆蓋此次匯入的 tag 清單
                 wp_set_object_terms( $post_id, $tag_ids, 'post_tag', false );
             }
         }
+    }
+
+    // =========================================================================
+    // Tag 處理：查本地對照表 → Google 翻譯 → 英文原文
+    // =========================================================================
+
+    /**
+     * 將英文 tag 解析為繁中名稱。
+     * 流程：本地對照表 → Google 免費翻譯 → 英文原文
+     */
+    private function resolve_tag_name( string $tag_en ): string {
+
+        // ── 步驟 1：查本地對照表 ─────────────────────────────────────────────
+        $tag_map = $this->get_tag_map();
+        if ( isset( $tag_map[ $tag_en ] ) ) {
+            return $tag_map[ $tag_en ];
+        }
+
+        // ── 步驟 2：查 transient 快取（避免重複呼叫翻譯 API）────────────────
+        $cache_key = 'anime_sync_tag_zh_' . md5( $tag_en );
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) {
+            return (string) $cached;
+        }
+
+        // ── 步驟 3：呼叫 Google 免費翻譯 API ────────────────────────────────
+        $translated = $this->google_translate( $tag_en, 'en', 'zh-TW' );
+        if ( $translated !== '' && $translated !== $tag_en ) {
+            // 快取 30 天
+            set_transient( $cache_key, $translated, 30 * DAY_IN_SECONDS );
+            return $translated;
+        }
+
+        // ── 步驟 4：fallback 英文原文，快取 7 天 ────────────────────────────
+        set_transient( $cache_key, $tag_en, 7 * DAY_IN_SECONDS );
+        return $tag_en;
+    }
+
+    /**
+     * 呼叫 Google 免費翻譯端點（無需 API 金鑰）。
+     * 失敗或結果與原文相同時回傳空字串。
+     */
+    private function google_translate( string $text, string $sl, string $tl ): string {
+        $url = add_query_arg( [
+            'client' => 'gtx',
+            'sl'     => $sl,
+            'tl'     => $tl,
+            'dt'     => 't',
+            'q'      => rawurlencode( $text ),
+        ], 'https://translate.googleapis.com/translate_a/single' );
+
+        $response = wp_remote_get( $url, [
+            'timeout'    => 8,
+            'user-agent' => 'Mozilla/5.0 (compatible; AnimeSync-Pro/1.0)',
+            'headers'    => [ 'Accept' => 'application/json' ],
+        ] );
+
+        if ( is_wp_error( $response ) ) return '';
+        if ( (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return '';
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        // Google 回傳格式：[[["翻譯結果","原文",...],...],...]
+        $result = $body[0][0][0] ?? '';
+        if ( ! is_string( $result ) || $result === '' ) return '';
+
+        return trim( $result );
+    }
+
+    /**
+     * 查找或建立 post_tag。
+     * 查重邏輯：先找繁中名稱 → 再找英文原文（相容後台改名前舊資料）→ 都無則建立新 tag。
+     * 回傳 term_id，失敗回傳 null。
+     */
+    private function find_or_create_tag( string $tag_en, string $tag_name ): ?int {
+
+        // 先查繁中名稱
+        $term = get_term_by( 'name', $tag_name, 'post_tag' );
+        if ( $term ) return $term->term_id;
+
+        // 繁中找不到時，查英文原文（相容後台尚未改名的舊 tag）
+        if ( $tag_name !== $tag_en ) {
+            $term = get_term_by( 'name', $tag_en, 'post_tag' );
+            if ( $term ) return $term->term_id;
+        }
+
+        // 都找不到 → 建立新 tag（用繁中名稱）
+        $inserted = wp_insert_term( $tag_name, 'post_tag' );
+        if ( is_wp_error( $inserted ) ) return null;
+
+        return (int) $inserted['term_id'];
+    }
+
+    /**
+     * 本地 tag 對照表（英文 → 繁體中文）。
+     * 涵蓋 AniList 常見 tag，未收錄的交由 Google 翻譯處理。
+     */
+    private function get_tag_map(): array {
+        return [
+            // ── 敘事手法 ──────────────────────────────────────────────────────
+            'Amnesia'                    => '失憶',
+            'Time Skip'                  => '時間跳躍',
+            'Flashback'                  => '回憶閃回',
+            'Non-linear'                 => '非線性敘事',
+            'Unreliable Narrator'        => '不可靠敘述者',
+            'Multiple Perspectives'      => '多視角敘事',
+            'Frame Story'                => '框架故事',
+            'Tragedy'                    => '悲劇',
+            'Plot Twist'                 => '劇情反轉',
+            'Mystery'                    => '推理懸疑',
+            'Cliffhanger'                => '懸念結局',
+
+            // ── 世界觀設定 ────────────────────────────────────────────────────
+            'Isekai'                     => '異世界',
+            'Post-Apocalyptic'           => '末日後',
+            'Cyberpunk'                  => '賽博龐克',
+            'Steampunk'                  => '蒸汽龐克',
+            'Dystopia'                   => '反烏托邦',
+            'Utopia'                     => '烏托邦',
+            'Space'                      => '宇宙太空',
+            'Virtual World'              => '虛擬世界',
+            'Alternate Universe'         => '平行宇宙',
+            'Urban Fantasy'              => '都市奇幻',
+            'High Fantasy'               => '高奇幻',
+            'Dark Fantasy'               => '黑暗奇幻',
+            'Historical'                 => '歷史',
+            'Feudal Japan'               => '戰國時代',
+            'Edo Period'                 => '江戶時代',
+            'Meiji Period'               => '明治時代',
+            'Ancient China'              => '古代中國',
+            'Medieval'                   => '中世紀',
+
+            // ── 角色類型 ──────────────────────────────────────────────────────
+            'Tsundere'                   => '傲嬌',
+            'Kuudere'                    => '冷淡',
+            'Dandere'                    => '膽小',
+            'Yandere'                    => '病嬌',
+            'Deredere'                   => '開朗',
+            'Harem'                      => '後宮',
+            'Reverse Harem'              => '逆後宮',
+            'Loli'                       => '蘿莉',
+            'Shota'                      => '正太',
+            'Kemonomimi'                 => '獸耳',
+            'Catgirl'                    => '貓娘',
+            'Vampire'                    => '吸血鬼',
+            'Werewolf'                   => '狼人',
+            'Demon'                      => '惡魔',
+            'Angel'                      => '天使',
+            'Robot'                      => '機器人',
+            'Android'                    => '人造人',
+            'Idol'                       => '偶像',
+            'Ninja'                      => '忍者',
+            'Samurai'                    => '武士',
+            'Witch'                      => '魔女',
+            'Elf'                        => '精靈',
+            'Maid'                       => '女僕',
+            'Butler'                     => '執事',
+            'Otaku'                      => '宅男',
+            'Villain Protagonist'        => '反派主角',
+            'Anti-Hero'                  => '反英雄',
+            'Female Protagonist'         => '女主角',
+            'Male Protagonist'           => '男主角',
+
+            // ── 劇情元素 ──────────────────────────────────────────────────────
+            'Revenge'                    => '復仇',
+            'Love Triangle'              => '三角戀',
+            'Coming of Age'              => '成長物語',
+            'Redemption'                 => '救贖',
+            'Betrayal'                   => '背叛',
+            'Sacrifice'                  => '犧牲',
+            'Survival'                   => '生存',
+            'War'                        => '戰爭',
+            'Politics'                   => '政治',
+            'Revolution'                 => '革命',
+            'Conspiracy'                 => '陰謀',
+            'Slice of Life'              => '日常生活',
+            'Found Family'               => '羈絆家人',
+            'Bromance'                   => '兄弟情誼',
+            'Forbidden Love'             => '禁忌之戀',
+            'Second Chance'              => '重來機會',
+            'Reincarnation'              => '轉生',
+            'Time Travel'                => '時間旅行',
+            'Body Swap'                  => '靈魂互換',
+            'Gender Bender'              => '性別轉換',
+            'Memory Manipulation'        => '記憶操控',
+            'Death Game'                 => '死亡遊戲',
+            'Battle Royale'              => '大逃殺',
+            'Tournament'                 => '武鬥大會',
+            'Heist'                      => '竊盜行動',
+            'Detective'                  => '偵探',
+            'Crime'                      => '犯罪',
+
+            // ── 超自然與能力 ──────────────────────────────────────────────────
+            'Super Power'                => '超能力',
+            'Magic'                      => '魔法',
+            'Alchemy'                    => '鍊金術',
+            'Psychic'                    => '超感應',
+            'Telepathy'                  => '心靈感應',
+            'Telekinesis'                => '念力',
+            'Shapeshifting'              => '變形',
+            'Necromancy'                 => '死靈魔法',
+            'Exorcism'                   => '驅魔',
+            'Summoning'                  => '召喚',
+            'Familiar'                   => '使魔',
+            'Curse'                      => '詛咒',
+            'Contract'                   => '契約',
+            'Overpowered Protagonist'    => '主角無敵',
+            'Level System'               => '等級系統',
+            'RPG'                        => 'RPG 系統',
+            'Game Elements'              => '遊戲要素',
+            'Card Battle'                => '卡牌對戰',
+
+            // ── 戰鬥系 ────────────────────────────────────────────────────────
+            'Martial Arts'               => '武術',
+            'Swordplay'                  => '劍術',
+            'Gunfight'                   => '槍戰',
+            'Mecha'                      => '機甲',
+            'Giant Robot'                => '巨大機器人',
+            'Military'                   => '軍事',
+            'Assassin'                   => '刺客',
+            'Mercenary'                  => '傭兵',
+            'Monster'                    => '怪物',
+            'Kaiju'                      => '怪獸',
+            'Zombie'                     => '殭屍',
+
+            // ── 職業與場景 ────────────────────────────────────────────────────
+            'School'                     => '校園',
+            'University'                 => '大學',
+            'Office'                     => '職場',
+            'Medical'                    => '醫療',
+            'Police'                     => '警察',
+            'Law'                        => '法律',
+            'Sports'                     => '體育競技',
+            'Music'                      => '音樂',
+            'Cooking'                    => '料理',
+            'Gaming'                     => '電競遊戲',
+            'Art'                        => '藝術',
+            'Photography'                => '攝影',
+            'Fashion'                    => '時尚',
+            'Racing'                     => '賽車',
+            'Fishing'                    => '釣魚',
+            'Gardening'                  => '園藝',
+            'Farming'                    => '農業',
+
+            // ── 關係與社交 ────────────────────────────────────────────────────
+            'Childhood Friends'          => '青梅竹馬',
+            'Teacher-Student Romance'    => '師生戀',
+            'Age Gap'                    => '年齡差',
+            'Siblings'                   => '兄弟姊妹',
+            'Family'                     => '家庭',
+            'Single Parent'              => '單親',
+            'Orphan'                     => '孤兒',
+            'Friendship'                 => '友情',
+            'Rivals'                     => '競爭對手',
+            'Master-Servant'             => '主僕關係',
+            'Contract Marriage'          => '契約婚姻',
+            'Workplace Romance'          => '職場戀愛',
+
+            // ── 心理與哲學 ────────────────────────────────────────────────────
+            'Psychological'              => '心理',
+            'Philosophy'                 => '哲學',
+            'Existentialism'             => '存在主義',
+            'Morality'                   => '道德',
+            'Identity Crisis'            => '認同危機',
+            'PTSD'                       => '創傷後壓力症',
+            'Depression'                 => '憂鬱',
+            'Loneliness'                 => '孤獨',
+            'Social Anxiety'             => '社交恐懼',
+
+            // ── 風格與表現手法 ────────────────────────────────────────────────
+            'Comedy'                     => '喜劇',
+            'Parody'                     => '惡搞',
+            'Satire'                     => '諷刺',
+            'Fourth Wall Breaking'       => '打破第四道牆',
+            'Meta'                       => '後設',
+            'Horror'                     => '恐怖',
+            'Gore'                       => '血腥暴力',
+            'Ecchi'                      => '情色',
+            'Fanservice'                 => '福利向',
+            'Cute Girls Doing Cute Things' => '萌系日常',
+            'Iyashikei'                  => '治癒系',
+            'Josei'                      => '少女漫改',
+            'Seinen'                     => '青年漫改',
+            'Shounen'                    => '少年漫改',
+            'Shoujo'                     => '少女漫改',
+            'Anthology'                  => '短篇集',
+            'Omnibus'                    => '單元劇',
+
+            // ── 動物與非人類 ──────────────────────────────────────────────────
+            'Animal'                     => '動物',
+            'Anthropomorphism'           => '擬人化',
+            'Dragons'                    => '龍',
+            'Dinosaurs'                  => '恐龍',
+            'Insects'                    => '昆蟲',
+
+            // ── 其他常見 tag ──────────────────────────────────────────────────
+            'Adaptation'                 => '改編作品',
+            'Original'                   => '原創',
+            'Short Episodes'             => '短篇',
+            'CGI'                        => '3D CG',
+            'Music Anime'                => '音樂動畫',
+            'Otome Game'                 => '乙女遊戲',
+            'Gacha'                      => '抽卡',
+            'Crowdfunded'                => '群眾募資',
+            'Based on a Manga'           => '漫畫改編',
+            'Based on a Novel'           => '小說改編',
+            'Based on a Game'            => '遊戲改編',
+            'Crossover'                  => '跨作品',
+            'Sequel'                     => '續集',
+            'Prequel'                    => '前傳',
+            'Spin-off'                   => '衍生作',
+        ];
     }
 
     // =========================================================================
