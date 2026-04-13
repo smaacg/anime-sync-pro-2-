@@ -4,7 +4,9 @@
  *
  * Bug fixes in this version:
  *   Bug 1  – anime_score_bangumi max 改為 100，step 改為 1
- *   Bug 5  – YouTube 預告片 JS 移到 admin_footer，避免 ACF message 欄位跳脫標籤
+ *   Bug 5  – YouTube 預告片 JS 移到 admin_footer
+ *   Bug 7  – 移除英文簡介欄位
+ *   Bug 8  – 鎖定欄位顯示中文標籤
  *
  * @package Anime_Sync_Pro
  */
@@ -17,13 +19,8 @@ class Anime_Sync_ACF_Fields {
 
     public function __construct() {
         add_action( 'acf/init', [ $this, 'register_field_groups' ] );
-        // Bug 5: JS 移到 admin_footer
         add_action( 'admin_footer', [ $this, 'render_trailer_preview_script' ] );
     }
-
-    // =========================================================================
-    // 註冊所有 ACF 欄位群組
-    // =========================================================================
 
     public function register_field_groups(): void {
         if ( ! function_exists( 'acf_add_local_field_group' ) ) return;
@@ -151,11 +148,11 @@ class Anime_Sync_ACF_Fields {
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '25' ],
                     'choices'      => [
-                        'FINISHED'          => '已完結',
-                        'RELEASING'         => '連載中',
-                        'NOT_YET_RELEASED'  => '尚未播出',
-                        'CANCELLED'         => '已取消',
-                        'HIATUS'            => '暫停中',
+                        'FINISHED'         => '已完結',
+                        'RELEASING'        => '連載中',
+                        'NOT_YET_RELEASED' => '尚未播出',
+                        'CANCELLED'        => '已取消',
+                        'HIATUS'           => '暫停中',
                     ],
                     'allow_null'   => 1,
                 ],
@@ -168,19 +165,19 @@ class Anime_Sync_ACF_Fields {
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '25' ],
                     'choices'      => [
-                        'ORIGINAL'            => '原創',
-                        'MANGA'               => '漫畫',
-                        'LIGHT_NOVEL'         => '輕小說',
-                        'NOVEL'               => '小說',
-                        'VISUAL_NOVEL'        => '視覺小說',
-                        'VIDEO_GAME'          => '遊戲',
-                        'WEB_MANGA'           => '網路漫畫',
-                        'BOOK'                => '書籍',
-                        'MUSIC'               => '音樂',
-                        'GAME'                => '遊戲',
-                        'LIVE_ACTION'         => '真人',
-                        'MULTIMEDIA_PROJECT'  => '多媒體企劃',
-                        'OTHER'               => '其他',
+                        'ORIGINAL'           => '原創',
+                        'MANGA'              => '漫畫',
+                        'LIGHT_NOVEL'        => '輕小說',
+                        'NOVEL'              => '小說',
+                        'VISUAL_NOVEL'       => '視覺小說',
+                        'VIDEO_GAME'         => '遊戲',
+                        'WEB_MANGA'          => '網路漫畫',
+                        'BOOK'               => '書籍',
+                        'MUSIC'              => '音樂',
+                        'GAME'               => '遊戲',
+                        'LIVE_ACTION'        => '真人',
+                        'MULTIMEDIA_PROJECT' => '多媒體企劃',
+                        'OTHER'              => '其他',
                     ],
                     'allow_null'   => 1,
                 ],
@@ -300,8 +297,7 @@ class Anime_Sync_ACF_Fields {
                     'step'         => 0.01,
                 ],
                 [
-                    // Bug 1 修正：Bangumi 評分儲存為原始值 ×10（如 6.9 → 69）
-                    // 因此 max 改為 100，step 改為 1，前台顯示時除以 10
+                    // Bug 1 修正：max 改為 100，前台除以 10 顯示
                     'key'          => 'field_anime_score_bangumi',
                     'label'        => 'Bangumi 評分',
                     'name'         => 'anime_score_bangumi',
@@ -328,7 +324,7 @@ class Anime_Sync_ACF_Fields {
     }
 
     // =========================================================================
-    // 3. 劇情簡介
+    // 3. 劇情簡介（Bug 7：移除英文簡介欄位）
     // =========================================================================
 
     private function register_synopsis(): void {
@@ -349,16 +345,8 @@ class Anime_Sync_ACF_Fields {
                     'wrapper'      => [ 'width' => '100' ],
                     'rows'         => 6,
                 ],
-                [
-                    'key'          => 'field_anime_synopsis_english',
-                    'label'        => '英文簡介',
-                    'name'         => 'anime_synopsis_english',
-                    'type'         => 'textarea',
-                    'instructions' => '英文劇情簡介（來自 AniList）',
-                    'required'     => 0,
-                    'wrapper'      => [ 'width' => '100' ],
-                    'rows'         => 6,
-                ],
+                // Bug 7：英文簡介欄位已移除，不在後台顯示
+                // anime_synopsis_english 仍會由 API 寫入資料庫供其他用途
             ],
         ] );
     }
@@ -404,7 +392,6 @@ class Anime_Sync_ACF_Fields {
                     'rows'         => 3,
                 ],
                 [
-                    // Bug 5 修正：只輸出容器 div，JS 由 admin_footer 輸出
                     'key'          => 'field_anime_trailer_preview',
                     'label'        => '預告片預覽',
                     'name'         => 'anime_trailer_preview',
@@ -430,7 +417,6 @@ class Anime_Sync_ACF_Fields {
             'style'    => 'default',
             'fields'   => [
                 [
-                    // Issue L 修正：欄位名稱改為 anime_studios
                     'key'          => 'field_anime_studios',
                     'label'        => '製作公司',
                     'name'         => 'anime_studios',
@@ -489,7 +475,6 @@ class Anime_Sync_ACF_Fields {
             'style'    => 'default',
             'fields'   => [
                 [
-                    // Issue J 修正：欄位名稱改為 anime_themes
                     'key'          => 'field_anime_themes',
                     'label'        => '主題曲 JSON',
                     'name'         => 'anime_themes',
@@ -501,7 +486,6 @@ class Anime_Sync_ACF_Fields {
                     'readonly'     => 1,
                 ],
                 [
-                    // Issue K 修正：欄位名稱改為 anime_streaming
                     'key'          => 'field_anime_streaming',
                     'label'        => '串流平台 JSON',
                     'name'         => 'anime_streaming',
@@ -613,7 +597,7 @@ class Anime_Sync_ACF_Fields {
     }
 
     // =========================================================================
-    // 9. 同步控制
+    // 9. 同步控制（Bug 8：鎖定欄位顯示中文標籤）
     // =========================================================================
 
     private function register_sync_control(): void {
@@ -642,21 +626,18 @@ class Anime_Sync_ACF_Fields {
                     'instructions' => '勾選後，該欄位不會被自動同步覆蓋',
                     'required'     => 0,
                     'wrapper'      => [ 'width' => '100' ],
-                    'choices'      => array_combine(
-                        self::get_auto_update_fields(),
-                        self::get_auto_update_fields()
-                    ),
+                    // Bug 8 修正：value 為 meta key，label 顯示中文
+                    'choices'      => self::get_auto_update_fields_labeled(),
                 ],
             ],
         ] );
     }
 
     // =========================================================================
-    // Bug 5：YouTube 預告片預覽 JS（移到 admin_footer）
+    // YouTube 預告片預覽 JS
     // =========================================================================
 
     public function render_trailer_preview_script(): void {
-        // 只在 anime CPT 編輯頁面輸出
         $screen = get_current_screen();
         if ( ! $screen || $screen->post_type !== 'anime' ) return;
         ?>
@@ -723,32 +704,41 @@ class Anime_Sync_ACF_Fields {
     // Static Helpers
     // =========================================================================
 
-    public static function get_auto_update_fields(): array {
+    /**
+     * Bug 8：回傳 [ 'meta_key' => '中文標籤' ] 格式，供鎖定欄位 checkbox 使用。
+     */
+    public static function get_auto_update_fields_labeled(): array {
         return [
-            'anime_score_anilist',
-            'anime_score_mal',
-            'anime_score_bangumi',
-            'anime_popularity',
-            'anime_status',
-            'anime_episodes',
-            'anime_next_airing',
-            'anime_streaming',
-            'anime_themes',
-            'anime_staff_json',
-            'anime_cast_json',
-            'anime_relations_json',
-            'anime_cover_image',
-            'anime_banner_image',
-            'anime_trailer_url',
-            'anime_synopsis_chinese',
-            'anime_synopsis_english',
-            'anime_official_site',
-            'anime_twitter_url',
-            'anime_wikipedia_url',
-            'anime_studios',
-            'anime_start_date',
-            'anime_end_date',
+            'anime_score_anilist'    => 'AniList 評分',
+            'anime_score_mal'        => 'MAL 評分',
+            'anime_score_bangumi'    => 'Bangumi 評分',
+            'anime_popularity'       => '人氣指數',
+            'anime_status'           => '播出狀態',
+            'anime_episodes'         => '集數',
+            'anime_next_airing'      => '下集播出資訊',
+            'anime_streaming'        => '串流平台',
+            'anime_themes'           => '主題曲',
+            'anime_staff_json'       => '製作人員',
+            'anime_cast_json'        => '角色聲優',
+            'anime_relations_json'   => '關聯作品',
+            'anime_cover_image'      => '封面圖片',
+            'anime_banner_image'     => '橫幅圖片',
+            'anime_trailer_url'      => '預告片網址',
+            'anime_synopsis_chinese' => '中文簡介',
+            'anime_official_site'    => '官方網站',
+            'anime_twitter_url'      => 'Twitter / X',
+            'anime_wikipedia_url'    => 'Wikipedia',
+            'anime_studios'          => '製作公司',
+            'anime_start_date'       => '開始播出日期',
+            'anime_end_date'         => '結束播出日期',
         ];
+    }
+
+    /**
+     * 回傳自動更新欄位的 meta key 陣列（相容舊有呼叫）。
+     */
+    public static function get_auto_update_fields(): array {
+        return array_keys( self::get_auto_update_fields_labeled() );
     }
 
     public static function get_one_time_fields(): array {
