@@ -10,6 +10,9 @@
  *   F-TPL  – 依新骨架重構：兩欄佈局、錨點快速導覽、集數列表、台灣播出資訊、FAQ、底部推薦
  *   ABP    – 底部推薦 & 側欄推薦圖片加 thumb-wrap 容器防跑版
  *   SCORE  – 評分列改 Glass 風格，移除人氣區塊
+ *   ABR    – 結構級圖片修正：relations/sidebar-rel/staff/cast 圖片加容器包裹
+ *            搭配 anime-single.css v11.2 的 position:absolute img 模式
+ *            移除 get_the_post_thumbnail() 的硬編尺寸，由 CSS aspect-ratio 控制
  *
  * @package Anime_Sync_Pro
  */
@@ -576,8 +579,11 @@ while ( have_posts() ) : the_post();
                 $s_img  = $s['image']   ?? '';
             ?>
             <div class="asd-staff-card">
+                <?php /* ABR: img 外包 .asd-staff-avatar，搭配 CSS 44×44 圓形 + absolute img */ ?>
                 <?php if ( $s_img ) : ?>
-                <img src="<?php echo esc_url( $s_img ); ?>" alt="<?php echo esc_attr( $s_name ); ?>" loading="lazy">
+                <div class="asd-staff-avatar">
+                    <img src="<?php echo esc_url( $s_img ); ?>" alt="<?php echo esc_attr( $s_name ); ?>" loading="lazy">
+                </div>
                 <?php else : ?><div class="asd-staff-noimg">?</div><?php endif; ?>
                 <div class="asd-staff-info">
                     <span class="asd-staff-name"><?php echo esc_html( $s_name ); ?></span>
@@ -681,9 +687,12 @@ while ( have_posts() ) : the_post();
                 if ( ! $rel_title && ! $rel_native ) continue;
             ?>
             <<?php echo $rel_url ? 'a href="' . esc_url( $rel_url ) . '" ' : 'div '; ?>class="asd-relation-card" target="_blank" rel="noopener">
-                <?php if ( $rel_img ) : ?>
-                <img src="<?php echo esc_url( $rel_img ); ?>" alt="<?php echo esc_attr( $rel_title ); ?>" loading="lazy">
-                <?php else : ?><div class="asd-relation-noimg">🎬</div><?php endif; ?>
+                <?php /* ABR: img 外包 .asd-relation-thumb，搭配 CSS aspect-ratio + absolute img */ ?>
+                <div class="asd-relation-thumb">
+                    <?php if ( $rel_img ) : ?>
+                    <img src="<?php echo esc_url( $rel_img ); ?>" alt="<?php echo esc_attr( $rel_title ); ?>" loading="lazy">
+                    <?php else : ?><div class="asd-relation-noimg">🎬</div><?php endif; ?>
+                </div>
                 <div class="asd-relation-info">
                     <?php if ( $rel_type )   echo '<span class="asd-relation-type">'   . esc_html( $rel_type )   . '</span>'; ?>
                     <?php if ( $rel_title )  echo '<span class="asd-relation-title">'  . esc_html( $rel_title )  . '</span>'; ?>
@@ -790,9 +799,12 @@ while ( have_posts() ) : the_post();
                 if ( ! $rel_title ) continue;
             ?>
             <a href="<?php echo $rel_url ? esc_url( $rel_url ) : '#'; ?>" class="asd-sidebar-rel-card" target="_blank" rel="noopener">
-                <?php if ( $rel_img ) : ?>
-                <img src="<?php echo esc_url( $rel_img ); ?>" alt="<?php echo esc_attr( $rel_title ); ?>" loading="lazy">
-                <?php else : ?><div class="asd-sidebar-rel-noimg">🎬</div><?php endif; ?>
+                <?php /* ABR: img 外包 .asd-sidebar-rel-thumb，搭配 CSS 44×62 + absolute img */ ?>
+                <div class="asd-sidebar-rel-thumb">
+                    <?php if ( $rel_img ) : ?>
+                    <img src="<?php echo esc_url( $rel_img ); ?>" alt="<?php echo esc_attr( $rel_title ); ?>" loading="lazy">
+                    <?php else : ?><div class="asd-sidebar-rel-noimg">🎬</div><?php endif; ?>
+                </div>
                 <div class="asd-sidebar-rel-info">
                     <?php if ( $rel_type ) echo '<span class="asd-sidebar-rel-label">' . esc_html( $rel_type ) . '</span>'; ?>
                     <span class="asd-sidebar-rel-title"><?php echo esc_html( $rel_title ); ?></span>
@@ -819,7 +831,7 @@ while ( have_posts() ) : the_post();
                     <?php if ( $rec_cover ) : ?>
                     <img src="<?php echo esc_url( $rec_cover ); ?>" alt="<?php echo esc_attr( $rec_title ); ?>" loading="lazy">
                     <?php elseif ( has_post_thumbnail( $rec_id ) ) : ?>
-                    <?php echo get_the_post_thumbnail( $rec_id, [44, 62], ['loading' => 'lazy'] ); ?>
+                    <?php echo get_the_post_thumbnail( $rec_id, 'thumbnail', ['loading' => 'lazy'] ); ?>
                     <?php else : ?><div class="asd-sidebar-rec-noimg">🎬</div><?php endif; ?>
                 </div>
                 <div class="asd-sidebar-rec-info">
@@ -853,7 +865,7 @@ while ( have_posts() ) : the_post();
             <?php if ( $rec_cover ) : ?>
             <img src="<?php echo esc_url( $rec_cover ); ?>" alt="<?php echo esc_attr( $rec_title ); ?>" loading="lazy">
             <?php elseif ( has_post_thumbnail( $rec_id ) ) : ?>
-            <?php echo get_the_post_thumbnail( $rec_id, [200, 280], ['loading' => 'lazy'] ); ?>
+            <?php echo get_the_post_thumbnail( $rec_id, 'large', ['loading' => 'lazy'] ); ?>
             <?php else : ?><div class="asd-rec-noimg">🎬</div><?php endif; ?>
         </div>
         <div class="asd-rec-info">
