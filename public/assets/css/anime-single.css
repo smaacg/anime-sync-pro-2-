@@ -2,6 +2,11 @@
  * anime-single.css  —  Anime Sync Pro
  * Path : wp-content/plugins/anime-sync-pro/public/assets/css/anime-single.css
  *
+ * v11.4  ABT  ── 配色 + 佈局更新
+ *               背景改為 #1E242B 靜夜深藍黑，卡片底 #242C35
+ *               封面圖放大至 220×308 px（2:3）
+ *               基本資訊改 2 欄 icon 卡片
+ *               新增 AnimeThemes embed iframe 樣式
  * v11.3  ABS  ── img specificity 修正
  *               將所有裁切容器的 img 選擇器從 0,1,1 升高至 0,2,1
  *               加 .asd-wrap 前綴，確保在任何主題/外掛 img reset 之後仍能生效
@@ -30,15 +35,18 @@
 .asd-wrap *::after { box-sizing: border-box; }
 
 .asd-wrap {
-    --asd-primary:      #e85d26;
-    --asd-primary-dark: #c44d1e;
-    --asd-bg:           #0d0d0d;
-    --asd-bg-card:      #1a1a1a;
-    --asd-bg-card-hover:#222222;
-    --asd-border:       #2a2a2a;
-    --asd-text:         #e8e8e8;
-    --asd-text-muted:   #888888;
-    --asd-text-dim:     #555555;
+    /* ABT v11.4: 靜夜深藍黑 Glass 配色系統 */
+    /* 霧白 #F5F7F6 | 科技米白 #F6F8F9 | 淡石灰 #C3C6CE | 靈性灰藍 #3E4A54 | 靜夜深藍黑 #1E242B */
+    --asd-primary:      #63A8FF;
+    --asd-primary-dark: #4a8ee0;
+    --asd-bg:           #1E242B;
+    --asd-bg-section:   #242C35;
+    --asd-bg-card:      #242C35;
+    --asd-bg-card-hover:#2A3340;
+    --asd-border:       #3E4A54;
+    --asd-text:         #F5F7F6;
+    --asd-text-muted:   #C3C6CE;
+    --asd-text-dim:     #3E4A54;
     --asd-score-al:     #63A8FF;
     --asd-score-mal:    #8F6BFF;
     --asd-score-bgm:    #FF6BAE;
@@ -48,13 +56,13 @@
     --asd-transition:   .2s ease;
     --asd-max-width:    1200px;
 
-    --glass-bg:         rgba(245,247,246,0.07);
-    --glass-bg-mid:     rgba(245,247,246,0.11);
-    --glass-border:     rgba(245,247,246,0.14);
-    --glass-border-h:   rgba(245,247,246,0.26);
+    --glass-bg:         rgba(245,247,246,0.05);
+    --glass-bg-mid:     rgba(245,247,246,0.09);
+    --glass-border:     rgba(245,247,246,0.12);
+    --glass-border-h:   rgba(245,247,246,0.24);
     --glass-blur:       24px;
-    --glass-shadow:     0 8px 40px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.08);
-    --glass-shadow-h:   0 16px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12);
+    --glass-shadow:     0 8px 40px rgba(0,0,0,0.48), inset 0 1px 0 rgba(255,255,255,0.06);
+    --glass-shadow-h:   0 16px 60px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.10);
     --grad-hero:        linear-gradient(135deg,#63A8FF 0%,#8F6BFF 50%,#FF6BAE 100%);
     --trans-smooth:     all 0.32s cubic-bezier(0.4,0,0.2,1);
 
@@ -70,8 +78,22 @@ body.single-anime .site-content,
 body.single-anime .content-area,
 body.single-anime #content { padding: 0; max-width: none; }
 
+/* ABT: \u9801\u9762\u80cc\u666f\u8272 */
+body.single-anime { background-color: #1E242B; }
+
 .asd-wrap a { color: var(--asd-primary); text-decoration: none; transition: color var(--asd-transition); }
 .asd-wrap a:hover { color: var(--asd-primary-dark); }
+
+/* ABT: \u9999\u6c23\u6296\u52d5\u80cc\u666f\u6f38\u5c64 */
+.asd-wrap::before {
+    content:        '';
+    position:       fixed;
+    inset:          0;
+    background:     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,168,255,.12) 0%, transparent 60%),
+                    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(143,107,255,.08) 0%, transparent 50%);
+    pointer-events: none;
+    z-index:        -1;
+}
 
 /* ── ABS 圖片根規則 ──────────────────────────────────────────────────────────
    .asd-wrap img 預設 height:auto（符合 flow 圖片行為）。
@@ -115,7 +137,7 @@ body.single-anime #content { padding: 0; max-width: none; }
     100% { background-position: -200% 0; }
 }
 .asd-img-skeleton {
-    background:      linear-gradient(90deg,#1a1a1a 25%,#2a2a2a 50%,#1a1a1a 75%);
+    background:      linear-gradient(90deg,#1e242b 25%,#2a3340 50%,#1e242b 75%);
     background-size: 200% 100%;
     animation:       asd-skeleton 1.2s infinite;
 }
@@ -141,7 +163,7 @@ body.single-anime .asd-banner {
 .asd-banner-fade {
     position:   absolute;
     inset:      0;
-    background: linear-gradient(to bottom,rgba(13,13,13,.1) 0%,rgba(13,13,13,.6) 60%,rgba(13,13,13,1) 100%);
+    background: linear-gradient(to bottom,rgba(30,36,43,.1) 0%,rgba(30,36,43,.6) 60%,rgba(30,36,43,1) 100%);
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -166,18 +188,22 @@ body.single-anime .asd-banner {
     z-index:        2;
     padding-bottom: 24px;
 }
-.asd-hero-cover { flex-shrink: 0; width: 160px; }
+.asd-hero-cover { flex-shrink: 0; width: 220px; }
 
-/* 封面圖：固定尺寸，用 width+height 定義，object-fit 裁切，不混 aspect-ratio */
+/* ABT: 封面圖放大至 220×308 px (2:3)，加玻璌注射光憇 */
 .asd-cover-img {
-    width:         160px;
-    height:        228px;
+    width:         220px;
+    height:        308px;
     object-fit:    cover;
     object-position: center top;
     border-radius: var(--asd-radius);
-    box-shadow:    var(--asd-shadow);
-    border:        2px solid var(--asd-border);
+    box-shadow:    0 8px 32px rgba(0,0,0,.6), 0 0 0 1px var(--glass-border);
+    border:        2px solid var(--glass-border-h);
     display:       block;
+    transition:    box-shadow .3s ease;
+}
+.asd-cover-img:hover {
+    box-shadow:    0 12px 48px rgba(0,0,0,.7), 0 0 0 1px var(--asd-score-al);
 }
 
 .asd-hero-info { flex: 1; min-width: 0; padding-top: 8px; }
@@ -281,10 +307,13 @@ body.single-anime .asd-banner {
 
 .asd-tabs {
     display: flex; flex-wrap: wrap; gap: 4px;
-    border-bottom: 2px solid var(--asd-border);
+    border-bottom: 2px solid var(--glass-border);
     margin-bottom: 24px;
     position: sticky; top: 0; z-index: 100;
-    background: var(--asd-bg); padding-top: 8px;
+    background: var(--asd-bg);
+    padding-top: 8px;
+    backdrop-filter:         blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 .asd-tab {
     display: inline-block; padding: 8px 14px; font-size: 13px; font-weight: 600;
@@ -311,28 +340,63 @@ body.single-anime .asd-banner {
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-section {
-    background: var(--asd-bg-card); border: 1px solid var(--asd-border);
-    border-radius: var(--asd-radius); padding: 20px 24px;
-    margin-bottom: 20px; scroll-margin-top: 60px;
+    background:    var(--glass-bg);
+    border:        1px solid var(--glass-border);
+    border-radius: var(--asd-radius);
+    padding:       20px 24px;
+    margin-bottom: 20px;
+    scroll-margin-top: 60px;
+    backdrop-filter:         blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 .asd-section-title {
     font-size: 1rem; font-weight: 700; margin: 0 0 16px;
-    padding-bottom: 10px; border-bottom: 1px solid var(--asd-border); color: #fff;
+    padding-bottom: 10px; border-bottom: 1px solid var(--glass-border);
+    background:            var(--grad-hero);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    display: inline-block;
+    width: 100%;
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
    基本資訊
 ════════════════════════════════════════════════════════════════════════════ */
 
-.asd-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 2px 0; }
-.asd-info-row { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--asd-border); font-size: 14px; }
-.asd-info-row:last-child { border-bottom: none; }
-.asd-info-label { flex-shrink: 0; width: 80px; color: var(--asd-text-muted); font-size: 13px; }
-.asd-info-val { color: var(--asd-text); }
+/* ABT: 基本資訊 2 欄 icon 卡片版型 */
+.asd-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+}
+.asd-info-row {
+    display:       flex;
+    align-items:   center;
+    gap:           10px;
+    padding:       12px 14px;
+    background:    var(--glass-bg);
+    border:        1px solid var(--glass-border);
+    border-radius: var(--asd-radius-sm);
+    font-size:     14px;
+    transition:    background var(--asd-transition), border-color var(--asd-transition);
+}
+.asd-info-row:hover {
+    background:    var(--glass-bg-mid);
+    border-color:  var(--glass-border-h);
+}
+.asd-info-label {
+    flex-shrink: 0;
+    font-size:   12px;
+    font-weight: 700;
+    color:       var(--asd-text-muted);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    min-width:   72px;
+}
+.asd-info-val { color: var(--asd-text); font-size: 14px; font-weight: 500; }
 
 .asd-airing-bar {
     margin-top: 14px; padding: 10px 14px;
-    background: rgba(232,93,38,.1); border: 1px solid rgba(232,93,38,.3);
+    background: rgba(99,168,255,.08); border: 1px solid rgba(99,168,255,.25);
     border-radius: var(--asd-radius-sm); font-size: 14px;
 }
 .asd-countdown { font-variant-numeric: tabular-nums; color: var(--asd-primary); margin-left: 6px; }
@@ -353,9 +417,10 @@ body.single-anime .asd-banner {
 .asd-ep-row {
     display: grid; grid-template-columns: 72px 1fr auto; gap: 8px; align-items: center;
     padding: 9px 12px; border-radius: var(--asd-radius-sm);
-    background: rgba(255,255,255,.03); font-size: 14px; transition: background var(--asd-transition);
+    background: var(--glass-bg); border: 1px solid transparent;
+    font-size: 14px; transition: background var(--asd-transition), border-color var(--asd-transition);
 }
-.asd-ep-row:hover { background: rgba(255,255,255,.06); }
+.asd-ep-row:hover { background: var(--glass-bg-mid); border-color: var(--glass-border); }
 .asd-ep-hidden { display: none; }
 .asd-ep-num { flex-shrink: 0; color: var(--asd-primary); font-weight: 600; font-size: 13px; }
 .asd-ep-title { display: flex; flex-direction: column; gap: 2px; color: var(--asd-text); }
@@ -503,6 +568,60 @@ body.single-anime .asd-banner {
     color: var(--asd-text-muted) !important; transition: background var(--asd-transition);
 }
 .asd-theme-play-link:hover { background: var(--asd-border); color: var(--asd-text) !important; }
+
+/* AnimeThemes 播放按鈕 */
+.asd-theme-play-btn {
+    display:       inline-flex;
+    align-items:   center;
+    gap:           5px;
+    padding:       5px 14px;
+    border-radius: 20px;
+    border:        1px solid var(--asd-primary);
+    background:    transparent;
+    font-size:     12px;
+    font-weight:   600;
+    color:         var(--asd-primary);
+    cursor:        pointer;
+    transition:    background var(--asd-transition), color var(--asd-transition);
+}
+.asd-theme-play-btn:hover,
+.asd-theme-play-btn.active {
+    background: var(--asd-primary);
+    color:      var(--asd-bg);
+}
+
+/* AnimeThemes embed iframe 區塊 */
+.asd-theme-embed-wrap {
+    position:      relative;
+    width:         100%;
+    aspect-ratio:  16 / 9;
+    margin-top:    8px;
+    border-radius: var(--asd-radius);
+    overflow:      hidden;
+    background:    #000;
+}
+.asd-theme-embed-wrap iframe {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    border: none;
+}
+.asd-theme-embed-close {
+    position:   absolute;
+    top:        8px;
+    right:      8px;
+    background: rgba(0,0,0,.6);
+    border:     1px solid var(--glass-border);
+    color:      #fff;
+    border-radius: 50%;
+    width:      28px; height: 28px;
+    font-size:  14px;
+    cursor:     pointer;
+    display:    flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .2s;
+}
+.asd-theme-embed-close:hover { background: rgba(0,0,0,.9); }
 
 /* ════════════════════════════════════════════════════════════════════════════
    串流平台
@@ -671,12 +790,23 @@ body.single-anime .asd-banner {
 
 .asd-sidebar { display: flex; flex-direction: column; gap: 20px; }
 .asd-sidebar-block {
-    background: var(--asd-bg-card); border: 1px solid var(--asd-border);
-    border-radius: var(--asd-radius); padding: 16px;
+    background:    var(--glass-bg);
+    border:        1px solid var(--glass-border);
+    border-radius: var(--asd-radius);
+    padding:       16px;
+    backdrop-filter:         blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 .asd-sidebar-title {
-    font-size: 14px; font-weight: 700; margin: 0 0 12px;
-    padding-bottom: 10px; border-bottom: 1px solid var(--asd-border); color: #fff;
+    font-size:    14px;
+    font-weight:  700;
+    margin:       0 0 12px;
+    padding-bottom: 10px;
+    border-bottom:  1px solid var(--glass-border);
+    background:    var(--grad-hero);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    display:       inline-block;
+    width:         100%;
 }
 
 /* 新聞列表 */
@@ -898,8 +1028,8 @@ body.single-anime .asd-banner {
 
 @media (max-width: 640px) {
     .asd-hero           { flex-direction: column; align-items: center; margin-top: -30px; text-align: center; }
-    .asd-hero-cover     { width: 140px; }
-    .asd-cover-img      { width: 140px; height: 200px; }
+    .asd-hero-cover     { width: 160px; }
+    .asd-cover-img      { width: 160px; height: 224px; }
     .asd-hero-scores,
     .asd-quick-links,
     .asd-badges         { justify-content: center; }

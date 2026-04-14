@@ -779,9 +779,16 @@ class Anime_Sync_API_Handler {
         $slug   = $anime['slug'] ?? '';
         $themes = [];
         foreach ( $anime['animethemes'] as $theme ) {
+            $theme_type = $theme['type'] ?? '';
+            // Build theme slug: e.g. "OP1", "ED2" → used for embed URL
+            // AnimeThemes embed: https://animethemes.moe/embed/{anime_slug}-{OP1}
+            $theme_sequence = $theme['sequence'] ?? '';
+            $theme_slug     = $theme_type . ( $theme_sequence ? $theme_sequence : '' );
             $themes[] = [
-                'type'  => $theme['type']          ?? '',
-                'title' => $theme['song']['title'] ?? '',
+                'type'       => $theme_type,
+                'title'      => $theme['song']['title'] ?? '',
+                'theme_slug' => $theme_slug,              // e.g. "OP1", "ED1"
+                'anime_slug' => $slug,                    // e.g. "sakamoto_days"
             ];
         }
 
