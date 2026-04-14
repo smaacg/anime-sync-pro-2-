@@ -12,6 +12,8 @@
  *   ACB   – 新增 anime_sync_enrich_post WP Cron hook，
  *           匯入後 60 秒自動補抓 staff / episodes / MAL / Wikipedia / Themes
  *           版本號更新至 1.0.3
+ *   ACC   – 修正 Anime_Sync_Import_Manager 建構子只傳 1 個參數的 Fatal error
+ *           new Anime_Sync_Import_Manager( $api_handler, $converter )
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -237,8 +239,9 @@ add_action( 'plugins_loaded', function () {
                        : null;
 
         // Import Manager
-        $import_manager = ( $api_handler && class_exists( 'Anime_Sync_Import_Manager' ) )
-                          ? new Anime_Sync_Import_Manager( $api_handler )
+        // ACC 修正：補上第二個參數 $converter，對應 __construct( $api_handler, $cn_converter )
+        $import_manager = ( $api_handler && $converter && class_exists( 'Anime_Sync_Import_Manager' ) )
+                          ? new Anime_Sync_Import_Manager( $api_handler, $converter )
                           : null;
 
         // 後台管理介面
@@ -265,8 +268,7 @@ add_action( 'plugins_loaded', function () {
                 'anime_sync_enrich_post',
                 function ( int $post_id ) use ( $import_manager ) {
                     // 防止重複執行：若已補抓則跳過
-                    $enriched_at = get_post_meta( $post_id, '_enriched_at', true );
-                    if ( $enriched_at ) {
+                    if ( get_post_meta( $post_id, '_enriched_at', true ) ) {
                         return;
                     }
                     $import_manager->enrich_single( $post_id );
