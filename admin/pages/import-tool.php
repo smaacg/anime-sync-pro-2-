@@ -1,14 +1,18 @@
 <?php
 /**
  * 檔案名稱: admin/pages/import-tool.php
- * 功能：動畫匯入工具頁面 (已修正初始化空白問題)
+ * 功能：動畫匯入工具頁面
+ *
+ * ACA – appendLog 新增 warning 類型（橙色）
+ *       季度批次 / ID 批次 .done() 改讀 res.data.message 原文
+ *       當 res.data.bangumi_missing === true 時改用 warning 顏色
+ *       批次 ID 匯入成功也改顯示 message 而非硬字串
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// ✅ 改為實例呼叫，避免 non-static fatal error
 $cn_converter    = new Anime_Sync_CN_Converter();
 $converter_stats = $cn_converter->get_stats();
 ?>
@@ -33,6 +37,7 @@ $converter_stats = $cn_converter->get_stats();
         <a href="#batch" class="nav-tab" data-tab="batch">ID 清單匯入</a>
     </h2>
 
+    <!-- ── TAB 1：單筆匯入 ──────────────────────────────────────────── -->
     <div id="tab-single" class="anime-sync-tab-content" style="display:block;">
         <div class="card" style="max-width: 800px; margin-top: 20px;">
             <h3>透過 AniList ID 匯入</h3>
@@ -58,6 +63,7 @@ $converter_stats = $cn_converter->get_stats();
         </div>
     </div>
 
+    <!-- ── TAB 2：季度批次匯入 ──────────────────────────────────────── -->
     <div id="tab-season" class="anime-sync-tab-content" style="display:none;">
         <div class="card" style="margin-top: 20px;">
             <h3>按季度篩選</h3>
@@ -88,7 +94,9 @@ $converter_stats = $cn_converter->get_stats();
                     <table class="wp-list-table widefat fixed striped">
                         <thead>
                             <tr>
-                                <td id="cb" class="manage-column column-cb check-column"><input id="season-select-all" type="checkbox" checked></td>
+                                <td id="cb" class="manage-column column-cb check-column">
+                                    <input id="season-select-all" type="checkbox" checked>
+                                </td>
                                 <th>ID</th>
                                 <th>名稱 (Romaji)</th>
                                 <th>格式</th>
@@ -102,7 +110,7 @@ $converter_stats = $cn_converter->get_stats();
                 </div>
                 <button type="button" id="btn-season-import" class="button button-primary">第二步：開始批次匯入選中項</button>
                 <button type="button" id="btn-season-stop" class="button" style="display:none; color:red;">停止匯入</button>
-                
+
                 <div id="season-progress-wrap" style="margin-top:20px; display:none;">
                     <div style="background:#eee; height:20px; border-radius:10px; overflow:hidden;">
                         <div id="season-progress-bar" style="background:#2271b1; width:0%; height:100%; transition: width 0.3s;"></div>
@@ -114,6 +122,7 @@ $converter_stats = $cn_converter->get_stats();
         </div>
     </div>
 
+    <!-- ── TAB 3：ID 清單批次匯入 ───────────────────────────────────── -->
     <div id="tab-batch" class="anime-sync-tab-content" style="display:none;">
         <div class="card" style="margin-top: 20px;">
             <h3>大量 ID 清單匯入</h3>
@@ -140,21 +149,31 @@ $converter_stats = $cn_converter->get_stats();
 </div>
 
 <style>
+/* ── 日誌顏色 ─────────────────────────────────────── */
 .log-success { color: #0f0; }
-.log-error { color: #f33; }
-.log-skip { color: #aaa; }
-.log-info { color: #3df; border-bottom: 1px solid #333; padding-bottom: 2px; margin-bottom: 5px; }
-.anime-sync-tab-content .card { background: #fff; border: 1px solid #ccd0d4; padding: 20px; box-shadow: 0 1px 1px rgba(0,0,0,.04); }
+.log-warning { color: #f90; font-weight: bold; }   /* ACA：Bangumi 未找到 */
+.log-error   { color: #f33; }
+.log-skip    { color: #aaa; }
+.log-info    { color: #3df; border-bottom: 1px solid #333; padding-bottom: 2px; margin-bottom: 5px; }
+
+/* ── 卡片 ─────────────────────────────────────────── */
+.anime-sync-tab-content .card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    padding: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+/* ── 單筆結果區塊 ─────────────────────────────────── */
 #single-import-result.success { background: #edfaef; border: 1px solid #46b450; color: #235926; }
-#single-import-result.error { background: #fcf0f1; border: 1px solid #dc3232; color: #a42821; }
+#single-import-result.warning { background: #fff8e5; border: 1px solid #d97706; color: #7a4b00; }
+#single-import-result.error   { background: #fcf0f1; border: 1px solid #dc3232; color: #a42821; }
 </style>
 
 <script>
 jQuery( function( $ ) {
 
-    /**
-     * Tab 切換功能核心
-     */
+    /* ── Tab 切換 ────────────────────────────────────────────────── */
     function switchTab( tabId ) {
         $( '.anime-sync-import-tool .nav-tab' ).removeClass( 'nav-tab-active' );
         $( '.nav-tab[data-tab="' + tabId + '"]' ).addClass( 'nav-tab-active' );
@@ -164,53 +183,79 @@ jQuery( function( $ ) {
 
     $( document ).on( 'click', '.anime-sync-import-tool .nav-tab', function( e ) {
         e.preventDefault();
-        var tab = $( this ).data( 'tab' );
-        switchTab( tab );
-        window.location.hash = tab;
+        switchTab( $( this ).data( 'tab' ) );
+        window.location.hash = $( this ).data( 'tab' );
     } );
 
-    var hash = window.location.hash.replace('#', '');
+    var hash = window.location.hash.replace( '#', '' );
     if ( hash && $( '.nav-tab[data-tab="' + hash + '"]' ).length > 0 ) {
         switchTab( hash );
     } else {
         switchTab( 'single' );
     }
 
-    /* ── ID 清單字數統計 ───────────────────────────── */
+    /* ── ID 清單字數統計 ──────────────────────────────────────────── */
     $( '#batch-id-list' ).on( 'input', function() {
-        var ids = $( this ).val().split( /[\n,]+/ ).map( s => s.trim() ).filter( s => /^\d+$/.test(s) );
+        var ids = $( this ).val()
+            .split( /[\n,]+/ )
+            .map( function( s ) { return s.trim(); } )
+            .filter( function( s ) { return /^\d+$/.test( s ); } );
         $( '#batch-id-count' ).text( ids.length + ' 個 ID' );
     } );
 
-    /* ── TAB 1 — 單筆匯入 ─────────────────────────── */
+    /* ── 共用 log 寫入 ───────────────────────────────────────────── */
+    /**
+     * ACA：新增 warning 類型（橙色），用於 Bangumi ID 未找到但匯入成功的情況。
+     * @param {string} selector  日誌容器的 jQuery selector
+     * @param {string} text      顯示文字
+     * @param {string} type      success | warning | error | skip | info
+     */
+    function appendLog( selector, text, type ) {
+        var line = '<div class="log-' + ( type || 'info' ) + '">[' +
+            new Date().toLocaleTimeString() + '] ' + text + '</div>';
+        var $log = $( selector );
+        $log.append( line ).scrollTop( $log[0].scrollHeight );
+    }
+
+    /* ── TAB 1 — 單筆匯入 ───────────────────────────────────────── */
     $( '#btn-single-import' ).on( 'click', function() {
         var id = $.trim( $( '#single-anilist-id' ).val() );
-        if ( ! id || isNaN( id ) || parseInt(id) <= 0 ) {
+        if ( ! id || isNaN( id ) || parseInt( id, 10 ) <= 0 ) {
             alert( '請輸入有效的 AniList ID' );
             return;
         }
 
         var $btn    = $( this ).prop( 'disabled', true ).text( '匯入中…' );
-        var $result = $( '#single-import-result' ).hide().removeClass( 'success error' );
+        var $result = $( '#single-import-result' ).hide().removeClass( 'success warning error' );
 
         $.post( ajaxurl, {
             action:       'anime_sync_import_single',
             anilist_id:   id,
-            force_update: $( '#single-force-update' ).is(':checked') ? 1 : 0,
+            force_update: $( '#single-force-update' ).is( ':checked' ) ? 1 : 0,
             nonce:        animeSyncAdmin.nonce
         } )
         .done( function( res ) {
             if ( res.success ) {
-                $result.addClass( 'success' ).html(
-                    '<strong>✅ ' + res.data.message + '</strong>' +
-                    ( res.data.edit_url ? ' <br><a href="' + res.data.edit_url + '" class="button" target="_blank" style="margin-top:10px;">前往編輯動畫內容</a>' : '' )
+                // ACA：若 bangumi_missing，改用橙色警告框
+                var isMissing  = res.data.bangumi_missing === true;
+                var cssClass   = isMissing ? 'warning' : 'success';
+                var icon       = isMissing ? '⚠️' : '✅';
+                $result.addClass( cssClass ).html(
+                    '<strong>' + icon + ' ' + res.data.message + '</strong>' +
+                    ( res.data.edit_url
+                        ? ' <br><a href="' + res.data.edit_url + '" class="button" target="_blank" style="margin-top:10px;">前往編輯動畫內容</a>'
+                        : '' )
                 );
             } else {
-                $result.addClass( 'error' ).html( '<strong>❌ ' + ( res.data.message || '匯入失敗' ) + '</strong>' );
+                $result.addClass( 'error' ).html(
+                    '<strong>❌ ' + ( res.data.message || '匯入失敗' ) + '</strong>'
+                );
             }
         } )
         .fail( function() {
-            $result.addClass( 'error' ).html( '<strong>❌ 網路或 PHP 發生錯誤，請檢查後台錯誤日誌。</strong>' );
+            $result.addClass( 'error' ).html(
+                '<strong>❌ 網路或 PHP 發生錯誤，請檢查後台錯誤日誌。</strong>'
+            );
         } )
         .always( function() {
             $btn.prop( 'disabled', false ).text( '開始匯入' );
@@ -218,7 +263,7 @@ jQuery( function( $ ) {
         } );
     } );
 
-    /* ── TAB 2 — 季度批次匯入 ──────────────────────── */
+    /* ── TAB 2 — 季度批次匯入 ──────────────────────────────────── */
     var seasonStop = false;
 
     $( '#btn-season-query' ).on( 'click', function() {
@@ -243,27 +288,36 @@ jQuery( function( $ ) {
                 alert( res.data.message || '查詢失敗' );
             }
         } )
-        .always( function() { $btn.prop( 'disabled', false ).text( '第一步：查詢季度清單' ); } );
+        .always( function() {
+            $btn.prop( 'disabled', false ).text( '第一步：查詢季度清單' );
+        } );
     } );
 
     function renderSeasonTable( list ) {
         var html = '';
         $.each( list, function( i, item ) {
-            html += '<tr><td><input type="checkbox" class="season-item-check" value="' + item.anilist_id + '" checked></td>' +
-                '<td>' + item.anilist_id + '</td><td>' + (item.title_romaji || '-') + '</td>' +
-                '<td>' + (item.format || '-') + '</td><td>' + (item.episodes || '?') + '</td>' +
-                '<td>' + (item.popularity || 0) + '</td><td>' + (item.status || '-') + '</td></tr>';
+            html += '<tr>' +
+                '<td><input type="checkbox" class="season-item-check" value="' + item.anilist_id + '" checked></td>' +
+                '<td>' + item.anilist_id + '</td>' +
+                '<td>' + ( item.title_romaji || '-' ) + '</td>' +
+                '<td>' + ( item.format       || '-' ) + '</td>' +
+                '<td>' + ( item.episodes     || '?' ) + '</td>' +
+                '<td>' + ( item.popularity   || 0   ) + '</td>' +
+                '<td>' + ( item.status       || '-' ) + '</td>' +
+                '</tr>';
         } );
         $( '#season-anime-tbody' ).html( html );
     }
 
     $( '#season-select-all' ).on( 'change', function() {
-        $( '.season-item-check' ).prop( 'checked', $( this ).is(':checked') );
+        $( '.season-item-check' ).prop( 'checked', $( this ).is( ':checked' ) );
     } );
 
     $( '#btn-season-import' ).on( 'click', function() {
         var ids = [];
-        $( '.season-item-check:checked' ).each( function() { ids.push( parseInt( $( this ).val() ) ); } );
+        $( '.season-item-check:checked' ).each( function() {
+            ids.push( parseInt( $( this ).val(), 10 ) );
+        } );
         if ( ids.length === 0 ) { alert( '請至少選擇一部動畫' ); return; }
 
         seasonStop = false;
@@ -281,40 +335,59 @@ jQuery( function( $ ) {
                 appendLog( '#season-import-log', '── 匯入完成 ──', 'info' );
                 return;
             }
-            var id = ids[current];
+
+            var id = ids[ current ];
+
             $.post( ajaxurl, {
-                action:    'anime_sync_import_single',
+                action:     'anime_sync_import_single',
                 anilist_id: id,
-                nonce:     animeSyncAdmin.nonce
+                nonce:      animeSyncAdmin.nonce
             } )
             .done( function( res ) {
-                var type = res.success ? ( res.data.skipped ? 'skip' : 'success' ) : 'error';
-                appendLog( '#season-import-log', (res.data.title || id) + ': ' + (res.data.message || 'Done'), type );
+                var label = res.data && res.data.title ? res.data.title : id;
+                var msg   = res.data && res.data.message ? res.data.message : 'Done';
+
+                if ( res.success ) {
+                    if ( res.data.skipped ) {
+                        // 已存在，跳過
+                        appendLog( '#season-import-log', label + ': ' + msg, 'skip' );
+                    } else if ( res.data.bangumi_missing === true ) {
+                        // ACA：匯入成功但 Bangumi ID 未找到 → 橙色警告
+                        appendLog( '#season-import-log', label + ': ' + msg, 'warning' );
+                    } else {
+                        // 完全成功
+                        appendLog( '#season-import-log', label + ': ' + msg, 'success' );
+                    }
+                } else {
+                    appendLog( '#season-import-log', label + ': ' + msg, 'error' );
+                }
             } )
             .fail( function() {
                 appendLog( '#season-import-log', id + ': 網路錯誤', 'error' );
             } )
             .always( function() {
                 current++;
-                var pct = Math.round( (current / total) * 100 );
+                var pct = Math.round( ( current / total ) * 100 );
                 $( '#season-progress-bar' ).css( 'width', pct + '%' );
                 $( '#season-progress-text' ).text( current + ' / ' + total );
                 setTimeout( importNext, 300 );
             } );
         }
+
         importNext();
     } );
 
     $( '#btn-season-stop' ).on( 'click', function() { seasonStop = true; } );
 
-    /* ── TAB 3 — ID 清單批次匯入 ────────────────────── */
+    /* ── TAB 3 — ID 清單批次匯入 ────────────────────────────────── */
     var batchStop = false;
 
     $( '#btn-batch-import' ).on( 'click', function() {
         var ids = $( '#batch-id-list' ).val()
             .split( /[\n,]+/ )
-            .map( s => parseInt( s.trim() ) )
-            .filter( n => n > 0 );
+            .map( function( s ) { return parseInt( s.trim(), 10 ); } )
+            .filter( function( n ) { return n > 0; } );
+
         if ( ids.length === 0 ) { alert( '請輸入至少一個有效 ID' ); return; }
 
         batchStop = false;
@@ -323,30 +396,50 @@ jQuery( function( $ ) {
         $( '#batch-progress-wrap' ).show();
         $( '#batch-import-log' ).empty();
 
-        var total = ids.length, current = 0, success = 0, skip = 0, fail = 0;
+        var total = ids.length, current = 0, success = 0, warn = 0, skip = 0, fail = 0;
 
         function batchNext() {
             if ( batchStop || current >= total ) {
                 $( '#btn-batch-import' ).prop( 'disabled', false );
                 $( '#btn-batch-stop' ).hide();
+                // ACA：完成摘要加入 warn 計數
                 appendLog( '#batch-import-log',
-                    '── 完成：成功 ' + success + ' / 跳過 ' + skip + ' / 失敗 ' + fail + ' ──', 'info' );
+                    '── 完成：✅ 成功 ' + success +
+                    ' / ⚠️ Bangumi缺失 ' + warn +
+                    ' / ⏭ 跳過 ' + skip +
+                    ' / ❌ 失敗 ' + fail + ' ──',
+                    'info'
+                );
                 return;
             }
-            var id = ids[current];
+
+            var id = ids[ current ];
+
             $.post( ajaxurl, {
                 action:       'anime_sync_import_single',
                 anilist_id:   id,
-                force_update: $( '#batch-force-update' ).is(':checked') ? 1 : 0,
+                force_update: $( '#batch-force-update' ).is( ':checked' ) ? 1 : 0,
                 nonce:        animeSyncAdmin.nonce
             } )
             .done( function( res ) {
+                var label = res.data && res.data.title   ? res.data.title   : id;
+                var msg   = res.data && res.data.message ? res.data.message : 'Done';
+
                 if ( res.success ) {
-                    if ( res.data.skipped ) { skip++; appendLog( '#batch-import-log', (res.data.title || id) + ': 已跳過', 'skip' ); }
-                    else { success++; appendLog( '#batch-import-log', (res.data.title || id) + ': ✅ 匯入成功', 'success' ); }
+                    if ( res.data.skipped ) {
+                        skip++;
+                        appendLog( '#batch-import-log', label + ': ' + msg, 'skip' );
+                    } else if ( res.data.bangumi_missing === true ) {
+                        // ACA：匯入成功但 Bangumi ID 缺失 → 橙色
+                        warn++;
+                        appendLog( '#batch-import-log', label + ': ' + msg, 'warning' );
+                    } else {
+                        success++;
+                        appendLog( '#batch-import-log', label + ': ' + msg, 'success' );
+                    }
                 } else {
                     fail++;
-                    appendLog( '#batch-import-log', id + ': ❌ ' + (res.data.message || '失敗'), 'error' );
+                    appendLog( '#batch-import-log', id + ': ❌ ' + msg, 'error' );
                 }
             } )
             .fail( function() {
@@ -355,22 +448,16 @@ jQuery( function( $ ) {
             } )
             .always( function() {
                 current++;
-                $( '#batch-progress-bar' ).css( 'width', Math.round( (current/total) * 100 ) + '%' );
+                $( '#batch-progress-bar' ).css( 'width', Math.round( ( current / total ) * 100 ) + '%' );
                 $( '#batch-progress-text' ).text( current + ' / ' + total );
                 setTimeout( batchNext, 300 );
             } );
         }
+
         batchNext();
     } );
 
     $( '#btn-batch-stop' ).on( 'click', function() { batchStop = true; } );
-
-    /* ── 共用 log 寫入函式 ─────────────────────────── */
-    function appendLog( selector, text, type ) {
-        var line = '<div class="log-' + ( type || 'info' ) + '">[' +
-            new Date().toLocaleTimeString() + '] ' + text + '</div>';
-        $( selector ).append( line ).scrollTop( $( selector )[0].scrollHeight );
-    }
 
 } );
 </script>
