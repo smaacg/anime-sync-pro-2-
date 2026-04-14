@@ -2,6 +2,11 @@
  * anime-single.css  —  Anime Sync Pro
  * Path : wp-content/plugins/anime-sync-pro/public/assets/css/anime-single.css
  *
+ * v11.3  ABS  ── img specificity 修正
+ *               將所有裁切容器的 img 選擇器從 0,1,1 升高至 0,2,1
+ *               加 .asd-wrap 前綴，確保在任何主題/外掛 img reset 之後仍能生效
+ *               容器加 min-height:0，防止 flex 壓扁 aspect-ratio 高度
+ *
  * v11.2  ABR  ── 結構級圖片修正
  *               原則：圖片容器只用 aspect-ratio，不混用 height
  *               img 只用 width/height/object-fit，不用 !important
@@ -68,11 +73,13 @@ body.single-anime #content { padding: 0; max-width: none; }
 .asd-wrap a { color: var(--asd-primary); text-decoration: none; transition: color var(--asd-transition); }
 .asd-wrap a:hover { color: var(--asd-primary-dark); }
 
-/* ── ABR 圖片根規則 ──────────────────────────────────────────────────────────
-   .asd-wrap img 的 height:auto 是正確預設，不要在這裡改掉。
-   所有需要裁切的圖片透過「容器 aspect-ratio + overflow:hidden + position:relative」
-   搭配「img: position:absolute inset:0 width:100% height:100% object-fit:cover」
-   這才是不依賴 !important、不受主題干擾的正確結構。
+/* ── ABS 圖片根規則 ──────────────────────────────────────────────────────────
+   .asd-wrap img 預設 height:auto（符合 flow 圖片行為）。
+   所有需要裁切的圖片：
+     容器：position:relative + aspect-ratio + overflow:hidden + min-height:0
+     img：position:absolute + inset:0 + width:100% + height:100% + object-fit:cover
+   img 選擇器前綴加 .asd-wrap，使 specificity 升至 0,2,1，
+   確保永遠蓋過任何主題的 img { height:auto }（最高 0,1,1）。
    ────────────────────────────────────────────────────────────────────────── */
 .asd-wrap img { display: block; max-width: 100%; height: auto; }
 
@@ -88,8 +95,8 @@ body.single-anime #content { padding: 0; max-width: none; }
     background: var(--asd-border);
     flex-shrink: 0;
 }
-/* aspect-ratio 由各容器自行設定 */
-.asd-img-box img {
+/* ABS: 升高 specificity → 0,2,1，永遠蓋過主題 img{height:auto} */
+.asd-wrap .asd-img-box img {
     position:   absolute;
     inset:      0;
     width:      100%;
@@ -382,13 +389,15 @@ body.single-anime .asd-banner {
     width:        100%;
     aspect-ratio: 3 / 4;      /* 撐開高度，不設 height */
     overflow:     hidden;
+    min-height:   0;          /* ABS: 防止 flex 壓扁 */
     background:   var(--asd-border);
 }
-.asd-cast-img img {
+/* ABS: specificity 0,2,1 */
+.asd-wrap .asd-cast-img img {
     position:        absolute;
     inset:           0;
     width:           100%;
-    height:          100%;     /* 搭配 absolute，不受主題 height:auto 影響 */
+    height:          100%;
     object-fit:      cover;
     object-position: center top;
     display:         block;
@@ -438,7 +447,8 @@ body.single-anime .asd-banner {
     flex-shrink:   0;
     background:    var(--asd-border);
 }
-.asd-staff-avatar img {
+/* ABS: specificity 0,2,1 */
+.asd-wrap .asd-staff-avatar img {
     position:   absolute;
     inset:      0;
     width:      100%;
@@ -557,10 +567,12 @@ body.single-anime .asd-banner {
     width:        100%;
     aspect-ratio: 2 / 3;
     overflow:     hidden;
+    min-height:   0;          /* ABS: 防止 flex 壓扁 */
     background:   var(--asd-border);
     flex-shrink:  0;
 }
-.asd-relation-thumb img {
+/* ABS: specificity 0,2,1 */
+.asd-wrap .asd-relation-thumb img {
     position:        absolute;
     inset:           0;
     width:           100%;
@@ -698,7 +710,8 @@ body.single-anime .asd-banner {
     border-radius: var(--asd-radius-sm);
     background:    var(--asd-border);
 }
-.asd-sidebar-rel-thumb img {
+/* ABS: specificity 0,2,1 */
+.asd-wrap .asd-sidebar-rel-thumb img {
     position:        absolute;
     inset:           0;
     width:           100%;
@@ -748,7 +761,8 @@ body.single-anime .asd-banner {
     border-radius: var(--asd-radius-sm);
     background:    var(--asd-border);
 }
-.asd-sidebar-rec-thumb-wrap img {
+/* ABS: specificity 0,2,1 */
+.asd-wrap .asd-sidebar-rec-thumb-wrap img {
     position:        absolute;
     inset:           0;
     width:           100%;
@@ -817,14 +831,16 @@ body.single-anime .asd-banner {
     width:        100%;
     aspect-ratio: 2 / 3;      /* 唯一決定高度的屬性，無 height 衝突 */
     overflow:     hidden;
+    min-height:   0;          /* ABS: 防止 flex 壓扁 aspect-ratio */
     background:   var(--asd-border);
     flex-shrink:  0;
 }
-.asd-rec-thumb-wrap img {
+/* ABS: specificity 0,2,1，蓋過所有主題的 img{height:auto}（最高 0,1,1）*/
+.asd-wrap .asd-rec-thumb-wrap img {
     position:        absolute;
     inset:           0;
     width:           100%;
-    height:          100%;     /* absolute 子元素，不受 img{height:auto} 影響 */
+    height:          100%;
     object-fit:      cover;
     object-position: center top;
     display:         block;

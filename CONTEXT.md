@@ -1,7 +1,7 @@
 # Anime Sync Pro — CONTEXT.md
-> Version : **v11.2**
+> Version : **v11.3**
 > Date    : 2026-04-14
-> Status  : All known bugs fixed. Next bug ID starts at **ABS**.
+> Status  : All known bugs fixed. Next bug ID starts at **ABT**.
 
 ---
 
@@ -474,13 +474,15 @@ F-TPL	v11.0	single-anime.php	依新骨架全部重構
 ABP	v11.0	anime-single.css	底部推薦 \& 側欄推薦圖片加 thumb-wrap 容器，防止主題 height:auto 跑版
 ABQ	v11.0	anime-single.css	asd-sidebar-rec-thumb-wrap img 和 asd-rec-thumb-wrap img 加 height:100% !important，覆蓋 Hello Elementor reset.css 的 img{height:auto} 導致「你可能也喜歡」和「熱門推薦」圖片跑版
 ABR	v11.2	anime-single.css + single-anime.php	結構級圖片修正：移除所有 height:100% !important，改用容器 position:relative + aspect-ratio + overflow:hidden，img 用 position:absolute inset:0。同時更新 single-anime.php ：對 relations/sidebar-rel/staff 圖片加容器包裹，移除 get_the_post_thumbnail() 硬編尺寸
-下一個 Bug ID：ABS
+ABS	v11.3	anime-single.css	圖片 selector specificity 修正：將 7 個裁切容器的 img 選擇器加 .asd-wrap 前綴，從 0,1,1 升至 0,2,1。修正跟任何主題的 img{height:auto}(max spec 0,1,1) 衝突。另對純 aspect-ratio 高度容器加 min-height:0 防止 flex 壓扁。
+下一個 Bug ID：ABT
 
 20. 已知待處理事項
 項目	說明
 ABO	class-api-handler.php 需新增 fetch_bgm_data_public()、get_bgm_staff_public()、get_bgm_chars_public()、clean_synopsis_public() 四個 public 包裝方法，供 AJAX 重新同步 Bangumi 使用
 ABQ（已修正）	側欄「你可能也喜歡」和底部「熱門推薦」圖片跑版，已在 anime-single.css 兩個 img 規則加 !important 修正
 ABR（已修正）	anime-single.css v11.2 結構級圖片修正（所有容器改用 aspect-ratio + absolute img），並對應更新 single-anime.php
+ABS（已修正）	anime-single.css v11.3 img selector specificity 修正，加 .asd-wrap 前綴升至 0,2,1，加 min-height:0 防 flex 壓扁
 —	正式站尚未部署，所有修改目前僅在 dev.weixiaoacg.com 測試
 Copy
 ---
