@@ -23,6 +23,8 @@
  *   ABR – parse_relations() GraphQL query 補上 coverImage { large }，
  *         並將 cover_image 由空字串改為讀取 $edge['node']['coverImage']['large']，
  *         解決相關作品 / 系列作品圖片全部顯示佔位符的問題
+ *   ABZ – get_full_anime_data() 傳入 season / episodes / title_romaji 給 id_mapper，
+ *         供 Layer 1.5–1.8、季度篩選、集數驗證使用
  *
  * @package Anime_Sync_Pro
  */
@@ -92,6 +94,8 @@ class Anime_Sync_API_Handler {
         $title_english  = $media['title']['english'] ?? '';
         $title_native   = $media['title']['native']  ?? '';
         $season_year    = $media['seasonYear']        ?? 0;
+        $season         = $media['season']            ?? '';   // ABZ：SPRING/SUMMER/FALL/WINTER
+        $episodes       = (int) ( $media['episodes'] ?? 0 );  // ABZ：集數
         $external_links = $media['externalLinks']     ?? [];
 
         // --- 3. Resolve Bangumi ID ------------------------------------------
@@ -101,8 +105,11 @@ class Anime_Sync_API_Handler {
                 'mal_id'         => $mal_id,
                 'post_id'        => $post_id,
                 'title_native'   => $title_native,
+                'title_romaji'   => $title_romaji,   // ABZ
                 'title_chinese'  => '',
                 'season_year'    => $season_year,
+                'season'         => $season,          // ABZ：季度字串
+                'episodes'       => $episodes,        // ABZ：集數
                 'external_links' => $external_links,
             ];
             $bangumi_id = $this->id_mapper->get_bangumi_id( $anime_data_for_mapper );
@@ -194,7 +201,7 @@ class Anime_Sync_API_Handler {
             $title_chinese,
             $title_native,
             $title_romaji,
-            $title_english  // ABQ：傳入英文標題供 EN fallback
+            $title_english
         );
 
         // --- 12. Themes (AnimeThemes) – AX 修正 -----------------------------
@@ -272,7 +279,7 @@ class Anime_Sync_API_Handler {
             'anime_season'           => $media['season'] ?? '',
             'anime_season_year'      => $season_year,
             'anime_source'           => $media['source'] ?? '',
-            'anime_episodes'         => (int) ( $media['episodes'] ?? 0 ),
+            'anime_episodes'         => $episodes,
             'anime_duration'         => (int) ( $media['duration'] ?? 0 ),
 
             // Studios
@@ -467,24 +474,6 @@ class Anime_Sync_API_Handler {
     // PRIVATE – Wikipedia URL (ABJ + ABQ fallback)
     // =========================================================================
 
-    /**
-     * ABQ 修正說明：
-     *
-     * 原本只查中文維基（zh.wikipedia.org），遇到冷門作品或新作時容易找不到。
-     * 此版本在中文維基全部候選都找不到後，自動以以下順序 fallback 到英文維基：
-     *   1. title_english（AniList 英文標題）
-     *   2. title_romaji（羅馬拼音標題）
-     *
-     * 英文維基使用 REST Summary API（/api/rest_v1/page/summary/{title}），
-     * 回應中 content_urls.desktop.page 為完整頁面 URL。
-     * 結果同樣快取 30 天；找不到則快取空字串 7 天。
-     *
-     * @param string $title_chinese  繁體中文標題（從 Bangumi 轉換）
-     * @param string $title_native   日文原名
-     * @param string $title_romaji   羅馬拼音標題
-     * @param string $title_english  英文標題（AniList）
-     * @return string Wikipedia 頁面 URL，找不到時回傳空字串
-     */
     private function fetch_wikipedia_url(
         string $title_chinese,
         string $title_native,
@@ -492,7 +481,6 @@ class Anime_Sync_API_Handler {
         string $title_english = ''
     ): string {
 
-        // ── 第一階段：查中文維基（zh.wikipedia.org）──────────────────────────
         $zh_candidates = array_filter( [ $title_chinese, $title_native, $title_romaji ] );
 
         foreach ( $zh_candidates as $title ) {
@@ -501,7 +489,7 @@ class Anime_Sync_API_Handler {
 
             if ( $cached !== false ) {
                 if ( $cached !== '' ) return (string) $cached;
-                continue; // 快取到空字串代表之前查過找不到，跳下一個候選
+                continue;
             }
 
             $url = add_query_arg( [
@@ -529,7 +517,7 @@ class Anime_Sync_API_Handler {
             foreach ( $pages as $page ) {
                 if ( ! empty( $page['missing'] ) ) {
                     set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
-                    continue 2; // 頁面不存在，快取並跳下一個候選
+                    continue 2;
                 }
 
                 $wiki_url = $page['fullurl'] ?? '';
@@ -542,8 +530,6 @@ class Anime_Sync_API_Handler {
             set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
         }
 
-        // ── 第二階段：ABQ fallback → 查英文維基（en.wikipedia.org）─────────
-        // 候選順序：英文標題 → 羅馬拼音標題
         $en_candidates = array_filter( [ $title_english, $title_romaji ] );
 
         foreach ( $en_candidates as $title ) {
@@ -555,7 +541,6 @@ class Anime_Sync_API_Handler {
                 continue;
             }
 
-            // Wikipedia REST API：title 中空格改為底線
             $title_slug = str_replace( ' ', '_', trim( $title ) );
             $rest_url   = self::WIKI_EN_REST . rawurlencode( $title_slug );
 
@@ -569,7 +554,6 @@ class Anime_Sync_API_Handler {
 
             $code = (int) wp_remote_retrieve_response_code( $response );
 
-            // 404 = 頁面不存在，快取 7 天後繼續嘗試下一個候選
             if ( $code === 404 ) {
                 set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
                 continue;
@@ -577,12 +561,9 @@ class Anime_Sync_API_Handler {
 
             if ( $code !== 200 ) continue;
 
-            $body = json_decode( wp_remote_retrieve_body( $response ), true );
-
-            // REST API 回傳的頁面 URL
+            $body     = json_decode( wp_remote_retrieve_body( $response ), true );
             $wiki_url = $body['content_urls']['desktop']['page'] ?? '';
 
-            // 若 type 為 'disambiguation' 則視為無效（消歧義頁）
             if ( ( $body['type'] ?? '' ) === 'disambiguation' ) {
                 set_transient( $cache_key, '', 7 * DAY_IN_SECONDS );
                 continue;
@@ -691,17 +672,11 @@ class Anime_Sync_API_Handler {
     // PRIVATE – Bangumi 集數列表 (ABL)
     // =========================================================================
 
-    /**
-     * 抓取 Bangumi 集數列表，回傳陣列。
-     * 每筆格式：[ 'ep' => 1, 'name' => '...', 'name_cn' => '...', 'airdate' => 'YYYY-MM-DD' ]
-     * 使用 transient 快取 24 小時（連載中）；已完結可設更長，此處統一 24h 保持更新。
-     */
     public function fetch_bgm_episodes( int $bgm_id ): array {
         $cache_key = 'anime_sync_bgm_eps_' . $bgm_id;
         $cached    = get_transient( $cache_key );
         if ( $cached !== false ) return (array) $cached;
 
-        // Bangumi episodes API：type=0 為正篇
         $url = add_query_arg( [
             'subject_id' => $bgm_id,
             'type'       => 0,
@@ -739,22 +714,15 @@ class Anime_Sync_API_Handler {
     }
 
     // =========================================================================
-    // PRIVATE – AnimeThemes (AX 修正)
+    // PRIVATE – AnimeThemes (AX)
     // =========================================================================
 
-    /**
-     * AX 修正：改用手動組字串 URL，避免 add_query_arg() 將方括號編碼
-     * 為 %5B%5D，導致 AnimeThemes API 無法解析篩選參數。
-     *
-     * 回傳格式：[ 'themes' => [...], 'slug' => 'sakamoto_days' ]
-     */
     private function fetch_animethemes( ?int $mal_id ): array {
         $empty = [ 'themes' => [], 'slug' => '' ];
         if ( ! $mal_id || $mal_id <= 0 ) return $empty;
 
         $this->rate_limiter->wait_if_needed( 'animethemes' );
 
-        // AX 修正：直接組字串，不用 add_query_arg()
         $url = self::ANIMETHEMES_URL
             . '?filter[has]=resources'
             . '&filter[site]=MyAnimeList'
@@ -779,16 +747,14 @@ class Anime_Sync_API_Handler {
         $slug   = $anime['slug'] ?? '';
         $themes = [];
         foreach ( $anime['animethemes'] as $theme ) {
-            $theme_type = $theme['type'] ?? '';
-            // Build theme slug: e.g. "OP1", "ED2" → used for embed URL
-            // AnimeThemes embed: https://animethemes.moe/embed/{anime_slug}-{OP1}
+            $theme_type     = $theme['type']     ?? '';
             $theme_sequence = $theme['sequence'] ?? '';
             $theme_slug     = $theme_type . ( $theme_sequence ? $theme_sequence : '' );
             $themes[] = [
                 'type'       => $theme_type,
                 'title'      => $theme['song']['title'] ?? '',
-                'theme_slug' => $theme_slug,              // e.g. "OP1", "ED1"
-                'anime_slug' => $slug,                    // e.g. "sakamoto_days"
+                'theme_slug' => $theme_slug,
+                'anime_slug' => $slug,
             ];
         }
 
@@ -807,39 +773,17 @@ class Anime_Sync_API_Handler {
         return sprintf( '%04d-%02d-%02d', $y, $m ?: 1, $d ?: 1 );
     }
 
-    /**
-     * AK + ABI：清理簡介，標準化換行並截斷 [简介原文] 及其後所有內容。
-     */
     private function clean_synopsis( string $text ): string {
-        // AK: normalize line endings
         $text = str_replace( [ "\r\n", "\r" ], "\n", $text );
-
-        // ABI: 截斷 [简介原文] 及其後所有內容（含全形方括號變體）
         $text = preg_replace( '/[\[【]简介原文[\]】].*/su', '', $text );
-
-        // 移除 spoiler 標籤
         $text = preg_replace( '/<spoiler>.*?<\/spoiler>/si', '', $text );
-
-        // 移除來源標註
         $text = preg_replace( '/\(Source:.*?\)/si', '', $text );
-
-        // 去除 HTML
         $text = wp_strip_all_tags( $text );
-
-        // 合併多餘空行
         $text = preg_replace( '/\n{3,}/', "\n\n", $text );
-
         return trim( $text );
     }
 
-    /**
-     * ABA 修正：
-     * 1. 優先判斷 type === 'STREAMING'，確保不遺漏串流連結。
-     * 2. 白名單擴充，涵蓋台灣主要平台。
-     * 3. 若 type 為 STREAMING 則直接收錄，不需要名稱白名單比對。
-     */
     private function parse_streaming_links( array $external_links ): array {
-        // 名稱白名單（site name 關鍵字，小寫）
         $name_whitelist = [
             'crunchyroll', 'funimation', 'netflix', 'amazon', 'prime video',
             'hidive', 'hulu', 'disney', 'bilibili', 'youtube',
@@ -861,7 +805,7 @@ class Anime_Sync_API_Handler {
             if ( $url === '' || $site === '' ) continue;
             if ( isset( $seen_urls[ $url ] ) ) continue;
 
-            $site_lower = strtolower( $site );
+            $site_lower        = strtolower( $site );
             $is_streaming_type = ( $type === 'STREAMING' );
             $is_whitelisted    = false;
 
@@ -882,10 +826,7 @@ class Anime_Sync_API_Handler {
     }
 
     private function parse_external_links( array $external_links ): array {
-        $result = [
-            'official_site' => '',
-            'twitter_url'   => '',
-        ];
+        $result = [ 'official_site' => '', 'twitter_url' => '' ];
 
         foreach ( $external_links as $link ) {
             if ( ! is_array( $link ) ) continue;
@@ -901,7 +842,7 @@ class Anime_Sync_API_Handler {
 
             if ( $result['twitter_url'] === '' &&
                  ( strpos( $site, 'twitter' ) !== false ||
-                   strpos( $site, ' x '    ) !== false ||
+                   strpos( $site, ' x ' ) !== false ||
                    $site === 'x' ) ) {
                 $result['twitter_url'] = $url;
             }
@@ -937,20 +878,16 @@ class Anime_Sync_API_Handler {
         return $result;
     }
 
-    /**
-     * ABK：回傳 key 對齊 single-anime.php 讀取需求。
-     */
     private function parse_relations( array $edges ): array {
         $type_map = [
-            'PREQUEL'     => '前作',   'SEQUEL'      => '續作',
-            'PARENT'      => '原作',   'SIDE_STORY'  => '外傳',
-            'CHARACTER'   => '角色出演','SUMMARY'    => '總集篇',
-            'ALTERNATIVE' => '替代版本','SPIN_OFF'   => '衍生作',
-            'OTHER'       => '其他',   'SOURCE'      => '原著',
-            'COMPILATION' => '彙整版', 'CONTAINS'    => '包含',
+            'PREQUEL'     => '前作',    'SEQUEL'      => '續作',
+            'PARENT'      => '原作',    'SIDE_STORY'  => '外傳',
+            'CHARACTER'   => '角色出演', 'SUMMARY'    => '總集篇',
+            'ALTERNATIVE' => '替代版本', 'SPIN_OFF'   => '衍生作',
+            'OTHER'       => '其他',    'SOURCE'      => '原著',
+            'COMPILATION' => '彙整版',  'CONTAINS'    => '包含',
             'ADAPTATION'  => '改編',
         ];
-        $order = [ '前作','續作','原作','外傳','角色出演','總集篇','替代版本','衍生作','改編','其他' ];
 
         $result = [];
         foreach ( $edges as $edge ) {
@@ -960,14 +897,11 @@ class Anime_Sync_API_Handler {
             $title_native = $edge['node']['title']['native'] ?? '';
 
             $result[] = [
-                // 舊 key（保留相容）
                 'id'             => $edge['node']['id'] ?? 0,
                 'title'          => $title_romaji,
                 'native'         => $title_native,
                 'format'         => $edge['node']['format'] ?? '',
                 'type'           => $label,
-
-                // 新 key（對齊 single-anime.php）
                 'anilist_id'     => $edge['node']['id'] ?? 0,
                 'title_chinese'  => '',
                 'title_romaji'   => $title_romaji,
@@ -975,15 +909,6 @@ class Anime_Sync_API_Handler {
                 'cover_image'    => $edge['node']['coverImage']['large'] ?? '',
             ];
         }
-
-        usort( $result, function ( $a, $b ) use ( $order ) {
-            $ai = array_search( $a['type'], $order );
-            $bi = array_search( $b['type'], $order );
-            $ai = $ai === false ? 99 : $ai;
-            $bi = $bi === false ? 99 : $bi;
-            return $ai <=> $bi;
-        } );
-
         return $result;
     }
 }
