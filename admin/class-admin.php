@@ -19,6 +19,10 @@
  *       2. 判斷改為 empty($result['nodes'])（原 'tree' key 不存在）
  *       3. 回傳時將 nodes 對應到前端需要的 'tree' key
  *       4. 補算 total / imported 統計數字
+ *
+ * ACF – enqueue_admin_assets() 擴充載入條件，涵蓋 anime 文章編輯頁
+ *       animeSyncAdmin 補入 resync i18n 鍵值
+ *       建構子新增 wp_ajax_anime_resync_bangumi 掛載
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -46,6 +50,8 @@ class Anime_Sync_Admin {
         add_action( 'wp_ajax_anime_sync_analyze_series',     [ $this, 'handle_ajax_analyze_series'     ] );
         add_action( 'wp_ajax_anime_sync_import_series',      [ $this, 'handle_ajax_import_series'      ] );
         add_action( 'wp_ajax_anime_sync_popularity_ranking', [ $this, 'handle_ajax_popularity_ranking' ] );
+        // ACF 新增：Bangumi 重新同步
+        add_action( 'wp_ajax_anime_resync_bangumi',          [ $this, 'handle_ajax_resync_bangumi'     ] );
     }
 
     // =========================================================================
@@ -424,18 +430,60 @@ class Anime_Sync_Admin {
     }
 
     // =========================================================================
-    // 載入後台資源
+    // AJAX：重新同步 Bangumi（ACF 新增）
+    // =========================================================================
+
+    public function handle_ajax_resync_bangumi(): void {
+        check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
+
+        $post_id    = intval( $_POST['post_id']    ?? 0 );
+        $bangumi_id = intval( $_POST['bangumi_id'] ?? 0 );
+
+        if ( ! $post_id )    wp_send_json_error( [ 'message' => '無效的 post_id' ] );
+        if ( ! $bangumi_id ) wp_send_json_error( [ 'message' => '請先填入 Bangumi ID 並儲存文章。' ] );
+        if ( get_post_type( $post_id ) !== 'anime' ) wp_send_json_error( [ 'message' => '文章類型錯誤' ] );
+
+        if ( ! class_exists( 'Anime_Sync_API_Handler' ) ) {
+            wp_send_json_error( [ 'message' => '找不到 API Handler 類別' ] );
+        }
+
+        $api = new Anime_Sync_API_Handler();
+        $result = $api->ajax_resync_bangumi( $post_id, $bangumi_id );
+
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+        }
+
+        wp_send_json_success( [ 'message' => '✅ 同步完成', 'updated' => $result ] );
+    }
+
+    // =========================================================================
+    // 載入後台資源（ACF：擴充條件涵蓋 anime 文章編輯頁）
     // =========================================================================
 
     public function enqueue_admin_assets( string $hook ): void {
-        if ( strpos( $hook, 'anime-sync' ) === false ) return;
+        $is_plugin_page = strpos( $hook, 'anime-sync' ) !== false;
+        $is_anime_edit  = in_array( $hook, [ 'post.php', 'post-new.php' ], true )
+                          && (
+                              get_post_type() === 'anime'
+                              || ( sanitize_key( $_GET['post_type'] ?? '' ) === 'anime' )
+                          );
+
+        if ( ! $is_plugin_page && ! $is_anime_edit ) return;
+
         $url     = defined( 'ANIME_SYNC_PRO_URL' )     ? ANIME_SYNC_PRO_URL     : plugin_dir_url( dirname( __FILE__ ) );
         $version = defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0';
+
         wp_enqueue_style(  'anime-sync-admin', $url . 'admin/assets/css/admin.css', [],           $version );
         wp_enqueue_script( 'anime-sync-admin', $url . 'admin/assets/js/admin.js',  [ 'jquery' ], $version, true );
         wp_localize_script( 'anime-sync-admin', 'animeSyncAdmin', [
-            'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-            'nonce'   => wp_create_nonce( 'anime_sync_admin_nonce' ),
+            'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+            'nonce'         => wp_create_nonce( 'anime_sync_admin_nonce' ),
+            'syncing'       => __( '同步中，請稍候…',                  'anime-sync-pro' ),
+            'sync_success'  => __( '✅ 同步完成，頁面即將重新整理…',   'anime-sync-pro' ),
+            'error_no_id'   => __( '請先填入 Bangumi ID 並儲存文章。', 'anime-sync-pro' ),
+            'network_error' => __( '網路錯誤，請重試。',               'anime-sync-pro' ),
         ] );
     }
 }
