@@ -1,7 +1,7 @@
 <?php
 /**
  * 檔案名稱: includes/class-error-logger.php
- * 版本: 1.0.3 (ACF-fix: static_log() 取代重複的 log())
+ * 版本: 1.0.3
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -54,7 +54,9 @@ class Anime_Sync_Error_Logger {
     // INSTANCE – 查詢
     // =========================================================================
 
-    public function get_recent_logs( int $limit = 100, string $level = '' ): array {
+    public function get_recent_logs( int $limit = 100, ?string $level = null ): array {
+        $level = $level ?? '';  // null → 空字串，查全部
+
         if ( $level !== '' ) {
             $rows = $this->wpdb->get_results(
                 $this->wpdb->prepare(
@@ -144,11 +146,11 @@ class Anime_Sync_Error_Logger {
     }
 
     // =========================================================================
-    // STATIC helpers（名稱不再與 instance log() 衝突）
+    // STATIC helpers
     // =========================================================================
 
     /**
-     * 靜態快捷方法，供 class-api-handler.php 等外部檔案呼叫。
+     * 靜態快捷方法，供外部檔案直接呼叫。
      * 用法：Anime_Sync_Error_Logger::static_log( 'warning', '訊息', [] );
      */
     public static function static_log( string $level, string $message, array $context = [] ): void {
@@ -172,7 +174,7 @@ class Anime_Sync_Error_Logger {
     }
 
     /**
-     * 舊版相容：直接清除過期日誌。
+     * 舊版相容：靜態清除過期日誌。
      */
     public static function clear_old_logs( int $days = 30 ): int {
         return ( new self() )->delete_old_logs( $days );
