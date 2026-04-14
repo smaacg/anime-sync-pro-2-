@@ -1,75 +1,27 @@
 /**
  * Frontend JavaScript
- * 
+ * ACF – 選擇器從 .anime-quick-nav 修正為 .asd-tabs（對齊 single-anime.php）
+ *
  * @package Anime_Sync_Pro
  */
 
 (function($) {
     'use strict';
 
-    // ========================================
-    // 初始化
-    // ========================================
     $(document).ready(function() {
-        initQuickNav();
         initLazyLoad();
-        initStickyNav();
+        initStickyTabs();
     });
 
     // ========================================
-    // 快速導覽：滾動高亮
-    // ========================================
-    function initQuickNav() {
-        const $navLinks = $('.anime-quick-nav a');
-        
-        if ($navLinks.length === 0) return;
-        
-        // 點擊平滑滾動
-        $navLinks.on('click', function(e) {
-            e.preventDefault();
-            const target = $(this).attr('href');
-            const $target = $(target);
-            
-            if ($target.length) {
-                $('html, body').animate({
-                    scrollTop: $target.offset().top - 80
-                }, 600, 'swing');
-            }
-        });
-        
-        // 滾動時高亮對應導覽
-        $(window).on('scroll.quicknav', function() {
-            const scrollTop = $(window).scrollTop();
-            
-            $navLinks.each(function() {
-                const $link = $(this);
-                const targetId = $link.attr('href');
-                const $section = $(targetId);
-                
-                if ($section.length) {
-                    const sectionTop = $section.offset().top - 100;
-                    const sectionBottom = sectionTop + $section.outerHeight();
-                    
-                    if (scrollTop >= sectionTop && scrollTop < sectionBottom) {
-                        $navLinks.css('border-bottom-color', 'transparent')
-                                 .css('color', '#9e9e9e');
-                        $link.css('border-bottom-color', '#2271b1')
-                             .css('color', '#fff');
-                    }
-                }
-            });
-        });
-    }
-
-    // ========================================
-    // 圖片 Lazy Load（備用）
+    // 圖片 Lazy Load
     // ========================================
     function initLazyLoad() {
         if ('IntersectionObserver' in window) {
-            const observer = new IntersectionObserver(function(entries) {
+            var observer = new IntersectionObserver(function(entries) {
                 entries.forEach(function(entry) {
                     if (entry.isIntersecting) {
-                        const img = entry.target;
+                        var img = entry.target;
                         if (img.dataset.src) {
                             img.src = img.dataset.src;
                             img.removeAttribute('data-src');
@@ -77,10 +29,8 @@
                         }
                     }
                 });
-            }, {
-                rootMargin: '100px'
-            });
-            
+            }, { rootMargin: '100px' });
+
             document.querySelectorAll('img[data-src]').forEach(function(img) {
                 observer.observe(img);
             });
@@ -88,16 +38,15 @@
     }
 
     // ========================================
-    // 固定導覽列
+    // ACF 修正：Sticky Tab（選擇器改為 .asd-tabs）
     // ========================================
-    function initStickyNav() {
-        const $nav = $('.anime-quick-nav');
-        
+    function initStickyTabs() {
+        var $nav = $('.asd-tabs');
         if ($nav.length === 0) return;
-        
-        const navTop = $nav.offset().top;
-        
-        $(window).on('scroll.stickynav', function() {
+
+        var navTop = $nav.offset().top;
+
+        $(window).on('scroll.stickytabs', function() {
             if ($(window).scrollTop() > navTop) {
                 $nav.addClass('sticky');
             } else {
