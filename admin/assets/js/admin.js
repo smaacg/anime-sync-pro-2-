@@ -482,3 +482,55 @@
     } ); // end document.ready
 
 } )( jQuery );
+        /* ═══════════════════════════════════════════════════════════
+           RESYNC BANGUMI（Meta Box 按鈕）
+        ══════════════════════════════════════════════════════════ */
+
+        $( '#anime-resync-bangumi-btn' ).on( 'click', function () {
+            var $btn      = $( this );
+            var $msg      = $( '#anime-resync-bangumi-msg' );
+            var postId    = $( '#post_ID' ).val();
+            var bangumiId = $( 'input[name="anime_bangumi_id"]' ).val()
+                         || $( '#acf-field_anime_bangumi_id' ).val();
+
+            if ( ! bangumiId || parseInt( bangumiId, 10 ) <= 0 ) {
+                $msg.css( 'color', '#d63638' )
+                    .text( animeSyncAdmin.i18n.error_no_id || '請先填入 Bangumi ID 並儲存文章。' );
+                return;
+            }
+
+            $btn.prop( 'disabled', true );
+            $msg.css( 'color', '#666' )
+                .text( animeSyncAdmin.i18n.syncing || '同步中，請稍候…' );
+
+            $.ajax( {
+                url     : ajaxurl,
+                type    : 'POST',
+                data    : {
+                    action    : 'anime_resync_bangumi',
+                    nonce     : animeSyncAdmin.nonce,
+                    post_id   : postId,
+                    bangumi_id: bangumiId,
+                },
+                dataType: 'json',
+                timeout : 60000,
+            } )
+            .done( function ( res ) {
+                if ( res && res.success ) {
+                    $msg.css( 'color', '#00a32a' )
+                        .text( animeSyncAdmin.i18n.sync_success || '✅ 同步完成，頁面即將重新整理…' );
+                    setTimeout( function () { location.reload(); }, 1500 );
+                } else {
+                    var errMsg = ( res && res.data ) ? res.data : '未知錯誤';
+                    $msg.css( 'color', '#d63638' ).text( '❌ ' + errMsg );
+                    $btn.prop( 'disabled', false );
+                }
+            } )
+            .fail( function ( xhr, status ) {
+                var detail = status === 'timeout'
+                    ? '請求逾時，請重試。'
+                    : ( animeSyncAdmin.i18n.network_error || '網路錯誤，請重試。' );
+                $msg.css( 'color', '#d63638' ).text( '❌ ' + detail );
+                $btn.prop( 'disabled', false );
+            } );
+        } );
