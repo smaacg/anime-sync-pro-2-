@@ -1,27 +1,29 @@
 <?php
 /**
- * Plugin Name:       Anime Sync Pro
- * Description:       從 AniList、Bangumi 自動同步動畫資料。
- * Version:           1.0.4
- * Author:            Your Name
- * Requires PHP:      8.0
- * Text Domain:       anime-sync-pro
+ * Plugin Name: Anime Sync Pro
+ * Description: 從 AniList、Bangumi 自動同步動畫資料。
+ * Version:     1.0.5
+ * Author:      SmaACG
+ * Requires PHP: 8.0
+ * Text Domain: anime-sync-pro
  *
  * Bug fixes / features in this version:
  *   ACD – 新增 anime_series_tax taxonomy（系列分類）
- *         版本號更新至 1.0.4
- */// 將第 1 行 Plugin header 中的版本號改為：
- * Version:           1.0.5
-// 將常數定義改為：
-define( 'ANIME_SYNC_PRO_VERSION',  '1.0.5' );
-// header 說明補上：
- *   ACD – 系列分析（get_series_tree、analyze_series、assign_series_taxonomy）
- *         季度批次匯入分頁修正（不再固定 50 部）
+ *         系列分析（get_series_tree、analyze_series、assign_series_taxonomy）
+ *         季度批次匯入分頁修正
  *         Tab 4 系列分析互動介面
  *         Tab 5 人氣排行互動介面
  *         前端節流（每 10 部暫停 10 秒）
  *         import_single() 新增第三參數 $source
-
+ *   ACF – fetch_animethemes() 加入 videos.audio，audio_url 存入 themes
+ *         enrich_anime_data() Staff/Cast 改為 Bangumi 直接取代
+ *         get_full_anime_data() Staff/Cast 改為 Bangumi 優先取代
+ *         重新同步 Bangumi 按鈕改為原生 Meta Box
+ *         新增 wp_ajax_anime_resync_bangumi
+ *         USER_AGENT 統一常數
+ *         新增台灣串流平台個別 URL 欄位
+ *         新增 anime_faq_json 手動 FAQ 欄位
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -30,7 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ============================================================
 // 1. 常數定義
 // ============================================================
-define( 'ANIME_SYNC_PRO_VERSION',  '1.0.4' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.0.5' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -152,22 +154,20 @@ add_action( 'init', function () {
     ] );
 
     // ----------------------------------------------------------
-    // Taxonomy: anime_series_tax（ACD 新增）
-    // 系列分類，非階層，一部作品可屬於一個系列大群組
-    // 例如：「進擊的巨人」系列、「Fate」系列
+    // Taxonomy: anime_series_tax
     // ----------------------------------------------------------
     register_taxonomy( 'anime_series_tax', [ 'anime' ], [
         'labels' => [
-            'name'              => '系列',
-            'singular_name'     => '系列',
-            'search_items'      => '搜尋系列',
-            'all_items'         => '所有系列',
-            'edit_item'         => '編輯系列',
-            'add_new_item'      => '新增系列',
-            'new_item_name'     => '新系列名稱',
-            'menu_name'         => '系列',
+            'name'          => '系列',
+            'singular_name' => '系列',
+            'search_items'  => '搜尋系列',
+            'all_items'     => '所有系列',
+            'edit_item'     => '編輯系列',
+            'add_new_item'  => '新增系列',
+            'new_item_name' => '新系列名稱',
+            'menu_name'     => '系列',
         ],
-        'hierarchical'      => false,   // 系列不需要父子層級
+        'hierarchical'      => false,
         'show_in_rest'      => true,
         'show_in_nav_menus' => true,
         'show_admin_column' => true,
@@ -248,7 +248,7 @@ add_action( 'plugins_loaded', function () {
         new Anime_Sync_Frontend();
     }
 
-    // 6-4. 後台 + Cron 環境：初始化核心元件
+    // 6-4. 後台 + Cron 環境
     if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
 
         $rate_limiter = class_exists( 'Anime_Sync_Rate_Limiter' )
@@ -267,7 +267,6 @@ add_action( 'plugins_loaded', function () {
                        ? new Anime_Sync_API_Handler( $rate_limiter, $id_mapper )
                        : null;
 
-        // ACD：Import Manager 包含 analyze_series()，不需要額外傳 api_handler 給 Admin
         $import_manager = ( $api_handler && $converter && class_exists( 'Anime_Sync_Import_Manager' ) )
                           ? new Anime_Sync_Import_Manager( $api_handler, $converter )
                           : null;
@@ -294,6 +293,55 @@ add_action( 'plugins_loaded', function () {
                     $import_manager->enrich_single( $post_id );
                 }
             );
+        }
+
+        // --------------------------------------------------------
+        // 6-5. AJAX：重新同步 Bangumi（登入用戶）
+        // --------------------------------------------------------
+        if ( $api_handler ) {
+            add_action( 'wp_ajax_anime_resync_bangumi', function () use ( $api_handler ) {
+                $api_handler->ajax_resync_bangumi();
+            } );
+        }
+
+        // --------------------------------------------------------
+        // 6-6. 後台 admin.js enqueue
+        // --------------------------------------------------------
+        if ( is_admin() ) {
+            add_action( 'admin_enqueue_scripts', function ( $hook ) {
+                // 只在 anime 文章編輯頁載入
+                if ( ! in_array( $hook, [ 'post.php', 'post-new.php' ], true ) ) {
+                    return;
+                }
+                $screen = get_current_screen();
+                if ( ! $screen || $screen->post_type !== 'anime' ) {
+                    return;
+                }
+
+                $js_url = ANIME_SYNC_PRO_URL . 'admin/assets/js/admin.js';
+                $js_ver = ANIME_SYNC_PRO_VERSION;
+
+                wp_enqueue_script(
+                    'anime-sync-admin',
+                    $js_url,
+                    [ 'jquery' ],
+                    $js_ver,
+                    true  // footer
+                );
+
+                // 將 nonce 與 ajaxurl 傳給 JS
+                wp_localize_script( 'anime-sync-admin', 'AnimeSyncAdmin', [
+                    'ajaxurl' => admin_url( 'admin-ajax.php' ),
+                    'nonce'   => wp_create_nonce( 'anime_resync_bangumi_nonce' ),
+                    'i18n'    => [
+                        'syncing'      => '同步中，請稍候…',
+                        'success'      => '✅ 同步完成，頁面即將重新整理…',
+                        'error_no_id'  => '請先填入 Bangumi ID 並儲存文章。',
+                        'error_net'    => '❌ 網路錯誤，請重試。',
+                        'error_server' => '❌ ',
+                    ],
+                ] );
+            } );
         }
     }
 
