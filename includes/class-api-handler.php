@@ -20,6 +20,9 @@
  *   ABQ – fetch_wikipedia_url() 新增 English Wikipedia REST API fallback；
  *         中文維基找不到時改以 title_english / title_romaji 查英文維基，
  *         並將結果快取，避免重複 API 呼叫
+ *   ABR – parse_relations() GraphQL query 補上 coverImage { large }，
+ *         並將 cover_image 由空字串改為讀取 $edge['node']['coverImage']['large']，
+ *         解決相關作品 / 系列作品圖片全部顯示佔位符的問題
  *
  * @package Anime_Sync_Pro
  */
@@ -354,7 +357,7 @@ class Anime_Sync_API_Handler {
             relations {
               edges {
                 relationType
-                node { id title { romaji native } format }
+                node { id title { romaji native } format coverImage { large } }
               }
             }
             staff(perPage: 10) {
@@ -962,7 +965,7 @@ class Anime_Sync_API_Handler {
                 'title_chinese'  => '',
                 'title_romaji'   => $title_romaji,
                 'relation_label' => $label,
-                'cover_image'    => '',
+                'cover_image'    => $edge['node']['coverImage']['large'] ?? '',
             ];
         }
 
