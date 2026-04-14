@@ -11,6 +11,8 @@
  * ACF – fetch_animethemes() include 加入 videos.audio，audio_url 存入 themes
  *       enrich_anime_data() Staff/Cast 改為 Bangumi 直接取代（不合併）
  *       get_full_anime_data() Staff/Cast 改為 Bangumi 優先取代
+ * ACG – 新增 USER_AGENT 常數，統一所有 Bangumi / Jikan / AnimeThemes 請求
+ *       新增 ajax_resync_bangumi()：強制覆蓋 Bangumi 資料至指定文章
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -26,6 +28,9 @@ class Anime_Sync_API_Handler {
     const JIKAN_ANIME_URL   = 'https://api.jikan.moe/v4/anime/';
     const WIKI_ZH_API       = 'https://zh.wikipedia.org/w/api.php';
     const WIKI_EN_REST      = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
+
+    // ACG 新增：統一 User-Agent 常數
+    const USER_AGENT = 'SmaACG-Project/1.0 (https://weixiaoacg.com)';
 
     const SERIES_RELATION_TYPES = [
         'PREQUEL',
@@ -134,7 +139,6 @@ class Anime_Sync_API_Handler {
         $end_date     = $this->parse_fuzzy_date( $media['endDate']   ?? [] );
         $streaming    = $this->parse_streaming_links( $external_links );
         $parsed_links = $this->parse_external_links( $external_links );
-        // ACF: get_core_anime_data 保留 AniList staff/cast 作為 fallback
         $staff        = $this->parse_staff( $media['staff']['edges']         ?? [] );
         $cast         = $this->parse_cast(  $media['characters']['edges']    ?? [] );
         $relations    = $this->parse_relations( $media['relations']['edges'] ?? [] );
@@ -375,7 +379,6 @@ class Anime_Sync_API_Handler {
             $episodes_json = wp_json_encode( $bgm_episodes, JSON_UNESCAPED_UNICODE );
         }
 
-        // ACF 修正：AniList staff/cast 作為 fallback
         $staff     = $this->parse_staff( $media['staff']['edges']         ?? [] );
         $cast      = $this->parse_cast(  $media['characters']['edges']    ?? [] );
         $relations = $this->parse_relations( $media['relations']['edges'] ?? [] );
@@ -579,6 +582,84 @@ class Anime_Sync_API_Handler {
 
         set_transient( $cache_key, $result, 30 * MINUTE_IN_SECONDS );
         return $result;
+    }
+
+    // =========================================================================
+    // PUBLIC – 重新同步 Bangumi（ACG 新增）
+    // 強制覆蓋：中文標題、簡介、封面、評分、工作人員、角色、集數
+    // =========================================================================
+
+    public function ajax_resync_bangumi( int $post_id, int $bangumi_id ): array|WP_Error {
+
+        // 1. 取得 Bangumi 基本資料
+        $this->rate_limiter->wait_if_needed( 'bangumi' );
+        $bgm_data = $this->get_bangumi_data( $bangumi_id );
+        if ( is_wp_error( $bgm_data ) ) return $bgm_data;
+
+        $updated = [];
+
+        // 2. 中文標題
+        $title_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
+        if ( $title_raw !== '' ) {
+            $title_chinese = Anime_Sync_CN_Converter::static_convert( $title_raw );
+            update_post_meta( $post_id, 'anime_title_chinese', $title_chinese );
+            $updated[] = 'anime_title_chinese';
+        }
+
+        // 3. 中文簡介
+        if ( ! empty( $bgm_data['summary'] ) ) {
+            $synopsis = $this->clean_synopsis( $bgm_data['summary'] );
+            if ( $synopsis !== '' ) {
+                $synopsis = Anime_Sync_CN_Converter::static_convert( $synopsis );
+            }
+            update_post_meta( $post_id, 'anime_synopsis_chinese', $synopsis );
+            $updated[] = 'anime_synopsis_chinese';
+        }
+
+        // 4. 封面圖（Bangumi 有較高品質則覆蓋）
+        $bgm_cover = $bgm_data['images']['large'] ?? $bgm_data['images']['medium'] ?? '';
+        if ( $bgm_cover !== '' ) {
+            update_post_meta( $post_id, 'anime_cover_image', $bgm_cover );
+            $updated[] = 'anime_cover_image';
+        }
+
+        // 5. Bangumi 評分
+        $raw_score = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
+        if ( $raw_score !== null ) {
+            $score_bangumi = (int) round( (float) $raw_score * 10 );
+            update_post_meta( $post_id, 'anime_score_bangumi', $score_bangumi );
+            $updated[] = 'anime_score_bangumi';
+        }
+
+        // 6. 工作人員
+        $this->rate_limiter->wait_if_needed( 'bangumi' );
+        $bgm_staff = $this->get_bgm_staff( $bangumi_id );
+        if ( ! empty( $bgm_staff ) ) {
+            update_post_meta( $post_id, 'anime_staff_json', wp_json_encode( $bgm_staff, JSON_UNESCAPED_UNICODE ) );
+            $updated[] = 'anime_staff_json';
+        }
+
+        // 7. 角色
+        $this->rate_limiter->wait_if_needed( 'bangumi' );
+        $bgm_chars = $this->get_bgm_chars( $bangumi_id );
+        if ( ! empty( $bgm_chars ) ) {
+            update_post_meta( $post_id, 'anime_cast_json', wp_json_encode( $bgm_chars, JSON_UNESCAPED_UNICODE ) );
+            $updated[] = 'anime_cast_json';
+        }
+
+        // 8. 集數
+        $this->rate_limiter->wait_if_needed( 'bangumi' );
+        $bgm_episodes = $this->fetch_bgm_episodes( $bangumi_id );
+        if ( ! empty( $bgm_episodes ) ) {
+            update_post_meta( $post_id, 'anime_episodes_json', wp_json_encode( $bgm_episodes, JSON_UNESCAPED_UNICODE ) );
+            $updated[] = 'anime_episodes_json';
+        }
+
+        // 9. 更新同步時間
+        update_post_meta( $post_id, 'anime_last_sync_time', current_time( 'mysql' ) );
+        $updated[] = 'anime_last_sync_time';
+
+        return $updated;
     }
 
     // =========================================================================
@@ -926,7 +1007,7 @@ class Anime_Sync_API_Handler {
     }
 
     // =========================================================================
-    // PRIVATE – MAL 評分
+    // PRIVATE – MAL 評分（ACG：統一 User-Agent）
     // =========================================================================
 
     private function fetch_mal_score( ?int $mal_id ): int {
@@ -937,7 +1018,10 @@ class Anime_Sync_API_Handler {
         if ( $cached !== false ) return (int) $cached;
 
         $this->rate_limiter->wait_if_needed( 'jikan' );
-        $response = wp_remote_get( self::JIKAN_ANIME_URL . $mal_id, [ 'timeout' => 10 ] );
+        $response = wp_remote_get( self::JIKAN_ANIME_URL . $mal_id, [
+            'timeout' => 10,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
         if ( is_wp_error( $response ) ) return 0;
         if ( (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return 0;
 
@@ -994,7 +1078,7 @@ class Anime_Sync_API_Handler {
     }
 
     // =========================================================================
-    // PRIVATE – Bangumi 資料
+    // PRIVATE – Bangumi 資料（ACG：統一 User-Agent）
     // =========================================================================
 
     private function get_bangumi_data( int $bangumi_id ): array|WP_Error {
@@ -1005,7 +1089,7 @@ class Anime_Sync_API_Handler {
 
         $response = wp_remote_get( self::BGM_SUBJECT_URL . $bangumi_id, [
             'timeout' => 10,
-            'headers' => [ 'User-Agent' => 'anime-sync-pro/1.0 (https://github.com/smaacg)' ],
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
         ] );
 
         if ( is_wp_error( $response ) ) return $response;
@@ -1030,7 +1114,7 @@ class Anime_Sync_API_Handler {
 
         $response = wp_remote_get( self::BGM_SUBJECT_URL . $bangumi_id . '/persons', [
             'timeout' => 10,
-            'headers' => [ 'User-Agent' => 'anime-sync-pro/1.0' ],
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
         ] );
 
         if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
@@ -1060,7 +1144,7 @@ class Anime_Sync_API_Handler {
 
         $response = wp_remote_get( self::BGM_SUBJECT_URL . $bangumi_id . '/characters', [
             'timeout' => 10,
-            'headers' => [ 'User-Agent' => 'anime-sync-pro/1.0' ],
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
         ] );
 
         if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
@@ -1104,7 +1188,7 @@ class Anime_Sync_API_Handler {
             'offset'     => 0,
         ], self::BGM_EPISODES_URL ), [
             'timeout' => 10,
-            'headers' => [ 'User-Agent' => 'anime-sync-pro/1.0' ],
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
         ] );
 
         if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
@@ -1131,6 +1215,7 @@ class Anime_Sync_API_Handler {
 
     // =========================================================================
     // PRIVATE – AnimeThemes（ACF：加入 videos.audio，取出 audio_url）
+    //           ACG：統一 User-Agent
     // =========================================================================
 
     private function fetch_animethemes( ?int $mal_id ): array {
@@ -1145,14 +1230,16 @@ class Anime_Sync_API_Handler {
             'filter[has]'         => 'resources',
             'filter[site]'        => 'MyAnimeList',
             'filter[external_id]' => $mal_id,
-            // ACF 修正：加入 videos.audio 以取得純音訊連結
             'include'             => 'animethemes.animethemeentries.videos.audio,animethemes.song',
             'fields[anime]'       => 'slug',
             'fields[animetheme]'  => 'type,sequence,slug',
             'fields[song]'        => 'title',
             'fields[video]'       => 'link,resolution',
             'fields[audio]'       => 'link',
-        ], self::ANIMETHEMES_URL ), [ 'timeout' => 8 ] );
+        ], self::ANIMETHEMES_URL ), [
+            'timeout' => 8,
+            'headers' => [ 'User-Agent' => self::USER_AGENT ],
+        ] );
 
         if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
 
@@ -1168,7 +1255,6 @@ class Anime_Sync_API_Handler {
             $entry     = $theme['animethemeentries'][0] ?? [];
             $videos    = $entry['videos']               ?? [];
             $video     = ! empty( $videos ) ? $videos[0] : [];
-            // ACF 修正：從 video.audio.link 取純音訊 OGG 連結
             $audio_url = $video['audio']['link']        ?? '';
             $video_url = $video['link']                 ?? '';
 
