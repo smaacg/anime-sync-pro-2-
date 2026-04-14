@@ -10,7 +10,18 @@
  * Bug fixes / features in this version:
  *   ACD – 新增 anime_series_tax taxonomy（系列分類）
  *         版本號更新至 1.0.4
- */
+ */// 將第 1 行 Plugin header 中的版本號改為：
+ * Version:           1.0.5
+// 將常數定義改為：
+define( 'ANIME_SYNC_PRO_VERSION',  '1.0.5' );
+// header 說明補上：
+ *   ACD – 系列分析（get_series_tree、analyze_series、assign_series_taxonomy）
+ *         季度批次匯入分頁修正（不再固定 50 部）
+ *         Tab 4 系列分析互動介面
+ *         Tab 5 人氣排行互動介面
+ *         前端節流（每 10 部暫停 10 秒）
+ *         import_single() 新增第三參數 $source
+
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
