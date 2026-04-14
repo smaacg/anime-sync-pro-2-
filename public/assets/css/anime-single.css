@@ -2,14 +2,17 @@
  * anime-single.css  —  Anime Sync Pro
  * Path : wp-content/plugins/anime-sync-pro/public/assets/css/anime-single.css
  *
- * v11.1  ABQ  – 根治圖片跑版：.asd-wrap img 加 height:auto，
- *               thumb-wrap img 用 !important 覆蓋 Hello Elementor reset.css
- * v11.1  OPT1 – 手機關閉 backdrop-filter（效能）
- * v11.1  OPT2 – Banner 改 100vw 全出血（overflow 修正）
- * v11.1  OPT3 – 骨架 loading 動畫（LCP）
- * v11.1  OPT4 – 第一個評分放大 + 品牌色框線（轉換率）
+ * v11.2  ABR  ── 結構級圖片修正
+ *               原則：圖片容器只用 aspect-ratio，不混用 height
+ *               img 只用 width/height/object-fit，不用 !important
+ *               徹底移除所有 height:100% !important / height:Npx !important
+ *
+ * v11.1  OPT1 – 手機關閉 backdrop-filter
+ * v11.1  OPT2 – Banner 100vw 全出血
+ * v11.1  OPT3 – 骨架 loading 動畫
+ * v11.1  OPT4 – 第一個評分放大 + 品牌框線
  * v11.1  OPT5 – 推薦卡 hover translateY(-6px) scale(1.02)
- * v11.1  OPT6 – 所有圖片容器補 aspect-ratio 防 layout shift
+ * v11.1  OPT6 – aspect-ratio 防 layout shift
  * v11.1  OPT7 – GPU 加速 will-change
  */
 
@@ -22,7 +25,6 @@
 .asd-wrap *::after { box-sizing: border-box; }
 
 .asd-wrap {
-    /* ── 原有 tokens ── */
     --asd-primary:      #e85d26;
     --asd-primary-dark: #c44d1e;
     --asd-bg:           #0d0d0d;
@@ -41,7 +43,6 @@
     --asd-transition:   .2s ease;
     --asd-max-width:    1200px;
 
-    /* ── Glass Design System tokens ── */
     --glass-bg:         rgba(245,247,246,0.07);
     --glass-bg-mid:     rgba(245,247,246,0.11);
     --glass-border:     rgba(245,247,246,0.14);
@@ -67,18 +68,45 @@ body.single-anime #content { padding: 0; max-width: none; }
 .asd-wrap a { color: var(--asd-primary); text-decoration: none; transition: color var(--asd-transition); }
 .asd-wrap a:hover { color: var(--asd-primary-dark); }
 
-/* 全域 img — 預設 height:auto（防主題污染由下方各容器個別覆蓋）*/
+/* ── ABR 圖片根規則 ──────────────────────────────────────────────────────────
+   .asd-wrap img 的 height:auto 是正確預設，不要在這裡改掉。
+   所有需要裁切的圖片透過「容器 aspect-ratio + overflow:hidden + position:relative」
+   搭配「img: position:absolute inset:0 width:100% height:100% object-fit:cover」
+   這才是不依賴 !important、不受主題干擾的正確結構。
+   ────────────────────────────────────────────────────────────────────────── */
 .asd-wrap img { display: block; max-width: 100%; height: auto; }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   OPT3 — 骨架 loading 動畫（提升 LCP 感知速度）
+   ABR — 通用圖片容器 mixin（用 class 套用）
+   .asd-img-box：比例容器，img 用 absolute 填滿，完全不受主題 height:auto 影響
+════════════════════════════════════════════════════════════════════════════ */
+
+.asd-img-box {
+    position:   relative;
+    width:      100%;
+    overflow:   hidden;
+    background: var(--asd-border);
+    flex-shrink: 0;
+}
+/* aspect-ratio 由各容器自行設定 */
+.asd-img-box img {
+    position:   absolute;
+    inset:      0;
+    width:      100%;
+    height:     100%;
+    object-fit: cover;
+    object-position: center top;
+    display:    block;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   OPT3 — 骨架 loading 動畫
 ════════════════════════════════════════════════════════════════════════════ */
 
 @keyframes asd-skeleton {
     0%   { background-position: 200% 0; }
     100% { background-position: -200% 0; }
 }
-
 .asd-img-skeleton {
     background:      linear-gradient(90deg,#1a1a1a 25%,#2a2a2a 50%,#1a1a1a 75%);
     background-size: 200% 100%;
@@ -86,27 +114,23 @@ body.single-anime #content { padding: 0; max-width: none; }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   OPT2 — Banner：修正 overflow，改用 100vw 全出血
+   OPT2 — Banner 100vw 全出血
 ════════════════════════════════════════════════════════════════════════════ */
 
-/* 基礎：在 .asd-wrap 內佔滿 */
 .asd-banner {
-    position:           relative;
-    width:              100%;
-    margin-left:        0;
-    height:             280px;
-    background-size:    cover;
+    position:            relative;
+    width:               100%;
+    margin-left:         0;
+    height:              280px;
+    background-size:     cover;
     background-position: center 30%;
-    background-repeat:  no-repeat;
-    overflow:           hidden;
+    background-repeat:   no-repeat;
+    overflow:            hidden;
 }
-
-/* 全出血：僅在有 body class 時拉伸（避免跑版） */
 body.single-anime .asd-banner {
     width:       100vw;
     margin-left: calc(-50vw + 50%);
 }
-
 .asd-banner-fade {
     position:   absolute;
     inset:      0;
@@ -135,18 +159,18 @@ body.single-anime .asd-banner {
     z-index:        2;
     padding-bottom: 24px;
 }
-
 .asd-hero-cover { flex-shrink: 0; width: 160px; }
 
-/* OPT6 — 封面加 aspect-ratio 防 layout shift */
+/* 封面圖：固定尺寸，用 width+height 定義，object-fit 裁切，不混 aspect-ratio */
 .asd-cover-img {
     width:         160px;
     height:        228px;
-    aspect-ratio:  2 / 3;       /* OPT6 */
     object-fit:    cover;
+    object-position: center top;
     border-radius: var(--asd-radius);
     box-shadow:    var(--asd-shadow);
     border:        2px solid var(--asd-border);
+    display:       block;
 }
 
 .asd-hero-info { flex: 1; min-width: 0; padding-top: 8px; }
@@ -177,12 +201,7 @@ body.single-anime .asd-banner {
    OPT7 — GPU 加速 will-change
 ════════════════════════════════════════════════════════════════════════════ */
 
-.asd-hero-scores {
-    display:   flex;
-    flex-wrap: wrap;
-    gap:       10px;
-    margin:    14px 0;
-}
+.asd-hero-scores { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
 
 .asd-score-block {
     display:         flex;
@@ -192,7 +211,6 @@ body.single-anime .asd-banner {
     gap:             2px;
     padding:         10px 18px;
     min-width:       80px;
-
     background:              var(--glass-bg);
     backdrop-filter:         blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -201,57 +219,37 @@ body.single-anime .asd-banner {
     border-radius:           14px;
     transition:              var(--trans-smooth);
     cursor:                  default;
-    will-change:             transform;   /* OPT7 */
+    will-change:             transform;
 }
-
 .asd-score-block:hover {
     border-color: var(--glass-border-h);
     box-shadow:   var(--glass-shadow-h);
     transform:    translateY(-3px);
 }
 
-/* OPT4 — 第一個評分卡放大 + 主題色框線 */
+/* OPT4 */
 .asd-hero-scores .asd-score-block:first-child {
     transform:  scale(1.1);
     border:     2px solid var(--asd-primary);
     box-shadow: var(--glass-shadow), 0 0 16px rgba(232,93,38,.25);
 }
-.asd-hero-scores .asd-score-block:first-child:hover {
-    transform:  scale(1.1) translateY(-3px);
-}
-
-.asd-score-platform {
-    font-size:      10px;
-    font-weight:    700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color:          var(--asd-text-muted);
-    margin-bottom:  2px;
-}
-
-.asd-score-val {
-    font-size:               1.5rem;
-    font-weight:             800;
-    line-height:             1;
-    background:              var(--grad-hero);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip:         text;
-}
-
-.asd-score-al  .asd-score-val { background: var(--asd-score-al);  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.asd-score-mal .asd-score-val { background: var(--asd-score-mal); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.asd-score-bgm .asd-score-val { background: var(--asd-score-bgm); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-
-.asd-score-al  { border-top: 2px solid var(--asd-score-al);  }
-.asd-score-mal { border-top: 2px solid var(--asd-score-mal); }
-.asd-score-bgm { border-top: 2px solid var(--asd-score-bgm); }
-
-/* OPT4 — 第一個卡的 border-top 被 border:2px solid primary 覆蓋，需補回品牌色頂線 */
+.asd-hero-scores .asd-score-block:first-child:hover { transform: scale(1.1) translateY(-3px); }
 .asd-hero-scores .asd-score-block:first-child.asd-score-al  { border-top-color: var(--asd-score-al); }
 .asd-hero-scores .asd-score-block:first-child.asd-score-mal { border-top-color: var(--asd-score-mal); }
 .asd-hero-scores .asd-score-block:first-child.asd-score-bgm { border-top-color: var(--asd-score-bgm); }
 
+.asd-score-platform { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--asd-text-muted); margin-bottom: 2px; }
+.asd-score-val {
+    font-size: 1.5rem; font-weight: 800; line-height: 1;
+    background: var(--grad-hero);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.asd-score-al  .asd-score-val { background: var(--asd-score-al);  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.asd-score-mal .asd-score-val { background: var(--asd-score-mal); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.asd-score-bgm .asd-score-val { background: var(--asd-score-bgm); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.asd-score-al  { border-top: 2px solid var(--asd-score-al);  }
+.asd-score-mal { border-top: 2px solid var(--asd-score-mal); }
+.asd-score-bgm { border-top: 2px solid var(--asd-score-bgm); }
 .asd-score-max { font-size: 11px; color: var(--asd-text-dim); margin-top: 1px; }
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -367,6 +365,7 @@ body.single-anime .asd-banner {
 
 /* ════════════════════════════════════════════════════════════════════════════
    角色聲優
+   ABR — .asd-cast-img 改用 position:relative + aspect-ratio，img 用 absolute 填滿
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-cast-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
@@ -378,21 +377,30 @@ body.single-anime .asd-banner {
 }
 .asd-cast-card:hover { background: var(--asd-bg-card-hover); transform: translateY(-2px); }
 
-/* OPT6 — 角色圖片用 aspect-ratio 代替固定高度，防 layout shift */
 .asd-cast-img {
-    aspect-ratio: 3 / 4;
+    position:     relative;
+    width:        100%;
+    aspect-ratio: 3 / 4;      /* 撐開高度，不設 height */
     overflow:     hidden;
     background:   var(--asd-border);
 }
 .asd-cast-img img {
-    width:        100%;
-    height:       100% !important;   /* ABQ：覆蓋主題 img{height:auto} */
-    object-fit:   cover;
-    display:      block;
+    position:        absolute;
+    inset:           0;
+    width:           100%;
+    height:          100%;     /* 搭配 absolute，不受主題 height:auto 影響 */
+    object-fit:      cover;
+    object-position: center top;
+    display:         block;
 }
 .asd-cast-noimg {
-    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-    color: var(--asd-text-dim); font-size: 28px; aspect-ratio: 3 / 4;
+    position:       absolute;
+    inset:          0;
+    display:        flex;
+    align-items:    center;
+    justify-content:center;
+    color:          var(--asd-text-dim);
+    font-size:      28px;
 }
 .asd-cast-names { padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
 .asd-cast-char { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.3; }
@@ -408,6 +416,7 @@ body.single-anime .asd-banner {
 
 /* ════════════════════════════════════════════════════════════════════════════
    製作人員
+   ABR — 頭像改 flex-shrink:0 + 固定正方形容器，img 用 absolute 填滿
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-staff-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
@@ -418,9 +427,34 @@ body.single-anime .asd-banner {
     transition: background var(--asd-transition);
 }
 .asd-staff-card:hover { background: var(--asd-bg-card-hover); }
-.asd-staff-card img {
-    width: 44px; height: 44px !important;   /* ABQ */
-    border-radius: 50%; object-fit: cover; flex-shrink: 0;
+
+/* 包一層正方形容器，img absolute 填滿 */
+.asd-staff-avatar {
+    position:      relative;
+    width:         44px;
+    height:        44px;        /* 正方形，不用 aspect-ratio，因為 flex 父層 align-items:center */
+    border-radius: 50%;
+    overflow:      hidden;
+    flex-shrink:   0;
+    background:    var(--asd-border);
+}
+.asd-staff-avatar img {
+    position:   absolute;
+    inset:      0;
+    width:      100%;
+    height:     100%;
+    object-fit: cover;
+    display:    block;
+}
+
+/* 向下相容：直接 img（無 .asd-staff-avatar 包裹時） */
+.asd-staff-card > img {
+    width:       44px;
+    height:      44px;
+    border-radius: 50%;
+    object-fit:  cover;
+    flex-shrink: 0;
+    display:     block;
 }
 .asd-staff-noimg {
     width: 44px; height: 44px; border-radius: 50%;
@@ -485,11 +519,26 @@ body.single-anime .asd-banner {
    預告片
 ════════════════════════════════════════════════════════════════════════════ */
 
-.asd-trailer-wrap { position: relative; aspect-ratio: 16 / 9; border-radius: var(--asd-radius); overflow: hidden; background: #000; }
-.asd-trailer { position: absolute; inset: 0; width: 100%; height: 100% !important; border: none; }   /* ABQ */
+/* aspect-ratio 撐高度，iframe 用 absolute 填滿，無需 !important */
+.asd-trailer-wrap {
+    position:     relative;
+    width:        100%;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--asd-radius);
+    overflow:     hidden;
+    background:   #000;
+}
+.asd-trailer {
+    position: absolute;
+    inset:    0;
+    width:    100%;
+    height:   100%;
+    border:   none;
+}
 
 /* ════════════════════════════════════════════════════════════════════════════
    相關作品
+   ABR — .asd-relation-card img 改用 position:relative + aspect-ratio 容器
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-relations-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
@@ -502,32 +551,40 @@ body.single-anime .asd-banner {
 }
 .asd-relation-card:hover { transform: translateY(-3px); background: var(--asd-bg-card-hover); }
 
-/* OPT6 — 相關作品圖片 aspect-ratio */
+/* ABR — 圖片容器：position:relative + aspect-ratio，不設 height */
 .asd-relation-thumb {
+    position:     relative;
     width:        100%;
-    aspect-ratio: 2 / 3;    /* OPT6：撐高度，防 layout shift */
+    aspect-ratio: 2 / 3;
     overflow:     hidden;
     background:   var(--asd-border);
     flex-shrink:  0;
 }
 .asd-relation-thumb img {
-    width:      100%;
-    height:     100% !important;   /* ABQ */
-    object-fit: cover;
-    display:    block;
+    position:        absolute;
+    inset:           0;
+    width:           100%;
+    height:          100%;
+    object-fit:      cover;
+    object-position: center top;
+    display:         block;
 }
 
-/* 相容舊版直接用 img 的寫法 */
+/* 向下相容：直接 img 在 .asd-relation-card 底下（舊版模板） */
 .asd-relation-card > img {
     width:        100%;
     aspect-ratio: 2 / 3;
     object-fit:   cover;
-    height:       auto;
     display:      block;
 }
 .asd-relation-noimg {
-    width: 100%; aspect-ratio: 2 / 3; background: var(--asd-border);
-    display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--asd-text-dim);
+    position:        absolute;
+    inset:           0;
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    font-size:       24px;
+    color:           var(--asd-text-dim);
 }
 .asd-relation-info { padding: 8px; display: flex; flex-direction: column; gap: 3px; }
 .asd-relation-type   { font-size: 11px; font-weight: 700; color: var(--asd-primary); text-transform: uppercase; letter-spacing: .5px; }
@@ -618,7 +675,11 @@ body.single-anime .asd-banner {
 .asd-news-list a:hover { color: var(--asd-primary) !important; }
 .asd-news-date { font-size: 11px; color: var(--asd-text-dim); }
 
-/* 系列作品卡 */
+/* ════════════════════════════════════════════════════════════════════════════
+   系列作品卡（側欄）
+   ABR — 縮圖改 position:relative 容器，img absolute 填滿
+════════════════════════════════════════════════════════════════════════════ */
+
 .asd-sidebar-rel-card {
     display: flex; align-items: center; gap: 10px; padding: 8px 0;
     border-bottom: 1px solid var(--asd-border);
@@ -626,9 +687,35 @@ body.single-anime .asd-banner {
 }
 .asd-sidebar-rel-card:last-child { border-bottom: none; }
 .asd-sidebar-rel-card:hover { color: var(--asd-primary) !important; }
-.asd-sidebar-rel-card img {
-    width: 44px; height: 62px !important;   /* ABQ */
-    object-fit: cover; border-radius: var(--asd-radius-sm); flex-shrink: 0;
+
+/* 縮圖容器：固定 44×62，img absolute 填滿，不受主題干擾 */
+.asd-sidebar-rel-thumb {
+    position:      relative;
+    width:         44px;
+    height:        62px;        /* flex 父層需固定高度，用 height 而非 aspect-ratio */
+    flex-shrink:   0;
+    overflow:      hidden;
+    border-radius: var(--asd-radius-sm);
+    background:    var(--asd-border);
+}
+.asd-sidebar-rel-thumb img {
+    position:        absolute;
+    inset:           0;
+    width:           100%;
+    height:          100%;
+    object-fit:      cover;
+    object-position: center top;
+    display:         block;
+}
+
+/* 向下相容：舊版直接在 .asd-sidebar-rel-card 的 img */
+.asd-sidebar-rel-card > img {
+    width:         44px;
+    height:        62px;
+    object-fit:    cover;
+    border-radius: var(--asd-radius-sm);
+    flex-shrink:   0;
+    display:       block;
 }
 .asd-sidebar-rel-noimg {
     width: 44px; height: 62px; border-radius: var(--asd-radius-sm);
@@ -641,8 +728,7 @@ body.single-anime .asd-banner {
 
 /* ════════════════════════════════════════════════════════════════════════════
    側欄推薦卡片（你可能也喜歡）
-   ABQ — thumb-wrap 固定高度 + img height:100% !important
-   OPT6 — aspect-ratio 防 layout shift
+   ABR — 同上，縮圖改 position:relative 容器
 ════════════════════════════════════════════════════════════════════════════ */
 
 .asd-sidebar-rec-card {
@@ -654,25 +740,31 @@ body.single-anime .asd-banner {
 .asd-sidebar-rec-card:hover { color: var(--asd-primary) !important; }
 
 .asd-sidebar-rec-thumb-wrap {
+    position:      relative;
     width:         44px;
-    height:        62px;
-    aspect-ratio:  2 / 3;     /* OPT6 */
+    height:        62px;        /* flex 父層，用固定 height */
     flex-shrink:   0;
     overflow:      hidden;
     border-radius: var(--asd-radius-sm);
     background:    var(--asd-border);
 }
 .asd-sidebar-rec-thumb-wrap img {
-    width:            100%;
-    height:           100% !important;   /* ABQ：覆蓋主題 reset.css img{height:auto} */
-    object-fit:       cover;
-    object-position:  center top;
-    display:          block;
+    position:        absolute;
+    inset:           0;
+    width:           100%;
+    height:          100%;
+    object-fit:      cover;
+    object-position: center top;
+    display:         block;
 }
 .asd-sidebar-rec-noimg {
-    width: 100%; height: 100%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px; color: var(--asd-text-dim);
+    position:        absolute;
+    inset:           0;
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    font-size:       16px;
+    color:           var(--asd-text-dim);
 }
 
 .asd-sidebar-rec-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -684,9 +776,8 @@ body.single-anime .asd-banner {
 
 /* ════════════════════════════════════════════════════════════════════════════
    底部熱門推薦
-   ABQ — thumb-wrap 固定高度 + img height:100% !important
+   ABR — .asd-rec-thumb-wrap 移除 height，純用 aspect-ratio，img absolute 填滿
    OPT5 — hover translateY(-6px) scale(1.02)
-   OPT6 — aspect-ratio 防 layout shift
    OPT7 — GPU 加速 will-change
 ════════════════════════════════════════════════════════════════════════════ */
 
@@ -702,48 +793,53 @@ body.single-anime .asd-banner {
 }
 
 .asd-rec-card {
-    display:        flex;
-    flex-direction: column;
-    background:     var(--asd-bg-card);
-    border:         1px solid var(--asd-border);
-    border-radius:  var(--asd-radius);
-    overflow:       hidden;
+    display:         flex;
+    flex-direction:  column;
+    background:      var(--asd-bg-card);
+    border:          1px solid var(--asd-border);
+    border-radius:   var(--asd-radius);
+    overflow:        hidden;
     text-decoration: none;
-    color:          var(--asd-text) !important;
-    /* OPT5 + OPT7 */
-    transition:     transform 0.28s cubic-bezier(0.4,0,0.2,1),
-                    box-shadow 0.28s cubic-bezier(0.4,0,0.2,1);
-    will-change:    transform;    /* OPT7 */
+    color:           var(--asd-text) !important;
+    transition:      transform 0.28s cubic-bezier(0.4,0,0.2,1),
+                     box-shadow 0.28s cubic-bezier(0.4,0,0.2,1);
+    will-change:     transform;
 }
-/* OPT5 — 更有動感的 hover */
 .asd-rec-card:hover {
     transform:  translateY(-6px) scale(1.02);
     box-shadow: 0 12px 32px rgba(0,0,0,.6);
     color:      var(--asd-text) !important;
 }
 
+/* ABR 核心：移除 height，只用 aspect-ratio 撐高度，img absolute 填滿 */
 .asd-rec-thumb-wrap {
+    position:     relative;
     width:        100%;
-    height:       210px;
-    aspect-ratio: 2 / 3;     /* OPT6 */
+    aspect-ratio: 2 / 3;      /* 唯一決定高度的屬性，無 height 衝突 */
     overflow:     hidden;
     background:   var(--asd-border);
     flex-shrink:  0;
 }
 .asd-rec-thumb-wrap img {
-    width:            100%;
-    height:           100% !important;   /* ABQ：覆蓋主題 reset.css img{height:auto} */
-    object-fit:       cover;
-    object-position:  center top;
-    display:          block;
-    transition:       transform .35s ease;
+    position:        absolute;
+    inset:           0;
+    width:           100%;
+    height:          100%;     /* absolute 子元素，不受 img{height:auto} 影響 */
+    object-fit:      cover;
+    object-position: center top;
+    display:         block;
+    transition:      transform .35s ease;
 }
 .asd-rec-card:hover .asd-rec-thumb-wrap img { transform: scale(1.06); }
 
 .asd-rec-noimg {
-    width: 100%; height: 100%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 40px; color: var(--asd-text-dim);
+    position:        absolute;
+    inset:           0;
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    font-size:       40px;
+    color:           var(--asd-text-dim);
 }
 
 .asd-rec-info {
@@ -764,16 +860,15 @@ body.single-anime .asd-banner {
     .asd-container        { grid-template-columns: 1fr; }
     .asd-sidebar          { order: -1; }
     .asd-bottom-recs-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
-    .asd-rec-thumb-wrap   { height: 180px; }
+    /* aspect-ratio 驅動，無需覆蓋 height */
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
    響應式 — 手機 ≤ 768px
-   OPT1 — 手機關閉 backdrop-filter（效能優化，節省 GPU）
+   OPT1 — 關閉 backdrop-filter，節省手機 GPU
 ════════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
-    /* OPT1：關閉 blur，改用純色背景 */
     .asd-score-block {
         backdrop-filter:         none !important;
         -webkit-backdrop-filter: none !important;
@@ -797,13 +892,11 @@ body.single-anime .asd-banner {
     .asd-section        { padding: 14px 16px; }
     .asd-cast-grid      { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
     .asd-bottom-recs-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .asd-rec-thumb-wrap   { height: 140px; }
     .asd-rec-info         { padding: 8px 10px; }
     .asd-rec-title        { font-size: 12px; }
     .asd-score-block      { min-width: 70px; padding: 8px 12px; }
     .asd-score-val        { font-size: 1.25rem; }
-    /* OPT4 — 手機上縮放比例收小，避免擠壓其他卡 */
-    .asd-hero-scores .asd-score-block:first-child { transform: scale(1.05); }
+    .asd-hero-scores .asd-score-block:first-child       { transform: scale(1.05); }
     .asd-hero-scores .asd-score-block:first-child:hover { transform: scale(1.05) translateY(-2px); }
 }
 
@@ -813,7 +906,6 @@ body.single-anime .asd-banner {
 
 @media (max-width: 400px) {
     .asd-bottom-recs-grid { grid-template-columns: repeat(2, 1fr); }
-    .asd-rec-thumb-wrap   { height: 150px; }
     .asd-cast-grid        { grid-template-columns: repeat(2, 1fr); }
     .asd-staff-grid       { grid-template-columns: 1fr; }
 }
