@@ -1055,3 +1055,86 @@ body.single-anime .asd-banner {
     .asd-cast-grid        { grid-template-columns: repeat(2, 1fr); }
     .asd-staff-grid       { grid-template-columns: 1fr; }
 }
+/* ════════════════════════════════════════════════════════════════════════════
+   ABV — 音頻模式 embed（只顯示控制列，隱藏影像）
+════════════════════════════════════════════════════════════════════════════ */
+
+/* 覆蓋預設 16/9 比例，縮高為 60px 純音頻控制列模式 */
+.asd-theme-embed-audio {
+    aspect-ratio: unset !important;
+    height:       60px !important;
+    background:   #000;
+    border-radius: var(--asd-radius-sm);
+    margin-top:   4px;
+    margin-bottom: 8px;
+}
+.asd-theme-embed-audio iframe {
+    /* iframe 高度固定 360px，使視口只露出底部控制列（約 60px） */
+    height:    360px !important;
+    top:       auto !important;
+    bottom:    0;
+    inset:     unset !important;
+    width:     100% !important;
+    position:  absolute;
+    left:      0;
+}
+
+/* ABV — SEO 標籤（移至基本資訊底部） */
+.asd-seo-links {
+    margin-top:    16px;
+    padding-top:   14px;
+    border-top:    1px solid var(--glass-border);
+    display:       flex;
+    flex-direction: column;
+    gap:           8px;
+}
+.asd-seo-row {
+    display:    flex;
+    flex-wrap:  wrap;
+    align-items: center;
+    gap:        6px;
+    font-size:  13px;
+}
+.asd-seo-label {
+    color:       var(--asd-text-muted);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.asd-seo-tag {
+    display:       inline-block;
+    padding:       2px 10px;
+    border-radius: 20px;
+    border:        1px solid var(--asd-border);
+    background:    var(--glass-bg);
+    color:         var(--asd-text-muted) !important;
+    font-size:     12px;
+    transition:    background var(--asd-transition), color var(--asd-transition);
+}
+.asd-seo-tag:hover {
+    background: var(--asd-border);
+    color:      var(--asd-text) !important;
+}
+
+/* ABV — 外部連結 section */
+.asd-ext-links {
+    display:   flex;
+    flex-wrap: wrap;
+    gap:       8px;
+}
+.asd-ext-link {
+    display:       inline-block;
+    padding:       6px 14px;
+    border-radius: var(--asd-radius-sm);
+    border:        1px solid var(--asd-border);
+    background:    var(--glass-bg);
+    font-size:     13px;
+    color:         var(--asd-text-muted) !important;
+    transition:    background var(--asd-transition), color var(--asd-transition);
+}
+.asd-ext-link:hover {
+    background: var(--asd-border);
+    color:      var(--asd-text) !important;
+}
+
+/* ABV — smooth scroll */
+html { scroll-behavior: smooth; }
