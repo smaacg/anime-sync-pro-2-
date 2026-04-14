@@ -257,6 +257,13 @@ $formats = [
 foreach ( $formats as [ $name, $slug, ] ) {
     insert_term_safe( $name, 'anime_format_tax', [ 'slug' => $slug ] );
 }
+// ============================================================
+// 第五部分：系列（anime_series_tax）
+// ============================================================
+echo '<h2>第五部分：系列（anime_series_tax）</h2>';
+echo '<p style="color:#666;">anime_series_tax 為非階層 Taxonomy，不需要預建 term。<br>
+系列 term 將由匯入外掛在匯入時自動建立（例如「進擊的巨人」）。</p>';
+echo '<p style="color:green;">✅ anime_series_tax 已在 anime-sync-pro.php 中註冊，無需手動建立 term。</p>';
 
 // ============================================================
 // 完成
