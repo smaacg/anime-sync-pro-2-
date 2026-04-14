@@ -474,11 +474,11 @@ while ( have_posts() ) : the_post();
     <a class="asd-tab" href="#asd-sec-info">📋 基本資訊</a>
     <?php if ( $synopsis )                 : ?><a class="asd-tab" href="#asd-sec-synopsis">📝 劇情簡介</a><?php endif; ?>
     <?php if ( ! empty( $episodes_list ) ) : ?><a class="asd-tab" href="#asd-sec-episodes">📺 集數列表</a><?php endif; ?>
-    <?php if ( $cast_list )                : ?><a class="asd-tab" href="#asd-sec-cast">🎭 角色聲優</a><?php endif; ?>
-    <?php if ( $staff_list )               : ?><a class="asd-tab" href="#asd-sec-staff">🎬 製作人員</a><?php endif; ?>
+    <?php if ( $cast_list )                : ?><a class="asd-tab" href="#asd-sec-cast">🎭 CAST</a><?php endif; ?>
+    <?php if ( $staff_list )               : ?><a class="asd-tab" href="#asd-sec-staff">🎬 STAFF</a><?php endif; ?>
     <?php if ( $openings || $endings )     : ?><a class="asd-tab" href="#asd-sec-music">🎵 主題曲</a><?php endif; ?>
     <?php if ( $streaming_list || $tw_streaming_list ) : ?><a class="asd-tab" href="#asd-sec-stream">📡 串流平台</a><?php endif; ?>
-    <?php if ( $relations_list )           : ?><a class="asd-tab" href="#asd-sec-relations">🔗 相關作品</a><?php endif; ?>
+    <?php if ( ! empty( $site_relations ) ) : ?><a class="asd-tab" href="#asd-sec-relations">🔗 相關作品</a><?php endif; ?>
     <?php if ( ! empty( $faq_items ) )     : ?><a class="asd-tab" href="#asd-sec-faq">❓ 常見問題</a><?php endif; ?>
 </nav>
 
