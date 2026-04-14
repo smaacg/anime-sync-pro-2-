@@ -1,24 +1,13 @@
 <?php
 /**
- * ACF Fields Registration
- * Plugin: Anime Sync Pro
- * Path: wp-content/plugins/anime-sync-pro/includes/class-acf-fields.php
- *
- * Bug 1  – anime_score_bangumi max 改為 100、step 改為 1
- * Bug 7  – 移除英文簡介欄位
- * Bug 8  – 所有欄位標籤鎖定為中文
- * F1     – 移除 trailer preview message 欄位及其 render script
- * F2     – 台灣串流平台改為 16 選項 multi-checkbox
- * F3     – 台灣代理商改為 select + 自訂文字欄位
- * F4     – 新增「重新同步 Bangumi」按鈕（message 欄位 + AJAX）
- * F5     – 新增唯讀 anime_episodes_json textarea
- * ACF    – 新增 16 個平台個別 URL 欄位（Option A，全部顯示，無 conditional_logic）
- * ACF    – 新增 anime_faq_json 手動 FAQ textarea
+ * 檔案名稱: includes/class-acf-fields.php
  *
  * @package Anime_Sync_Pro
  */
 
-if ( ! defined( 'ABSPATH' ) ) exit;
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
 
 class Anime_Sync_ACF_Fields {
 
@@ -26,15 +15,17 @@ class Anime_Sync_ACF_Fields {
         add_action( 'acf/init', [ $this, 'register_all_field_groups' ] );
     }
 
-    public function register_all_field_groups() {
-        if ( ! function_exists( 'acf_add_local_field_group' ) ) return;
+    public function register_all_field_groups(): void {
+        if ( ! function_exists( 'acf_add_local_field_group' ) ) {
+            return;
+        }
 
         $this->register_basic_info();
         $this->register_ratings();
         $this->register_synopsis();
         $this->register_media();
         $this->register_production();
-        $this->register_themes_streaming();
+        $this->register_themes_and_streaming();
         $this->register_external_links();
         $this->register_taiwan_info();
         $this->register_faq();
@@ -42,484 +33,656 @@ class Anime_Sync_ACF_Fields {
         $this->register_resync_script();
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 基本資訊
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_basic_info() {
+    // =========================================================================
+    // 群組 1：基本資訊
+    // =========================================================================
+    private function register_basic_info(): void {
         acf_add_local_field_group( [
-            'key'      => 'group_anime_basic_info',
-            'title'    => '基本資訊',
-            'fields'   => [
+            'key'                   => 'group_anime_basic_info',
+            'title'                 => '📋 基本資訊',
+            'fields'                => [
+
+                // --- API ID 區塊（四欄等寬）---
                 [
                     'key'           => 'field_anime_anilist_id',
                     'label'         => 'AniList ID',
                     'name'          => 'anime_anilist_id',
                     'type'          => 'number',
-                    'min'           => 0,
+                    'instructions'  => '請填入 AniList 作品 ID（數字），例如：21。',
+                    'required'      => 1,
+                    'min'           => 1,
                     'step'          => 1,
-                    'readonly'      => 0,
+                    'wrapper'       => [ 'width' => '25' ],
                 ],
                 [
                     'key'           => 'field_anime_mal_id',
-                    'label'         => 'MAL ID',
+                    'label'         => 'MyAnimeList ID',
                     'name'          => 'anime_mal_id',
                     'type'          => 'number',
-                    'min'           => 0,
+                    'instructions'  => '由 AniList API 自動填入（idMal 欄位）。若為空表示 MAL 無對應條目。',
+                    'required'      => 0,
+                    'min'           => 1,
                     'step'          => 1,
+                    'wrapper'       => [ 'width' => '25' ],
                 ],
                 [
                     'key'           => 'field_anime_bangumi_id',
                     'label'         => 'Bangumi ID',
                     'name'          => 'anime_bangumi_id',
                     'type'          => 'number',
-                    'min'           => 0,
+                    'instructions'  => '由三層查找自動填入。若自動查找失敗，請手動填入 Bangumi 條目 ID。',
+                    'required'      => 0,
+                    'min'           => 1,
                     'step'          => 1,
+                    'wrapper'       => [ 'width' => '25' ],
                 ],
                 [
+                    'key'           => 'field_anime_animethemes_id',
+                    'label'         => 'AnimeThemes ID',
+                    'name'          => 'anime_animethemes_id',
+                    'type'          => 'text',
+                    'instructions'  => '由 AnimeThemes API 自動填入（格式如 shingeki-no-kyojin）。若 OP/ED 未抓到，可人工填入 slug 後重新補抓。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '25' ],
+                ],
+
+                // --- 標題區塊 ---
+                [
                     'key'           => 'field_anime_title_chinese',
-                    'label'         => '中文標題',
+                    'label'         => '中文標題（台灣繁體）',
                     'name'          => 'anime_title_chinese',
                     'type'          => 'text',
+                    'instructions'  => '優先使用 Bangumi name_cn，若為空則 fallback 至 AniList english → AniList romaji。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
                 [
                     'key'           => 'field_anime_title_native',
-                    'label'         => '日文標題',
+                    'label'         => '日文原名',
                     'name'          => 'anime_title_native',
                     'type'          => 'text',
+                    'instructions'  => '由 AniList title.native 自動填入（日文原始標題）。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
                 [
                     'key'           => 'field_anime_title_romaji',
-                    'label'         => '羅馬拼音標題',
+                    'label'         => 'Romaji 標題',
                     'name'          => 'anime_title_romaji',
                     'type'          => 'text',
+                    'instructions'  => '由 AniList title.romaji 自動填入。同時作為文章 slug 的產生來源。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
                 [
                     'key'           => 'field_anime_title_english',
                     'label'         => '英文標題',
                     'name'          => 'anime_title_english',
                     'type'          => 'text',
+                    'instructions'  => '由 AniList title.english 自動填入。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
+
+                // --- 格式 / 狀態 / 來源 ---
                 [
                     'key'           => 'field_anime_format',
-                    'label'         => '類型',
+                    'label'         => '作品類型',
                     'name'          => 'anime_format',
                     'type'          => 'select',
+                    'instructions'  => '由 AniList format 欄位自動填入。',
+                    'required'      => 0,
                     'choices'       => [
-                        'TV'                 => 'TV',
-                        'TV_SHORT'           => 'TV 短篇',
-                        'MOVIE'              => '劇場版',
-                        'OVA'                => 'OVA',
-                        'ONA'                => 'ONA',
-                        'SPECIAL'            => '特別篇',
-                        'MUSIC'              => '音樂 MV',
+                        'TV'        => '電視動畫 (TV)',
+                        'TV_SHORT'  => '短篇電視動畫 (TV_SHORT)',
+                        'MOVIE'     => '劇場版 (MOVIE)',
+                        'SPECIAL'   => '特別篇 (SPECIAL)',
+                        'OVA'       => 'OVA',
+                        'ONA'       => '網路動畫 (ONA)',
+                        'MUSIC'     => '音樂 (MUSIC)',
                     ],
-                    'allow_null'    => 1,
+                    'default_value' => 'TV',
+                    'wrapper'       => [ 'width' => '33' ],
                 ],
                 [
                     'key'           => 'field_anime_status',
-                    'label'         => '狀態',
+                    'label'         => '播出狀態',
                     'name'          => 'anime_status',
                     'type'          => 'select',
+                    'instructions'  => '由每日 cron 自動更新。',
+                    'required'      => 0,
                     'choices'       => [
-                        'FINISHED'           => '已完結',
-                        'RELEASING'          => '連載中',
-                        'NOT_YET_RELEASED'   => '尚未播出',
-                        'CANCELLED'          => '已取消',
-                        'HIATUS'             => '暫停中',
+                        'FINISHED'          => '已完結',
+                        'RELEASING'         => '連載中',
+                        'NOT_YET_RELEASED'  => '尚未播出',
+                        'CANCELLED'         => '已取消',
+                        'HIATUS'            => '休播中',
                     ],
-                    'allow_null'    => 1,
-                ],
-                [
-                    'key'           => 'field_anime_season',
-                    'label'         => '季節',
-                    'name'          => 'anime_season',
-                    'type'          => 'select',
-                    'choices'       => [
-                        'WINTER' => '冬季',
-                        'SPRING' => '春季',
-                        'SUMMER' => '夏季',
-                        'FALL'   => '秋季',
-                    ],
-                    'allow_null'    => 1,
-                ],
-                [
-                    'key'           => 'field_anime_season_year',
-                    'label'         => '播出年份',
-                    'name'          => 'anime_season_year',
-                    'type'          => 'number',
-                    'min'           => 1900,
-                    'max'           => 2100,
-                    'step'          => 1,
-                ],
-                [
-                    'key'           => 'field_anime_episodes',
-                    'label'         => '集數',
-                    'name'          => 'anime_episodes',
-                    'type'          => 'number',
-                    'min'           => 0,
-                    'step'          => 1,
-                ],
-                [
-                    'key'           => 'field_anime_episodes_aired',
-                    'label'         => '已播集數',
-                    'name'          => 'anime_episodes_aired',
-                    'type'          => 'number',
-                    'min'           => 0,
-                    'step'          => 1,
-                ],
-                [
-                    'key'           => 'field_anime_duration',
-                    'label'         => '每集時長（分鐘）',
-                    'name'          => 'anime_duration',
-                    'type'          => 'number',
-                    'min'           => 0,
-                    'step'          => 1,
+                    'default_value' => 'FINISHED',
+                    'wrapper'       => [ 'width' => '33' ],
                 ],
                 [
                     'key'           => 'field_anime_source',
                     'label'         => '原作來源',
                     'name'          => 'anime_source',
                     'type'          => 'select',
+                    'instructions'  => '由 AniList source 欄位自動填入。',
+                    'required'      => 0,
                     'choices'       => [
-                        'ORIGINAL'            => '原創',
-                        'MANGA'               => '漫畫改編',
-                        'LIGHT_NOVEL'         => '輕小說',
-                        'NOVEL'               => '小說',
-                        'VISUAL_NOVEL'        => '視覺小說',
-                        'VIDEO_GAME'          => '遊戲',
-                        'WEB_MANGA'           => '網路漫畫',
-                        'BOOK'                => '書籍',
-                        'MUSIC'               => '音樂',
-                        'GAME'                => '遊戲（其他）',
-                        'LIVE_ACTION'         => '真人',
-                        'MULTIMEDIA_PROJECT'  => '多媒體企劃',
-                        'OTHER'               => '其他',
+                        'ORIGINAL'           => '原創',
+                        'MANGA'              => '漫畫',
+                        'LIGHT_NOVEL'        => '輕小說',
+                        'VISUAL_NOVEL'       => '視覺小說',
+                        'VIDEO_GAME'         => '遊戲',
+                        'OTHER'              => '其他',
+                        'NOVEL'              => '小說',
+                        'DOUJINSHI'          => '同人誌',
+                        'ANIME'              => '動畫',
+                        'WEB_NOVEL'          => '網路小說',
+                        'LIVE_ACTION'        => '真人影視',
+                        'GAME'               => '遊戲',
+                        'COMIC'              => '漫畫',
+                        'MULTIMEDIA_PROJECT' => '多媒體企劃',
+                        'PICTURE_BOOK'       => '繪本',
                     ],
-                    'allow_null'    => 1,
+                    'default_value' => 'ORIGINAL',
+                    'wrapper'       => [ 'width' => '34' ],
+                ],
+
+                // --- 季度 / 年份 ---
+                [
+                    'key'           => 'field_anime_season',
+                    'label'         => '播出季度',
+                    'name'          => 'anime_season',
+                    'type'          => 'select',
+                    'instructions'  => '由 AniList season 欄位自動填入。',
+                    'required'      => 0,
+                    'choices'       => [
+                        'WINTER' => '冬季（1月）',
+                        'SPRING' => '春季（4月）',
+                        'SUMMER' => '夏季（7月）',
+                        'FALL'   => '秋季（10月）',
+                    ],
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
                 [
-                    'key'           => 'field_anime_studios',
-                    'label'         => '製作公司',
-                    'name'          => 'anime_studios',
-                    'type'          => 'text',
+                    'key'           => 'field_anime_season_year',
+                    'label'         => '播出年份',
+                    'name'          => 'anime_season_year',
+                    'type'          => 'number',
+                    'instructions'  => '由 AniList seasonYear 欄位自動填入。',
+                    'required'      => 0,
+                    'min'           => 1900,
+                    'max'           => 2100,
+                    'step'          => 1,
+                    'wrapper'       => [ 'width' => '50' ],
+                ],
+
+                // --- 集數 / 時長 ---
+                [
+                    'key'           => 'field_anime_episodes',
+                    'label'         => '總集數',
+                    'name'          => 'anime_episodes',
+                    'type'          => 'number',
+                    'instructions'  => '由 AniList episodes 欄位自動填入。',
+                    'required'      => 0,
+                    'min'           => 0,
+                    'step'          => 1,
+                    'wrapper'       => [ 'width' => '25' ],
                 ],
                 [
-                    'key'           => 'field_anime_start_date',
-                    'label'         => '開始日期',
-                    'name'          => 'anime_start_date',
-                    'type'          => 'text',
-                    'placeholder'   => 'YYYY-MM-DD',
+                    'key'           => 'field_anime_episodes_aired',
+                    'label'         => '已播集數',
+                    'name'          => 'anime_episodes_aired',
+                    'type'          => 'number',
+                    'instructions'  => '播出中時由每日 cron 自動更新。',
+                    'required'      => 0,
+                    'min'           => 0,
+                    'step'          => 1,
+                    'wrapper'       => [ 'width' => '25' ],
                 ],
                 [
-                    'key'           => 'field_anime_end_date',
-                    'label'         => '結束日期',
-                    'name'          => 'anime_end_date',
+                    'key'           => 'field_anime_duration',
+                    'label'         => '每集時長（分鐘）',
+                    'name'          => 'anime_duration',
+                    'type'          => 'number',
+                    'instructions'  => '由 AniList duration 欄位自動填入。',
+                    'required'      => 0,
+                    'min'           => 0,
+                    'step'          => 1,
+                    'wrapper'       => [ 'width' => '25' ],
+                ],
+
+                // --- 播出日期 ---
+                [
+                    'key'            => 'field_anime_start_date',
+                    'label'          => '開播日期',
+                    'name'           => 'anime_start_date',
+                    'type'           => 'date_picker',
+                    'instructions'   => '由 AniList startDate 欄位自動填入。格式：YYYY-MM-DD。',
+                    'required'       => 0,
+                    'display_format' => 'Y-m-d',
+                    'return_format'  => 'Y-m-d',
+                    'first_day'      => 1,
+                    'wrapper'        => [ 'width' => '33' ],
+                ],
+                [
+                    'key'            => 'field_anime_end_date',
+                    'label'          => '完結日期',
+                    'name'           => 'anime_end_date',
+                    'type'           => 'date_picker',
+                    'instructions'   => '完結後由 cron 自動填入。播出中時留空。',
+                    'required'       => 0,
+                    'display_format' => 'Y-m-d',
+                    'return_format'  => 'Y-m-d',
+                    'first_day'      => 1,
+                    'wrapper'        => [ 'width' => '33' ],
+                ],
+                [
+                    'key'           => 'field_anime_next_airing',
+                    'label'         => '下一集播出時間',
+                    'name'          => 'anime_next_airing',
                     'type'          => 'text',
-                    'placeholder'   => 'YYYY-MM-DD',
+                    'instructions'  => '格式：YYYY-MM-DD HH:MM（台灣時間）。由每日 cron 自動更新；完結後清空。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '34' ],
+                ],
+            ],
+            'location'              => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'            => 10,
+            'position'              => 'normal',
+            'style'                 => 'default',
+            'label_placement'       => 'top',
+            'instruction_placement' => 'label',
+            'active'                => true,
+        ] );
+    }
+
+    // =========================================================================
+    // 群組 2：評分資訊
+    // =========================================================================
+    private function register_ratings(): void {
+        acf_add_local_field_group( [
+            'key'    => 'group_anime_ratings',
+            'title'  => '⭐ 評分資訊',
+            'fields' => [
+                [
+                    'key'           => 'field_anime_score_anilist',
+                    'label'         => 'AniList 評分',
+                    'name'          => 'anime_score_anilist',
+                    'type'          => 'number',
+                    'instructions'  => '範圍 0–100。由每週 cron 自動更新。',
+                    'required'      => 0,
+                    'min'           => 0,
+                    'max'           => 100,
+                    'step'          => 0.01,
+                    'wrapper'       => [ 'width' => '25' ],
+                ],
+                [
+                    'key'           => 'field_anime_score_mal',
+                    'label'         => 'MyAnimeList 評分',
+                    'name'          => 'anime_score_mal',
+                    'type'          => 'number',
+                    'instructions'  => '範圍 0–10。由每週 cron 透過 Jikan API 自動更新。',
+                    'required'      => 0,
+                    'min'           => 0,
+                    'max'           => 10,
+                    'step'          => 0.01,
+                    'wrapper'       => [ 'width' => '25' ],
+                ],
+                [
+                    'key'           => 'field_anime_score_bangumi',
+                    'label'         => 'Bangumi 評分',
+                    'name'          => 'anime_score_bangumi',
+                    'type'          => 'number',
+                    'instructions'  => '範圍 0–10。由每週 cron 自動更新。',
+                    'required'      => 0,
+                    'min'           => 0,
+                    'max'           => 10,
+                    'step'          => 0.01,
+                    'wrapper'       => [ 'width' => '25' ],
                 ],
                 [
                     'key'           => 'field_anime_popularity',
-                    'label'         => '人氣（AniList）',
+                    'label'         => 'AniList 人氣數',
                     'name'          => 'anime_popularity',
                     'type'          => 'number',
+                    'instructions'  => '由 AniList popularity 欄位自動填入（收藏人數）。每週更新。',
+                    'required'      => 0,
                     'min'           => 0,
                     'step'          => 1,
+                    'wrapper'       => [ 'width' => '25' ],
+                ],
+                [
+                    'key'           => 'field_anime_ranking',
+                    'label'         => 'AniList 排名',
+                    'name'          => 'anime_ranking',
+                    'type'          => 'number',
+                    'instructions'  => '由 AniList rankings 欄位自動填入（全時期評分排名）。每週更新。',
+                    'required'      => 0,
+                    'min'           => 0,
+                    'step'          => 1,
+                    'wrapper'       => [ 'width' => '25' ],
                 ],
             ],
-            'location' => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order'  => 10,
+            'location'    => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'  => 20,
+            'position'    => 'normal',
             'style'       => 'default',
+            'active'      => true,
         ] );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 評分
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_ratings() {
-        acf_add_local_field_group( [
-            'key'    => 'group_anime_ratings',
-            'title'  => '評分',
-            'fields' => [
-                [
-                    'key'   => 'field_anime_score_anilist',
-                    'label' => 'AniList 評分（原始值 0-1000）',
-                    'name'  => 'anime_score_anilist',
-                    'type'  => 'number',
-                    'min'   => 0,
-                    'max'   => 1000,
-                    'step'  => 1,
-                ],
-                [
-                    'key'   => 'field_anime_score_mal',
-                    'label' => 'MAL 評分（原始值 0-100）',
-                    'name'  => 'anime_score_mal',
-                    'type'  => 'number',
-                    'min'   => 0,
-                    'max'   => 100,
-                    'step'  => 1,
-                ],
-                // Bug 1：max 改為 100，step 改為 1
-                [
-                    'key'   => 'field_anime_score_bangumi',
-                    'label' => 'Bangumi 評分（原始值 0-100）',
-                    'name'  => 'anime_score_bangumi',
-                    'type'  => 'number',
-                    'min'   => 0,
-                    'max'   => 100,
-                    'step'  => 1,
-                ],
-            ],
-            'location'   => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order' => 20,
-        ] );
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // 劇情簡介（Bug 7：移除英文簡介）
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_synopsis() {
+    // =========================================================================
+    // 群組 3：簡介
+    // =========================================================================
+    private function register_synopsis(): void {
         acf_add_local_field_group( [
             'key'    => 'group_anime_synopsis',
-            'title'  => '劇情簡介',
+            'title'  => '📝 簡介',
             'fields' => [
                 [
-                    'key'   => 'field_anime_synopsis_chinese',
-                    'label' => '中文簡介',
-                    'name'  => 'anime_synopsis_chinese',
-                    'type'  => 'textarea',
-                    'rows'  => 6,
+                    'key'           => 'field_anime_synopsis_chinese',
+                    'label'         => '中文簡介（台灣繁體）',
+                    'name'          => 'anime_synopsis_chinese',
+                    'type'          => 'textarea',
+                    'instructions'  => '優先使用 Bangumi summary（自動簡繁轉換）。若 Bangumi 無資料，留空並請人工填入。修改後請在「同步控制」勾選「鎖定中文簡介」。',
+                    'required'      => 0,
+                    'rows'          => 6,
+                    'new_lines'     => 'br',
+                    'wrapper'       => [ 'width' => '100' ],
                 ],
-                // Bug 7：英文簡介欄位已移除
             ],
-            'location'   => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order' => 30,
+            'location'    => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'  => 30,
+            'position'    => 'normal',
+            'style'       => 'default',
+            'active'      => true,
         ] );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 媒體（F1：移除 trailer preview message）
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_media() {
+    // =========================================================================
+    // 群組 4：媒體素材
+    // =========================================================================
+    private function register_media(): void {
         acf_add_local_field_group( [
             'key'    => 'group_anime_media',
-            'title'  => '媒體',
+            'title'  => '🖼️ 媒體素材',
             'fields' => [
                 [
-                    'key'   => 'field_anime_cover_image',
-                    'label' => '封面圖 URL',
-                    'name'  => 'anime_cover_image',
-                    'type'  => 'url',
+                    'key'           => 'field_anime_cover_image',
+                    'label'         => '封面圖片網址',
+                    'name'          => 'anime_cover_image',
+                    'type'          => 'url',
+                    'instructions'  => '由 AniList coverImage.extraLarge 自動填入。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '100' ],
                 ],
                 [
-                    'key'   => 'field_anime_banner_image',
-                    'label' => '橫幅圖 URL',
-                    'name'  => 'anime_banner_image',
-                    'type'  => 'url',
+                    'key'           => 'field_anime_banner_image',
+                    'label'         => '橫幅圖片網址',
+                    'name'          => 'anime_banner_image',
+                    'type'          => 'url',
+                    'instructions'  => '由 AniList bannerImage 自動填入。可留空。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '100' ],
                 ],
                 [
-                    'key'         => 'field_anime_trailer_url',
-                    'label'       => '預告片 URL（YouTube）',
-                    'name'        => 'anime_trailer_url',
-                    'type'        => 'text',
-                    'placeholder' => 'https://www.youtube.com/watch?v=XXXXXXXXXXX',
+                    'key'           => 'field_anime_trailer_url',
+                    'label'         => 'YouTube 預告片網址',
+                    'name'          => 'anime_trailer_url',
+                    'type'          => 'url',
+                    'instructions'  => '請填入 YouTube 完整網址（例：https://www.youtube.com/watch?v=XXXXX）。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '100' ],
                 ],
-                // F1：trailer preview message 欄位及 render script 已移除
             ],
-            'location'   => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order' => 40,
+            'location'    => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'  => 40,
+            'position'    => 'normal',
+            'style'       => 'default',
+            'active'      => true,
         ] );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 製作資訊（含 Staff / Cast / Relations / Episodes JSON）
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_production() {
+    // =========================================================================
+    // 群組 5：製作資訊
+    // =========================================================================
+    private function register_production(): void {
         acf_add_local_field_group( [
             'key'    => 'group_anime_production',
-            'title'  => '製作資訊',
+            'title'  => '🎬 製作資訊',
             'fields' => [
                 [
-                    'key'          => 'field_anime_staff_json',
-                    'label'        => 'Staff JSON',
-                    'name'         => 'anime_staff_json',
-                    'type'         => 'textarea',
-                    'rows'         => 5,
-                    'instructions' => '自動同步，請勿手動編輯。格式：[{"name":"...","role":"...","image":"..."}]',
-                    'readonly'     => 1,
+                    'key'           => 'field_anime_studio',
+                    'label'         => '製作公司',
+                    'name'          => 'anime_studio',
+                    'type'          => 'text',
+                    'instructions'  => '由 AniList studios（isMain: true）自動填入主要製作公司名稱。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '100' ],
                 ],
                 [
-                    'key'          => 'field_anime_cast_json',
-                    'label'        => 'Cast JSON',
-                    'name'         => 'anime_cast_json',
-                    'type'         => 'textarea',
-                    'rows'         => 5,
-                    'instructions' => '自動同步，請勿手動編輯。格式：[{"name":"...","image":"...","voice_actors":[{"name":"..."}]}]',
-                    'readonly'     => 1,
+                    'key'           => 'field_anime_staff_json',
+                    'label'         => 'STAFF 資料（JSON）',
+                    'name'          => 'anime_staff_json',
+                    'type'          => 'textarea',
+                    'instructions'  => '由 Bangumi STAFF API 自動填入。請勿手動編輯。',
+                    'required'      => 0,
+                    'rows'          => 4,
+                    'new_lines'     => '',
+                    'wrapper'       => [ 'width' => '100' ],
+                    'readonly'      => 1,
                 ],
                 [
-                    'key'          => 'field_anime_relations_json',
-                    'label'        => '相關作品 JSON',
-                    'name'         => 'anime_relations_json',
-                    'type'         => 'textarea',
-                    'rows'         => 5,
-                    'instructions' => '自動同步，請勿手動編輯。',
-                    'readonly'     => 1,
+                    'key'           => 'field_anime_cast_json',
+                    'label'         => 'CAST 角色資料（JSON）',
+                    'name'          => 'anime_cast_json',
+                    'type'          => 'textarea',
+                    'instructions'  => '由 Bangumi CAST API 自動填入。請勿手動編輯。',
+                    'required'      => 0,
+                    'rows'          => 4,
+                    'new_lines'     => '',
+                    'wrapper'       => [ 'width' => '100' ],
+                    'readonly'      => 1,
                 ],
-                // F5：新增唯讀 episodes JSON
                 [
-                    'key'          => 'field_anime_episodes_json',
-                    'label'        => '集數列表 JSON',
-                    'name'         => 'anime_episodes_json',
-                    'type'         => 'textarea',
-                    'rows'         => 8,
-                    'instructions' => '自動從 Bangumi 同步，請勿手動編輯。格式：[{"ep":1,"name":"...","name_cn":"...","airdate":"YYYY-MM-DD"}]',
-                    'readonly'     => 1,
+                    'key'           => 'field_anime_episodes_json',
+                    'label'         => '集數列表（JSON）',
+                    'name'          => 'anime_episodes_json',
+                    'type'          => 'textarea',
+                    'instructions'  => '由 Bangumi Episodes API 自動填入。請勿手動編輯。格式：[{"ep":1,"name":"...","name_cn":"...","airdate":"YYYY-MM-DD"}]',
+                    'required'      => 0,
+                    'rows'          => 4,
+                    'new_lines'     => '',
+                    'wrapper'       => [ 'width' => '100' ],
+                    'readonly'      => 1,
                 ],
             ],
-            'location'   => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order' => 50,
+            'location'    => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'  => 50,
+            'position'    => 'normal',
+            'style'       => 'default',
+            'active'      => true,
         ] );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 主題曲 & 串流平台（國際）
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_themes_streaming() {
+    // =========================================================================
+    // 群組 6：主題曲與串流平台
+    // =========================================================================
+    private function register_themes_and_streaming(): void {
         acf_add_local_field_group( [
             'key'    => 'group_anime_themes_streaming',
-            'title'  => '主題曲 & 國際串流',
+            'title'  => '🎵 主題曲與串流平台',
             'fields' => [
                 [
-                    'key'          => 'field_anime_themes',
-                    'label'        => '主題曲 JSON（AnimeThemes）',
-                    'name'         => 'anime_themes',
-                    'type'         => 'textarea',
-                    'rows'         => 6,
-                    'instructions' => '自動同步。格式：[{"type":"OP1","song_title":"...","artist":"...","audio_url":"https://a.animethemes.moe/..."}]',
-                    'readonly'     => 1,
+                    'key'           => 'field_anime_themes_json',
+                    'label'         => 'OP/ED 主題曲資料（JSON）',
+                    'name'          => 'anime_themes_json',
+                    'type'          => 'textarea',
+                    'instructions'  => '由 AnimeThemes API 自動抓取。請勿手動編輯。格式：[{"type":"OP1","song_title":"...","artist":"...","audio_url":"https://a.animethemes.moe/..."}]',
+                    'required'      => 0,
+                    'rows'          => 4,
+                    'new_lines'     => '',
+                    'wrapper'       => [ 'width' => '100' ],
+                    'readonly'      => 1,
                 ],
                 [
-                    'key'          => 'field_anime_streaming',
-                    'label'        => '國際串流平台 JSON',
-                    'name'         => 'anime_streaming',
-                    'type'         => 'textarea',
-                    'rows'         => 4,
-                    'instructions' => '自動同步。格式：[{"site":"Crunchyroll","url":"https://..."}]',
-                    'readonly'     => 1,
+                    'key'           => 'field_anime_streaming_json',
+                    'label'         => '串流平台資料（JSON）',
+                    'name'          => 'anime_streaming_json',
+                    'type'          => 'textarea',
+                    'instructions'  => '由 AniList externalLinks（type: STREAMING）自動填入。請勿手動編輯。',
+                    'required'      => 0,
+                    'rows'          => 4,
+                    'new_lines'     => '',
+                    'wrapper'       => [ 'width' => '100' ],
+                    'readonly'      => 1,
                 ],
             ],
-            'location'   => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order' => 60,
+            'location'    => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'  => 60,
+            'position'    => 'normal',
+            'style'       => 'default',
+            'active'      => true,
         ] );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 外部連結
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_external_links() {
+    // =========================================================================
+    // 群組 7：外部連結
+    // =========================================================================
+    private function register_external_links(): void {
         acf_add_local_field_group( [
             'key'    => 'group_anime_external_links',
-            'title'  => '外部連結',
+            'title'  => '🔗 外部連結',
             'fields' => [
                 [
-                    'key'   => 'field_anime_official_site',
-                    'label' => '官方網站',
-                    'name'  => 'anime_official_site',
-                    'type'  => 'url',
+                    'key'           => 'field_anime_official_site',
+                    'label'         => '官方網站',
+                    'name'          => 'anime_official_site',
+                    'type'          => 'url',
+                    'instructions'  => '由 AniList externalLinks 自動填入。可人工覆寫。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
                 [
-                    'key'   => 'field_anime_twitter_url',
-                    'label' => 'Twitter / X',
-                    'name'  => 'anime_twitter_url',
-                    'type'  => 'url',
+                    'key'           => 'field_anime_twitter_url',
+                    'label'         => 'Twitter / X 官方帳號',
+                    'name'          => 'anime_twitter_url',
+                    'type'          => 'url',
+                    'instructions'  => '由 AniList externalLinks 自動填入。可人工覆寫。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
                 [
-                    'key'   => 'field_anime_wikipedia_url',
-                    'label' => 'Wikipedia（中文）',
-                    'name'  => 'anime_wikipedia_url',
-                    'type'  => 'url',
+                    'key'           => 'field_anime_wikipedia_url',
+                    'label'         => 'Wikipedia 頁面',
+                    'name'          => 'anime_wikipedia_url',
+                    'type'          => 'url',
+                    'instructions'  => '請人工填入中文或日文維基百科連結。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
                 [
-                    'key'   => 'field_anime_tiktok_url',
-                    'label' => 'TikTok',
-                    'name'  => 'anime_tiktok_url',
-                    'type'  => 'url',
+                    'key'           => 'field_anime_tiktok_url',
+                    'label'         => 'TikTok 官方帳號',
+                    'name'          => 'anime_tiktok_url',
+                    'type'          => 'url',
+                    'instructions'  => '請人工填入 TikTok 官方帳號連結（選填）。',
+                    'required'      => 0,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
             ],
-            'location'   => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order' => 70,
+            'location'    => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'  => 70,
+            'position'    => 'normal',
+            'style'       => 'default',
+            'active'      => true,
         ] );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 台灣資訊（F2：16 個 checkbox + ACF：16 個 URL 欄位）
-    // ═══════════════════════════════════════════════════════════
+    // =========================================================================
+    // 群組 8：台灣在地資訊
+    // =========================================================================
+    private function register_taiwan_info(): void {
 
-    private function register_taiwan_info() {
-
-        // 16 個平台定義
         $platforms = $this->get_tw_platforms();
 
-        // 組合 URL 欄位（Option A：全部顯示，寬度 50%）
+        // 16 個平台個別 URL 欄位（Option A：全部顯示，寬度 50%）
         $url_fields = [];
         foreach ( $platforms as $key => $label ) {
+            $field_key = str_replace( '-', '_', $key );
             $url_fields[] = [
-                'key'         => 'field_anime_tw_streaming_url_' . str_replace( '-', '_', $key ),
-                'label'       => $label . ' URL',
-                'name'        => 'anime_tw_streaming_url_' . str_replace( '-', '_', $key ),
-                'type'        => 'url',
-                'placeholder' => 'https://',
-                'wrapper'     => [ 'width' => '50' ],
-                'instructions'=> '勾選上方「' . $label . '」後，可在此填入該動畫的直達連結（留空則顯示純文字）。',
+                'key'          => 'field_anime_tw_streaming_url_' . $field_key,
+                'label'        => $label . ' 直達連結',
+                'name'         => 'anime_tw_streaming_url_' . $field_key,
+                'type'         => 'url',
+                'instructions' => '勾選上方「' . $label . '」後，可在此填入該動畫的直達連結（留空則顯示純文字）。',
+                'required'     => 0,
+                'wrapper'      => [ 'width' => '50' ],
             ];
         }
 
         acf_add_local_field_group( [
             'key'    => 'group_anime_taiwan_info',
-            'title'  => '台灣資訊',
+            'title'  => '🇹🇼 台灣在地資訊',
             'fields' => array_merge(
                 [
-                    // F2：台灣串流平台（16 選項 multi-checkbox）
+                    // 台灣串流平台 checkbox（16 選項）
                     [
-                        'key'          => 'field_anime_tw_streaming',
-                        'label'        => '台灣串流平台',
-                        'name'         => 'anime_tw_streaming',
-                        'type'         => 'checkbox',
-                        'choices'      => $platforms,
-                        'layout'       => 'vertical',
-                        'return_format'=> 'value',
-                        'instructions' => '勾選有上架的平台；下方可填入該動畫的直達 URL。',
+                        'key'           => 'field_anime_tw_streaming',
+                        'label'         => '台灣串流平台',
+                        'name'          => 'anime_tw_streaming',
+                        'type'          => 'checkbox',
+                        'instructions'  => '勾選有上架的平台；下方可對應填入該動畫的直達連結。',
+                        'required'      => 0,
+                        'choices'       => $platforms,
+                        'layout'        => 'horizontal',
+                        'toggle'        => 0,
+                        'return_format' => 'value',
+                        'wrapper'       => [ 'width' => '100' ],
                     ],
                 ],
-                // ACF Option A：16 個 URL 欄位（全部顯示，無 conditional_logic）
+                // 16 個平台 URL 欄位
                 $url_fields,
                 [
                     // 其他串流平台（自訂文字）
                     [
-                        'key'         => 'field_anime_tw_streaming_other',
-                        'label'       => '其他串流平台（自訂）',
-                        'name'        => 'anime_tw_streaming_other',
-                        'type'        => 'text',
-                        'placeholder' => '多個請用逗號分隔',
+                        'key'           => 'field_anime_tw_streaming_other',
+                        'label'         => '其他串流平台（自訂）',
+                        'name'          => 'anime_tw_streaming_other',
+                        'type'          => 'text',
+                        'instructions'  => '上方 16 個平台以外的服務，多個請用逗號分隔。',
+                        'required'      => 0,
+                        'wrapper'       => [ 'width' => '100' ],
                     ],
-                    // F3：台灣代理商（select）
+                    // 台灣代理商 select
                     [
-                        'key'     => 'field_anime_tw_distributor',
-                        'label'   => '台灣代理商',
-                        'name'    => 'anime_tw_distributor',
-                        'type'    => 'select',
-                        'choices' => [
+                        'key'           => 'field_anime_tw_distributor',
+                        'label'         => '台灣代理商／發行商',
+                        'name'          => 'anime_tw_distributor',
+                        'type'          => 'select',
+                        'instructions'  => '請選擇台灣代理商；若不在清單中請選「其他（自訂）」並於下方填寫。',
+                        'required'      => 0,
+                        'choices'       => [
+                            ''            => '── 請選擇 ──',
                             'muse'        => '木棉花（Muse）',
                             'medialink'   => '曼迪傳播（Medialink）',
                             'jbf'         => '日本橋文化（JBF）',
-                            'righttime'   => '正確時間',
                             'gaga'        => 'GaGa OOLala',
                             'catchplay'   => 'CatchPlay',
                             'netflix'     => 'Netflix 台灣',
@@ -529,95 +692,130 @@ class Anime_Sync_ACF_Fields {
                             'ani-one'     => 'Ani-One Asia',
                             'other'       => '其他（自訂）',
                         ],
-                        'allow_null'   => 1,
-                        'default_value'=> '',
+                        'default_value' => '',
+                        'allow_null'    => 1,
+                        'wrapper'       => [ 'width' => '50' ],
                     ],
-                    // F3：代理商自訂文字（選「其他」時填寫）
+                    // 台灣代理商自訂文字
                     [
-                        'key'         => 'field_anime_tw_distributor_custom',
-                        'label'       => '台灣代理商（自訂名稱）',
-                        'name'        => 'anime_tw_distributor_custom',
-                        'type'        => 'text',
-                        'placeholder' => '選擇「其他」時填寫',
-                        'instructions'=> '僅在上方選「其他（自訂）」時生效。',
+                        'key'           => 'field_anime_tw_distributor_custom',
+                        'label'         => '台灣代理商（自訂名稱）',
+                        'name'          => 'anime_tw_distributor_custom',
+                        'type'          => 'text',
+                        'instructions'  => '僅在上方選「其他（自訂）」時生效。',
+                        'required'      => 0,
+                        'wrapper'       => [ 'width' => '50' ],
                     ],
-                    // 台灣播出資訊
+                    // 台灣播出時間
                     [
-                        'key'         => 'field_anime_tw_broadcast',
-                        'label'       => '台灣播出資訊',
-                        'name'        => 'anime_tw_broadcast',
-                        'type'        => 'text',
-                        'placeholder' => '例：每週四 22:00',
+                        'key'           => 'field_anime_tw_broadcast',
+                        'label'         => '台灣播出時間',
+                        'name'          => 'anime_tw_broadcast',
+                        'type'          => 'text',
+                        'instructions'  => '請人工填入台灣播出時間（例：每週六 23:00 Netflix）。',
+                        'required'      => 0,
+                        'wrapper'       => [ 'width' => '100' ],
                     ],
                 ]
             ),
-            'location'   => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order' => 80,
+            'location'    => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'  => 80,
+            'position'    => 'normal',
+            'style'       => 'default',
+            'active'      => true,
         ] );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // FAQ（ACF：完全人工，anime_faq_json textarea）
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_faq() {
+    // =========================================================================
+    // 群組 9：常見問題（FAQ）— 完全人工
+    // =========================================================================
+    private function register_faq(): void {
         acf_add_local_field_group( [
             'key'    => 'group_anime_faq',
-            'title'  => '常見問題（FAQ）',
+            'title'  => '❓ 常見問題（FAQ）',
             'fields' => [
                 [
-                    'key'          => 'field_anime_faq_json',
-                    'label'        => 'FAQ JSON',
-                    'name'         => 'anime_faq_json',
-                    'type'         => 'textarea',
-                    'rows'         => 8,
-                    'instructions' => '完全人工輸入，留空則不顯示 FAQ 區塊。格式：
-[
-  {"q": "問題一", "a": "答案一"},
-  {"q": "問題二", "a": "答案二"}
-]',
-                    'placeholder'  => '[{"q":"問題","a":"答案"}]',
+                    'key'           => 'field_anime_faq_json',
+                    'label'         => 'FAQ JSON',
+                    'name'          => 'anime_faq_json',
+                    'type'          => 'textarea',
+                    'instructions'  => "完全人工輸入，留空則不顯示 FAQ 區塊與 Schema.org FAQPage。\n格式範例：\n[\n  {\"q\": \"問題一\", \"a\": \"答案一\"},\n  {\"q\": \"問題二\", \"a\": \"答案二\"}\n]",
+                    'required'      => 0,
+                    'rows'          => 8,
+                    'new_lines'     => '',
+                    'placeholder'   => '[{"q":"問題","a":"答案"}]',
+                    'wrapper'       => [ 'width' => '100' ],
                 ],
             ],
-            'location'   => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order' => 85,
+            'location'    => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'  => 85,
+            'position'    => 'normal',
+            'style'       => 'default',
+            'active'      => true,
         ] );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 同步控制（F4：重新同步 Bangumi 按鈕）
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_sync_control() {
+    // =========================================================================
+    // 群組 10：同步控制
+    // =========================================================================
+    private function register_sync_control(): void {
         acf_add_local_field_group( [
             'key'    => 'group_anime_sync_control',
-            'title'  => '同步控制',
+            'title'  => '⚙️ 同步控制',
             'fields' => [
                 [
-                    'key'          => 'field_anime_last_sync',
-                    'label'        => '最後同步時間',
-                    'name'         => 'anime_last_sync',
-                    'type'         => 'text',
-                    'readonly'     => 1,
-                    'instructions' => '系統自動更新，請勿手動修改。',
+                    'key'           => 'field_anime_last_sync',
+                    'label'         => '上次 API 同步時間',
+                    'name'          => 'anime_last_sync',
+                    'type'          => 'text',
+                    'instructions'  => '由系統自動記錄。請勿手動修改。',
+                    'required'      => 0,
+                    'readonly'      => 1,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
                 [
-                    'key'          => 'field_anime_import_status',
-                    'label'        => '匯入狀態',
-                    'name'         => 'anime_import_status',
-                    'type'         => 'text',
-                    'readonly'     => 1,
+                    'key'           => 'field_anime_last_updated',
+                    'label'         => '資料最後更新時間',
+                    'name'          => 'anime_last_updated',
+                    'type'          => 'text',
+                    'instructions'  => '每次任何欄位更新時由系統自動記錄。',
+                    'required'      => 0,
+                    'readonly'      => 1,
+                    'wrapper'       => [ 'width' => '50' ],
                 ],
-                // 鎖定欄位（多選）
                 [
-                    'key'          => 'field_anime_locked_fields',
-                    'label'        => '鎖定欄位（不自動覆蓋）',
-                    'name'         => 'anime_locked_fields',
-                    'type'         => 'checkbox',
-                    'choices'      => $this->get_auto_update_fields_labeled(),
-                    'layout'       => 'vertical',
-                    'return_format'=> 'value',
-                    'instructions' => '勾選後，重新同步時該欄位將不會被覆蓋。',
+                    'key'           => 'field_anime_locked_fields',
+                    'label'         => '鎖定欄位（防止自動覆寫）',
+                    'name'          => 'anime_locked_fields',
+                    'type'          => 'checkbox',
+                    'instructions'  => '勾選後，自動更新 cron 將跳過該欄位，保留您的人工修改。',
+                    'required'      => 0,
+                    'choices'       => [
+                        'anime_title_chinese'    => '中文標題',
+                        'anime_synopsis_chinese' => '中文簡介',
+                        'anime_cover_image'      => '封面圖片',
+                        'anime_banner_image'     => '橫幅圖片',
+                        'anime_trailer_url'      => 'YouTube 預告片',
+                        'anime_official_site'    => '官方網站',
+                        'anime_twitter_url'      => 'Twitter 連結',
+                        'anime_wikipedia_url'    => 'Wikipedia 連結',
+                        'anime_tiktok_url'       => 'TikTok 連結',
+                        'anime_tw_distributor'   => '台灣代理商',
+                        'anime_tw_broadcast'     => '台灣播出時間',
+                        'anime_cast_json'        => 'CAST 角色資料',
+                        'anime_staff_json'       => 'STAFF 製作資料',
+                        'anime_themes_json'      => 'OP/ED 主題曲',
+                        'anime_streaming_json'   => '串流平台資料',
+                        'anime_episodes_json'    => '集數列表',
+                    ],
+                    'layout'        => 'horizontal',
+                    'toggle'        => 0,
+                    'return_format' => 'value',
+                    'wrapper'       => [ 'width' => '100' ],
                 ],
                 // F4：重新同步 Bangumi 按鈕
                 [
@@ -625,71 +823,77 @@ class Anime_Sync_ACF_Fields {
                     'label'        => '重新同步 Bangumi',
                     'name'         => 'anime_resync_bangumi_btn',
                     'type'         => 'message',
-                    'message'      => '<button type="button" id="anime-resync-bangumi-btn" class="button button-secondary">🔄 重新同步 Bangumi 資料</button>
-<span id="anime-resync-bangumi-msg" style="margin-left:10px;"></span>',
-                    'instructions' => '點擊後將從 Bangumi 重新抓取：中文標題、簡介、封面、評分、Staff、Cast、集數。',
+                    'message'      => '<button type="button" id="anime-resync-bangumi-btn" class="button button-secondary">🔄 重新同步 Bangumi 資料</button> <span id="anime-resync-bangumi-msg" style="margin-left:10px;"></span>',
+                    'instructions' => '點擊後將從 Bangumi 重新抓取：中文標題、簡介、封面、評分、STAFF、CAST、集數列表。',
+                    'wrapper'      => [ 'width' => '100' ],
                 ],
             ],
-            'location'   => [ [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ] ],
-            'menu_order' => 90,
+            'location'    => [
+                [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
+            ],
+            'menu_order'  => 90,
+            'position'    => 'side',
+            'style'       => 'default',
+            'active'      => true,
         ] );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // F4：重新同步 Bangumi AJAX Script
-    // ═══════════════════════════════════════════════════════════
-
-    private function register_resync_script() {
+    // =========================================================================
+    // F4：重新同步 Bangumi — 後台 AJAX Script
+    // =========================================================================
+    private function register_resync_script(): void {
         add_action( 'acf/input/admin_footer', function () {
             $screen = get_current_screen();
-            if ( ! $screen || $screen->post_type !== 'anime' ) return;
+            if ( ! $screen || $screen->post_type !== 'anime' ) {
+                return;
+            }
             ?>
             <script>
-            (function($) {
-                $('#anime-resync-bangumi-btn').on('click', function() {
-                    var $btn  = $(this);
-                    var $msg  = $('#anime-resync-bangumi-msg');
+            (function ($) {
+                'use strict';
+                $('#anime-resync-bangumi-btn').on('click', function () {
+                    var $btn      = $(this);
+                    var $msg      = $('#anime-resync-bangumi-msg');
                     var postId    = $('#post_ID').val();
                     var bangumiId = $('input[name="anime_bangumi_id"]').val()
                                  || $('#acf-field_anime_bangumi_id').val();
 
-                    if (!bangumiId) {
-                        $msg.css('color','red').text('請先填入 Bangumi ID');
+                    if ( ! bangumiId ) {
+                        $msg.css('color', 'red').text('請先填入 Bangumi ID 並儲存文章。');
                         return;
                     }
 
                     $btn.prop('disabled', true);
-                    $msg.css('color','#666').text('同步中…');
+                    $msg.css('color', '#666').text('同步中，請稍候…');
 
                     $.post(ajaxurl, {
                         action    : 'anime_resync_bangumi',
-                        nonce     : '<?php echo esc_js( wp_create_nonce( "anime_sync_nonce" ) ); ?>',
+                        nonce     : '<?php echo esc_js( wp_create_nonce( 'anime_sync_nonce' ) ); ?>',
                         post_id   : postId,
-                        bangumi_id: bangumiId
-                    }, function(res) {
-                        if (res.success) {
-                            $msg.css('color','green').text('✅ ' + res.data);
-                            setTimeout(function(){ location.reload(); }, 1500);
+                        bangumi_id: bangumiId,
+                    }, function (res) {
+                        if ( res.success ) {
+                            $msg.css('color', 'green').text('✅ ' + res.data);
+                            setTimeout(function () { location.reload(); }, 1500);
                         } else {
-                            $msg.css('color','red').text('❌ ' + res.data);
+                            $msg.css('color', 'red').text('❌ ' + res.data);
                         }
-                    }).fail(function(){
-                        $msg.css('color','red').text('❌ 網路錯誤，請重試');
-                    }).always(function(){
+                    }).fail(function () {
+                        $msg.css('color', 'red').text('❌ 網路錯誤，請重試。');
+                    }).always(function () {
                         $btn.prop('disabled', false);
                     });
                 });
-            })(jQuery);
+            }(jQuery));
             </script>
             <?php
         } );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // Helper：16 個台灣串流平台
-    // ═══════════════════════════════════════════════════════════
-
-    private function get_tw_platforms() {
+    // =========================================================================
+    // Helper：16 個台灣串流平台定義
+    // =========================================================================
+    private function get_tw_platforms(): array {
         return [
             'bahamut'     => '巴哈姆特動畫瘋',
             'netflix'     => 'Netflix',
@@ -710,38 +914,64 @@ class Anime_Sync_ACF_Fields {
         ];
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // Helper：可自動更新的欄位（供鎖定欄位 checkbox 使用）
-    // ═══════════════════════════════════════════════════════════
+    // =========================================================================
+    // 靜態輔助方法（保留原始版本）
+    // =========================================================================
 
-    private function get_auto_update_fields_labeled() {
+    public static function get_auto_update_fields(): array {
         return [
-            'anime_title_chinese'     => '中文標題',
-            'anime_title_native'      => '日文標題',
-            'anime_title_romaji'      => '羅馬拼音標題',
-            'anime_title_english'     => '英文標題',
-            'anime_synopsis_chinese'  => '中文簡介',
-            'anime_cover_image'       => '封面圖',
-            'anime_banner_image'      => '橫幅圖',
-            'anime_score_anilist'     => 'AniList 評分',
-            'anime_score_mal'         => 'MAL 評分',
-            'anime_score_bangumi'     => 'Bangumi 評分',
-            'anime_staff_json'        => 'Staff JSON',
-            'anime_cast_json'         => 'Cast JSON',
-            'anime_episodes_json'     => '集數列表 JSON',
-            'anime_themes'            => '主題曲 JSON',
-            'anime_streaming'         => '國際串流 JSON',
-            'anime_wikipedia_url'     => 'Wikipedia URL',
-            'anime_start_date'        => '開始日期',
-            'anime_end_date'          => '結束日期',
-            'anime_studios'           => '製作公司',
-            'anime_format'            => '類型',
-            'anime_status'            => '狀態',
-            'anime_episodes'          => '集數',
-            'anime_duration'          => '每集時長',
-            'anime_source'            => '原作來源',
-            'anime_popularity'        => '人氣',
+            'anime_episodes_aired' => '已播集數',
+            'anime_status'         => '播出狀態',
+            'anime_next_airing'    => '下一集播出時間',
+            'anime_end_date'       => '完結日期',
+            'anime_episodes'       => '總集數（完結確認）',
+            'anime_score_anilist'  => 'AniList 評分',
+            'anime_score_mal'      => 'MAL 評分',
+            'anime_score_bangumi'  => 'Bangumi 評分',
+            'anime_popularity'     => 'AniList 人氣數',
+            'anime_ranking'        => 'AniList 排名',
+            'anime_themes_json'    => 'OP/ED 主題曲',
         ];
+    }
+
+    public static function get_one_time_fields(): array {
+        return [
+            'anime_anilist_id'       => 'AniList ID',
+            'anime_mal_id'           => 'MAL ID',
+            'anime_bangumi_id'       => 'Bangumi ID',
+            'anime_animethemes_id'   => 'AnimeThemes ID',
+            'anime_title_native'     => '日文原名',
+            'anime_title_romaji'     => 'Romaji 標題',
+            'anime_title_english'    => '英文標題',
+            'anime_format'           => '作品類型',
+            'anime_source'           => '原作來源',
+            'anime_season'           => '播出季度',
+            'anime_season_year'      => '播出年份',
+            'anime_duration'         => '每集時長',
+            'anime_start_date'       => '開播日期',
+            'anime_cover_image'      => '封面圖片',
+            'anime_banner_image'     => '橫幅圖片',
+            'anime_studio'           => '製作公司',
+            'anime_staff_json'       => 'STAFF 資料',
+            'anime_cast_json'        => 'CAST 資料',
+            'anime_streaming_json'   => '串流平台資料',
+            'anime_official_site'    => '官方網站',
+            'anime_twitter_url'      => 'Twitter 連結',
+        ];
+    }
+
+    public static function is_field_locked( int $post_id, string $meta_key ): bool {
+        if ( ! function_exists( 'get_field' ) ) {
+            $locked = get_post_meta( $post_id, 'anime_locked_fields', true );
+        } else {
+            $locked = get_field( 'anime_locked_fields', $post_id );
+        }
+
+        if ( empty( $locked ) || ! is_array( $locked ) ) {
+            return false;
+        }
+
+        return in_array( $meta_key, $locked, true );
     }
 }
 
