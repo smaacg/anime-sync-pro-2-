@@ -13,6 +13,12 @@
  *         handle_ajax_analyze_series()     → Tab 4 系列分析
  *         handle_ajax_import_series()      → Tab 4 系列匯入（含歸類）
  *         handle_ajax_popularity_ranking() → Tab 5 人氣排行
+ *
+ * ACE – handle_ajax_analyze_series() 修正：
+ *       1. is_wp_error() 防呆
+ *       2. 判斷改為 empty($result['nodes'])（原 'tree' key 不存在）
+ *       3. 回傳時將 nodes 對應到前端需要的 'tree' key
+ *       4. 補算 total / imported 統計數字
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -42,6 +48,10 @@ class Anime_Sync_Admin {
         add_action( 'wp_ajax_anime_sync_popularity_ranking', [ $this, 'handle_ajax_popularity_ranking' ] );
     }
 
+    // =========================================================================
+    // Admin Menu
+    // =========================================================================
+
     public function register_admin_menu(): void {
         $cap = 'manage_options';
         add_menu_page( '動畫同步 Pro', '動畫同步', $cap, 'anime-sync-pro', [ $this, 'render_dashboard' ], 'dashicons-video-alt', 30 );
@@ -67,7 +77,10 @@ class Anime_Sync_Admin {
     public function render_logs_page()      { $this->safe_include_page( 'logs.php'           ); }
     public function render_settings()       { $this->safe_include_page( 'settings.php'       ); }
 
-    // ── AJAX：單筆匯入 ─────────────────────────────────────
+    // =========================================================================
+    // AJAX：單筆匯入
+    // =========================================================================
+
     public function handle_ajax_import_single(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
@@ -78,7 +91,10 @@ class Anime_Sync_Admin {
         wp_send_json_success( $result );
     }
 
-    // ── AJAX：手動補抓單部（ACB 新增）──────────────────────
+    // =========================================================================
+    // AJAX：手動補抓單部（ACB）
+    // =========================================================================
+
     public function handle_ajax_enrich_single(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
@@ -92,7 +108,10 @@ class Anime_Sync_Admin {
         wp_send_json_success( [ 'message' => '補抓完成', 'enriched' => array_keys( $result ) ] );
     }
 
-    // ── AJAX：查詢季度清單（ACD：修正分頁，不再固定 50 部）──
+    // =========================================================================
+    // AJAX：查詢季度清單（ACD：分頁，最多 10 頁 = 500 筆）
+    // =========================================================================
+
     public function handle_ajax_query_season(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
@@ -131,7 +150,6 @@ class Anime_Sync_Admin {
 
             $code = (int) wp_remote_retrieve_response_code( $res );
 
-            // 429 速率限制：等待 65 秒後重試一次
             if ( $code === 429 ) {
                 sleep( 65 );
                 $res = wp_remote_post( 'https://graphql.anilist.co', [
@@ -181,7 +199,6 @@ class Anime_Sync_Admin {
 
             $page++;
 
-            // 每頁間隔 0.5 秒，避免連續觸發 429
             if ( $has_next && $page <= 10 ) {
                 usleep( 500000 );
             }
@@ -195,7 +212,10 @@ class Anime_Sync_Admin {
         wp_send_json_success( [ 'list' => $all_list, 'total' => count( $all_list ) ] );
     }
 
-    // ── AJAX：批次操作 ─────────────────────────────────────
+    // =========================================================================
+    // AJAX：批次操作
+    // =========================================================================
+
     public function handle_ajax_bulk_action(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
@@ -232,7 +252,10 @@ class Anime_Sync_Admin {
         wp_send_json_success( [ 'count' => $count, 'message' => "已完成 {$count} 筆操作" ] );
     }
 
-    // ── AJAX：儲存 Bangumi ID ──────────────────────────────
+    // =========================================================================
+    // AJAX：儲存 Bangumi ID
+    // =========================================================================
+
     public function handle_ajax_save_bangumi_id(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
@@ -247,7 +270,10 @@ class Anime_Sync_Admin {
         wp_send_json_success( [ 'bangumi_id' => $bangumi_id ] );
     }
 
-    // ── AJAX：更新 ID 對照表 ───────────────────────────────
+    // =========================================================================
+    // AJAX：更新 ID 對照表
+    // =========================================================================
+
     public function handle_ajax_update_map(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
@@ -273,7 +299,10 @@ class Anime_Sync_Admin {
         }
     }
 
-    // ── AJAX：清除快取 ─────────────────────────────────────
+    // =========================================================================
+    // AJAX：清除快取
+    // =========================================================================
+
     public function handle_ajax_clear_cache(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
@@ -286,7 +315,10 @@ class Anime_Sync_Admin {
         wp_send_json_success( '已清除 ' . (int) $count . ' 筆快取' );
     }
 
-    // ── AJAX：清除日誌 ─────────────────────────────────────
+    // =========================================================================
+    // AJAX：清除日誌
+    // =========================================================================
+
     public function handle_ajax_clear_logs(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
@@ -298,7 +330,15 @@ class Anime_Sync_Admin {
         }
     }
 
-    // ── AJAX：系列分析（ACD 新增，Tab 4）─────────────────────
+    // =========================================================================
+    // AJAX：系列分析（ACD，Tab 4）
+    // ACE 修正：
+    //   1. is_wp_error() 防呆
+    //   2. 判斷改用 empty($result['nodes'])
+    //   3. 回傳時將 nodes 映射為前端 JS 需要的 'tree' key
+    //   4. 補算 total / imported 統計
+    // =========================================================================
+
     public function handle_ajax_analyze_series(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
@@ -310,14 +350,34 @@ class Anime_Sync_Admin {
 
         $result = $this->import_manager->analyze_series( $anilist_id );
 
-        if ( empty( $result['tree'] ) ) {
+        // 防呆：WP_Error
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+        }
+
+        // 防呆：nodes 為空
+        if ( empty( $result['nodes'] ) ) {
             wp_send_json_error( [ 'message' => '找不到系列資料，請確認 ID 是否正確' ] );
         }
 
-        wp_send_json_success( $result );
+        // 補算 total / imported 統計（前端顯示用）
+        $nodes    = $result['nodes'];
+        $total    = count( $nodes );
+        $imported = count( array_filter( $nodes, fn( $n ) => ! empty( $n['imported'] ) ) );
+
+        wp_send_json_success( [
+            'root_id'     => $result['root_id'],
+            'series_name' => $result['series_name'],
+            'tree'        => $nodes,    // 前端 JS 讀 res.data.tree
+            'total'       => $total,
+            'imported'    => $imported,
+        ] );
     }
 
-    // ── AJAX：系列匯入（ACD 新增，Tab 4）─────────────────────
+    // =========================================================================
+    // AJAX：系列匯入（ACD，Tab 4）
+    // =========================================================================
+
     public function handle_ajax_import_series(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
@@ -340,14 +400,16 @@ class Anime_Sync_Admin {
         wp_send_json_success( $result );
     }
 
-    // ── AJAX：人氣排行（ACD 新增，Tab 5）─────────────────────
+    // =========================================================================
+    // AJAX：人氣排行（ACD，Tab 5）
+    // =========================================================================
+
     public function handle_ajax_popularity_ranking(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
 
         $page = max( 1, intval( $_POST['page'] ?? 1 ) );
 
-        // 確認 import_manager 有 get_popularity_ranking() 方法
         if ( ! method_exists( $this->import_manager, 'get_popularity_ranking' ) ) {
             wp_send_json_error( [ 'message' => '功能不可用，請確認外掛版本是否為 1.0.5+' ] );
         }
@@ -361,7 +423,10 @@ class Anime_Sync_Admin {
         wp_send_json_success( $result );
     }
 
-    // ── 載入後台資源 ───────────────────────────────────────
+    // =========================================================================
+    // 載入後台資源
+    // =========================================================================
+
     public function enqueue_admin_assets( string $hook ): void {
         if ( strpos( $hook, 'anime-sync' ) === false ) return;
         $url     = defined( 'ANIME_SYNC_PRO_URL' )     ? ANIME_SYNC_PRO_URL     : plugin_dir_url( dirname( __FILE__ ) );
