@@ -13,6 +13,11 @@
  *   ABR    – 結構級圖片修正：relations/sidebar-rel/staff/cast 圖片加容器包裹
  *            搭配 anime-single.css v11.2 的 position:absolute img 模式
  *            移除 get_the_post_thumbnail() 的硬編尺寸，由 CSS aspect-ratio 控制
+ *   ABT    – 配色更新：靜夜深藍黑系 Glass 設計，背景 #1E242B
+ *            封面圖放大至 220×308（2:3），移除底部熱門推薦
+ *            相關作品只顯示站內文章（不顯示 AniList 外部連結）
+ *            CAST/STAFF 標題改英文，主題曲新增 AnimeThemes embed 播放器
+ *            基本資訊改 2 欄 icon 卡片版型
  *
  * @package Anime_Sync_Pro
  */
@@ -23,7 +28,7 @@ wp_enqueue_style(
     'anime-sync-single',
     plugin_dir_url( dirname( __FILE__ ) ) . 'assets/css/anime-single.css',
     [],
-    defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0'
+    '1.1.4'  // ABT: v11.4 color + cover + embed
 );
 
 get_header();
@@ -237,23 +242,39 @@ while ( have_posts() ) : the_post();
     $season_terms = get_the_terms( $post_id, 'anime_season_tax' ) ?: [];
     $format_terms = get_the_terms( $post_id, 'anime_format_tax' ) ?: [];
 
-    // 熱門推薦
+    // 熱門推薦（已移除，不再顯示底部推薦區塊）
     $recommend_posts = [];
-    if ( ! empty( $genre_terms ) ) {
-        $genre_ids = wp_list_pluck( $genre_terms, 'term_id' );
-        $rq = new WP_Query( [
-            'post_type'      => 'anime',
-            'post_status'    => 'publish',
-            'posts_per_page' => 6,
-            'post__not_in'   => [ $post_id ],
-            'tax_query'      => [ [ 'taxonomy' => 'genre', 'field' => 'term_id', 'terms' => $genre_ids, 'operator' => 'IN' ] ],
-            'meta_key'       => 'anime_score_anilist',
-            'orderby'        => 'meta_value_num',
-            'order'          => 'DESC',
-            'no_found_rows'  => true,
-        ] );
-        $recommend_posts = $rq->posts;
-        wp_reset_postdata();
+
+    // 站內相關作品：只顯示本站已有文章的關聯（以 anime_anilist_id 查詢）
+    $site_relations = [];
+    if ( ! empty( $relations_list ) ) {
+        foreach ( $relations_list as $rel ) {
+            $rel_anilist_id = (int) ( $rel['anilist_id'] ?? $rel['id'] ?? 0 );
+            if ( ! $rel_anilist_id ) continue;
+            // 查詢本站是否有對應的文章
+            $qr = get_posts( [
+                'post_type'      => 'anime',
+                'post_status'    => 'publish',
+                'posts_per_page' => 1,
+                'no_found_rows'  => true,
+                'meta_query'     => [ [
+                    'key'   => 'anime_anilist_id',
+                    'value' => $rel_anilist_id,
+                    'type'  => 'NUMERIC',
+                ] ],
+            ] );
+            if ( ! empty( $qr ) ) {
+                $site_rel_post = $qr[0];
+                $site_relations[] = [
+                    'title_zh'      => $rel['title_zh']      ?? ( $rel['title'] ?? '' ),
+                    'title_native'  => $rel['title_native']  ?? ( $rel['native'] ?? '' ),
+                    'relation_label'=> $rel['relation_label'] ?? ( $rel['type'] ?? '' ),
+                    'format'        => $rel['format']        ?? '',
+                    'cover_image'   => get_post_meta( $site_rel_post->ID, 'anime_cover_image', true ) ?: ( $rel['cover_image'] ?? '' ),
+                    'url'           => get_permalink( $site_rel_post->ID ),
+                ];
+            }
+        }
     }
 
     // 相關新聞
@@ -541,7 +562,7 @@ while ( have_posts() ) : the_post();
 
         <?php if ( $cast_list ) : ?>
         <section class="asd-section" id="asd-sec-cast">
-            <h2 class="asd-section-title">🎭 角色與聲優</h2>
+            <h2 class="asd-section-title">🎭 CAST</h2>
             <div class="asd-cast-grid" id="asd-cast-grid">
             <?php foreach ( $cast_list as $i => $c ) :
                 $char_name = $c['char_name_zh'] ?? ( $c['char_name_ja'] ?? ( $c['character'] ?? '' ) );
@@ -571,7 +592,7 @@ while ( have_posts() ) : the_post();
 
         <?php if ( $staff_list ) : ?>
         <section class="asd-section" id="asd-sec-staff">
-            <h2 class="asd-section-title">🎬 製作人員</h2>
+            <h2 class="asd-section-title">🎬 STAFF</h2>
             <div class="asd-staff-grid">
             <?php foreach ( $staff_list as $s ) :
                 $s_name = $s['name_zh'] ?? ( $s['name'] ?? '' );
@@ -616,7 +637,26 @@ while ( have_posts() ) : the_post();
                         <span class="asd-theme-title"><?php echo esc_html( $t_title ); ?></span>
                         <?php if ( $t_artist ) echo '<span class="asd-theme-artist">' . esc_html( $t_artist ) . '</span>'; ?>
                     </div>
-                    <?php if ( $t_link ) : ?>
+                    <?php
+                    // AnimeThemes embed: build iframe URL using anime_slug + theme_slug
+                    $t_anime_slug = trim( $t['anime_slug'] ?? '' );
+                    $t_theme_slug = trim( $t['theme_slug'] ?? '' );
+                    // Fallback: derive from stored animethemes_id meta
+                    if ( ! $t_anime_slug ) {
+                        $t_anime_slug = get_post_meta( $post_id, 'anime_animethemes_id', true ) ?? '';
+                    }
+                    if ( ! $t_theme_slug && $t_label ) {
+                        $t_theme_slug = $t_label; // e.g. OP1, ED1
+                    }
+                    $t_embed_url = ( $t_anime_slug && $t_theme_slug )
+                        ? 'https://animethemes.moe/embed/' . rawurlencode( $t_anime_slug ) . '-' . rawurlencode( $t_theme_slug )
+                        : '';
+                    ?>
+                    <?php if ( $t_embed_url ) : ?>
+                    <div class="asd-theme-player">
+                        <button class="asd-theme-play-btn" data-embed="<?php echo esc_url( $t_embed_url ); ?>" aria-label="播放 <?php echo esc_attr( $t_title ); ?>">▶ 試聽</button>
+                    </div>
+                    <?php elseif ( $t_link ) : ?>
                     <div class="asd-theme-player">
                         <a href="<?php echo esc_url( $t_link ); ?>" class="asd-theme-play-link" target="_blank" rel="noopener">▶ 試聽</a>
                     </div>
@@ -672,21 +712,20 @@ while ( have_posts() ) : the_post();
         </section>
         <?php endif; ?>
 
-        <?php if ( ! empty( $relations_list ) ) : ?>
+        <?php if ( ! empty( $site_relations ) ) : ?>
         <section class="asd-section" id="asd-sec-relations">
             <h2 class="asd-section-title">🔗 相關作品</h2>
             <div class="asd-relations-grid">
-            <?php foreach ( $relations_list as $rel ) :
-                // Bug 6: 對齊 parse_relations() 實際 key
-                $rel_title  = $rel['title_zh']      ?? ( $rel['title']        ?? '' );
-                $rel_native = $rel['title_native']   ?? ( $rel['native']       ?? '' );
-                $rel_type   = $rel['relation_label'] ?? ( $rel['type']         ?? '' );
+            <?php foreach ( $site_relations as $rel ) :
+                $rel_title  = $rel['title_zh']       ?? '';
+                $rel_native = $rel['title_native']   ?? '';
+                $rel_type   = $rel['relation_label'] ?? '';
                 $rel_fmt    = $rel['format']         ?? '';
-                $rel_img    = $rel['cover']          ?? ( $rel['cover_image']  ?? '' );
-                $rel_url    = $rel['url']            ?? ( $rel['anilist_url']  ?? '' );
+                $rel_img    = $rel['cover_image']    ?? '';
+                $rel_url    = $rel['url']            ?? '';
                 if ( ! $rel_title && ! $rel_native ) continue;
             ?>
-            <<?php echo $rel_url ? 'a href="' . esc_url( $rel_url ) . '" ' : 'div '; ?>class="asd-relation-card" target="_blank" rel="noopener">
+            <a href="<?php echo esc_url( $rel_url ); ?>" class="asd-relation-card">
                 <?php /* ABR: img 外包 .asd-relation-thumb，搭配 CSS aspect-ratio + absolute img */ ?>
                 <div class="asd-relation-thumb">
                     <?php if ( $rel_img ) : ?>
@@ -699,7 +738,7 @@ while ( have_posts() ) : the_post();
                     <?php if ( $rel_native ) echo '<span class="asd-relation-native">' . esc_html( $rel_native ) . '</span>'; ?>
                     <?php if ( $rel_fmt )    echo '<span class="asd-relation-format">' . esc_html( $rel_fmt )    . '</span>'; ?>
                 </div>
-            </<?php echo $rel_url ? 'a' : 'div'; ?>>
+            </a>
             <?php endforeach; ?>
             </div>
         </section>
@@ -788,17 +827,17 @@ while ( have_posts() ) : the_post();
         </div>
         <?php endif; ?>
 
-        <?php if ( ! empty( $relations_list ) ) : ?>
+        <?php if ( ! empty( $site_relations ) ) : ?>
         <div class="asd-sidebar-block">
             <h3 class="asd-sidebar-title">系列作品</h3>
-            <?php foreach ( array_slice( $relations_list, 0, 5 ) as $rel ) :
-                $rel_title  = $rel['title_zh']      ?? ( $rel['title']       ?? '' );
-                $rel_type   = $rel['relation_label'] ?? ( $rel['type']        ?? '' );
-                $rel_img    = $rel['cover']          ?? ( $rel['cover_image'] ?? '' );
-                $rel_url    = $rel['url']            ?? ( $rel['anilist_url'] ?? '' );
+            <?php foreach ( array_slice( $site_relations, 0, 5 ) as $rel ) :
+                $rel_title  = $rel['title_zh']       ?? '';
+                $rel_type   = $rel['relation_label'] ?? '';
+                $rel_img    = $rel['cover_image']    ?? '';
+                $rel_url    = $rel['url']            ?? '';
                 if ( ! $rel_title ) continue;
             ?>
-            <a href="<?php echo $rel_url ? esc_url( $rel_url ) : '#'; ?>" class="asd-sidebar-rel-card" target="_blank" rel="noopener">
+            <a href="<?php echo esc_url( $rel_url ); ?>" class="asd-sidebar-rel-card">
                 <?php /* ABR: img 外包 .asd-sidebar-rel-thumb，搭配 CSS 44×62 + absolute img */ ?>
                 <div class="asd-sidebar-rel-thumb">
                     <?php if ( $rel_img ) : ?>
@@ -814,41 +853,14 @@ while ( have_posts() ) : the_post();
         </div>
         <?php endif; ?>
 
-        <?php /* ── 側欄推薦（ABP：asd-sidebar-rec-thumb-wrap 防跑版）── */ ?>
-        <?php if ( ! empty( $recommend_posts ) ) : ?>
-        <div class="asd-sidebar-block">
-            <h3 class="asd-sidebar-title">你可能也喜歡</h3>
-            <?php foreach ( array_slice( $recommend_posts, 0, 5 ) as $rec ) :
-                $rec_id        = $rec->ID;
-                $rec_title     = get_post_meta( $rec_id, 'anime_title_chinese', true ) ?: get_the_title( $rec_id );
-                $rec_score_raw = get_post_meta( $rec_id, 'anime_score_anilist', true );
-                $rec_score     = is_numeric( $rec_score_raw ) && $rec_score_raw > 0
-                                 ? number_format( (float) $rec_score_raw / 10, 1 ) : '';
-                $rec_cover     = get_post_meta( $rec_id, 'anime_cover_image', true );
-            ?>
-            <a href="<?php echo esc_url( get_permalink( $rec_id ) ); ?>" class="asd-sidebar-rec-card">
-                <div class="asd-sidebar-rec-thumb-wrap">
-                    <?php if ( $rec_cover ) : ?>
-                    <img src="<?php echo esc_url( $rec_cover ); ?>" alt="<?php echo esc_attr( $rec_title ); ?>" loading="lazy">
-                    <?php elseif ( has_post_thumbnail( $rec_id ) ) : ?>
-                    <?php echo get_the_post_thumbnail( $rec_id, 'thumbnail', ['loading' => 'lazy'] ); ?>
-                    <?php else : ?><div class="asd-sidebar-rec-noimg">🎬</div><?php endif; ?>
-                </div>
-                <div class="asd-sidebar-rec-info">
-                    <span class="asd-sidebar-rec-title"><?php echo esc_html( $rec_title ); ?></span>
-                    <?php if ( $rec_score ) echo '<span class="asd-sidebar-rec-score">⭐ ' . esc_html( $rec_score ) . '</span>'; ?>
-                </div>
-            </a>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
+        <?php /* 側欄推薦已移除 – ABT */ ?>
 
     </aside>
 
 </div>
 
-<?php /* ══ 底部熱門推薦（ABP：asd-rec-thumb-wrap 防跑版）══ */ ?>
-<?php if ( ! empty( $recommend_posts ) ) : ?>
+<?php /* 底部熱門推薦已移除 – ABT */ ?>
+<?php if ( false ) : ?>
 <section class="asd-bottom-recs">
     <h2 class="asd-bottom-recs-title">🔥 熱門推薦</h2>
     <div class="asd-bottom-recs-grid">
@@ -928,6 +940,31 @@ while ( have_posts() ) : the_post();
         }, { rootMargin: '-20% 0px -70% 0px' });
         secs.forEach(function(s){ io.observe(s); });
     }
+    // AnimeThemes 播放按鈕：inline embed
+    document.querySelectorAll('.asd-theme-play-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            var embedUrl = btn.getAttribute('data-embed');
+            if ( ! embedUrl ) return;
+            // 如果已展開，則收起
+            var row = btn.closest('.asd-theme-row');
+            var existing = row.querySelector('.asd-theme-embed-wrap');
+            if ( existing ) {
+                existing.remove();
+                btn.classList.remove('active');
+                return;
+            }
+            // 建立 iframe embed
+            var wrap = document.createElement('div');
+            wrap.className = 'asd-theme-embed-wrap';
+            wrap.innerHTML = '<iframe src="' + embedUrl + '" allowfullscreen loading="lazy" frameborder="0" allow="autoplay; encrypted-media"></iframe><button class="asd-theme-embed-close" aria-label="關閉">✕</button>';
+            row.insertAdjacentElement('afterend', wrap);
+            btn.classList.add('active');
+            wrap.querySelector('.asd-theme-embed-close').addEventListener('click', function(){
+                wrap.remove();
+                btn.classList.remove('active');
+            });
+        });
+    });
 })();
 </script>
 
