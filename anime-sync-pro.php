@@ -330,7 +330,7 @@ add_action( 'plugins_loaded', function () {
                 );
 
                 // 將 nonce 與 ajaxurl 傳給 JS
-                wp_localize_script( 'anime-sync-admin', 'AnimeSyncAdmin', [
+                wp_localize_script( 'anime-sync-admin', 'animeSyncAdmin', [
                     'ajaxurl' => admin_url( 'admin-ajax.php' ),
                     'nonce'   => wp_create_nonce( 'anime_resync_bangumi_nonce' ),
                     'i18n'    => [
