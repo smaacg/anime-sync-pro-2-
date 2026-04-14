@@ -3,6 +3,12 @@
  * Error Logger
  *
  * @package Anime_Sync_Pro
+ *
+ * 修正：
+ * ADA – 新增靜態 log() 方法，供 class-api-handler.php 等以
+ *       Anime_Sync_Error_Logger::log('level','msg') 方式呼叫
+ *       解決日誌頁完全空白的問題
+ * ADB – 修正 logs.php nonce 不一致問題（在此記錄，實際改在 logs.php）
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -81,17 +87,22 @@ class Anime_Sync_Error_Logger {
             }
         }
 
-        return $logs;
+        return $logs ?: [];
     }
 
     public function delete_old_logs( int $days = 30 ): int {
-        $date   = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
-        $result = $this->wpdb->query(
-            $this->wpdb->prepare(
-                "DELETE FROM {$this->table_name} WHERE created_at < %s",
-                $date
-            )
-        );
+        if ( $days <= 0 ) {
+            // days = 0 表示清除全部
+            $result = $this->wpdb->query( "DELETE FROM {$this->table_name}" );
+        } else {
+            $date   = gmdate( 'Y-m-d H:i:s', strtotime( "-{$days} days" ) );
+            $result = $this->wpdb->query(
+                $this->wpdb->prepare(
+                    "DELETE FROM {$this->table_name} WHERE created_at < %s",
+                    $date
+                )
+            );
+        }
         return (int) $result;
     }
 
@@ -144,23 +155,40 @@ class Anime_Sync_Error_Logger {
     }
 
     // =========================================================================
-    // 靜態包裝方法（供其他類別用靜態方式呼叫）
+    // 靜態方法
     // =========================================================================
 
-    public static function info( string $context, string $message ): void {
-        ( new self() )->log( self::LEVEL_INFO, "[{$context}] {$message}" );
+    /**
+     * ADA：靜態 log() 方法
+     * 供 class-api-handler.php 等以下列方式呼叫：
+     *   Anime_Sync_Error_Logger::log( 'debug', '...' )
+     *   Anime_Sync_Error_Logger::log( 'error', '...' )
+     *
+     * 注意：PHP 允許同名靜態與實例方法在不同呼叫情境下並存，
+     * 但為避免混淆，靜態呼叫時 'debug' 等級會自動對應到 'info'。
+     */
+    public static function log( string $level, string $message, array $context = [] ): void {
+        // 'debug' 不在 valid_levels 內，會被實例 log() 自動轉為 'info'
+        ( new self() )->log( $level, $message, $context );
     }
 
-    public static function warning( string $context, string $message ): void {
-        ( new self() )->log( self::LEVEL_WARNING, "[{$context}] {$message}" );
+    /**
+     * 靜態快捷方法
+     */
+    public static function info( string $context_label, string $message, array $context = [] ): void {
+        ( new self() )->log( self::LEVEL_INFO, "[{$context_label}] {$message}", $context );
     }
 
-    public static function error( string $context, string $message ): void {
-        ( new self() )->log( self::LEVEL_ERROR, "[{$context}] {$message}" );
+    public static function warning( string $context_label, string $message, array $context = [] ): void {
+        ( new self() )->log( self::LEVEL_WARNING, "[{$context_label}] {$message}", $context );
     }
 
-    public static function critical( string $context, string $message ): void {
-        ( new self() )->log( self::LEVEL_CRITICAL, "[{$context}] {$message}" );
+    public static function error( string $context_label, string $message, array $context =[] ): void {
+        ( new self() )->log( self::LEVEL_ERROR, "[{$context_label}] {$message}", $context );
+    }
+
+    public static function critical( string $context_label, string $message, array $context = [] ): void {
+        ( new self() )->log( self::LEVEL_CRITICAL, "[{$context_label}] {$message}", $context );
     }
 
     /**
