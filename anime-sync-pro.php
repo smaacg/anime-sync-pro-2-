@@ -2,13 +2,16 @@
 /**
  * Plugin Name:       Anime Sync Pro
  * Description:       從 AniList、Bangumi 自動同步動畫資料。
- * Version:           1.0.2
+ * Version:           1.0.3
  * Author:            Your Name
  * Requires PHP:      8.0
  * Text Domain:       anime-sync-pro
  *
  * Bug fixes in this version:
  *   問題 6 – CPT 註冊加入 post_tag，讓動畫文章支援 WordPress 內建標籤
+ *   ACB   – 新增 anime_sync_enrich_post WP Cron hook，
+ *           匯入後 60 秒自動補抓 staff / episodes / MAL / Wikipedia / Themes
+ *           版本號更新至 1.0.3
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -18,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ============================================================
 // 1. 常數定義
 // ============================================================
-define( 'ANIME_SYNC_PRO_VERSION',  '1.0.2' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.0.3' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -54,7 +57,6 @@ add_action( 'init', function () {
 
     // ----------------------------------------------------------
     // Post Type: anime
-    // 問題 6 修正：taxonomies 加入 'post_tag'
     // ----------------------------------------------------------
     register_post_type( 'anime', [
         'labels' => [
@@ -75,7 +77,7 @@ add_action( 'init', function () {
         'menu_icon'       => 'dashicons-format-video',
         'menu_position'   => 5,
         'supports'        => [ 'title', 'editor', 'thumbnail', 'custom-fields', 'comments' ],
-        'taxonomies'      => [ 'post_tag' ],   // 問題 6：加入 post_tag 讓後台顯示標籤欄位
+        'taxonomies'      => [ 'post_tag' ],
         'capability_type' => 'post',
         'map_meta_cap'    => true,
         'rewrite'         => [ 'slug' => 'anime', 'with_front' => false ],
@@ -193,7 +195,8 @@ add_action( 'plugins_loaded', function () {
         if ( is_admin() ) {
             add_action( 'admin_notices', function () {
                 echo '<div class="notice notice-error"><p>';
-                echo '<strong>Anime Sync Pro</strong> 需要安裝並啟用 <a href="https://www.advancedcustomfields.com/" target="_blank">Advanced Custom Fields</a> 才能正常運作。';
+                echo '<strong>Anime Sync Pro</strong> 需要安裝並啟用 ';
+                echo '<a href="https://www.advancedcustomfields.com/" target="_blank">Advanced Custom Fields</a> 才能正常運作。';
                 echo '</p></div>';
             } );
         }
@@ -218,20 +221,20 @@ add_action( 'plugins_loaded', function () {
                         ? new Anime_Sync_Rate_Limiter()
                         : null;
 
-        // ID Mapper（注入 rate_limiter）
-        $id_mapper    = class_exists( 'Anime_Sync_ID_Mapper' )
-                        ? new Anime_Sync_ID_Mapper( $rate_limiter )
-                        : null;
+        // ID Mapper
+        $id_mapper = class_exists( 'Anime_Sync_ID_Mapper' )
+                     ? new Anime_Sync_ID_Mapper( $rate_limiter )
+                     : null;
 
         // CN Converter
-        $converter    = class_exists( 'Anime_Sync_CN_Converter' )
-                        ? new Anime_Sync_CN_Converter()
-                        : null;
+        $converter = class_exists( 'Anime_Sync_CN_Converter' )
+                     ? new Anime_Sync_CN_Converter()
+                     : null;
 
-        // API Handler（rate_limiter 第一、id_mapper 第二，與 constructor 簽名一致）
-        $api_handler  = class_exists( 'Anime_Sync_API_Handler' )
-                        ? new Anime_Sync_API_Handler( $rate_limiter, $id_mapper )
-                        : null;
+        // API Handler
+        $api_handler = class_exists( 'Anime_Sync_API_Handler' )
+                       ? new Anime_Sync_API_Handler( $rate_limiter, $id_mapper )
+                       : null;
 
         // Import Manager
         $import_manager = ( $api_handler && class_exists( 'Anime_Sync_Import_Manager' ) )
@@ -243,7 +246,7 @@ add_action( 'plugins_loaded', function () {
             new Anime_Sync_Admin( $import_manager );
         }
 
-        // Cron Manager
+        // Cron Manager（週期性同步排程）
         if ( $import_manager && class_exists( 'Anime_Sync_Cron_Manager' ) ) {
             new Anime_Sync_Cron_Manager( $import_manager );
         }
@@ -252,6 +255,25 @@ add_action( 'plugins_loaded', function () {
         if ( is_admin() && class_exists( 'Anime_Sync_Custom_Post_Type' ) ) {
             new Anime_Sync_Custom_Post_Type();
         }
+
+        // ── ACB：補抓任務 hook ────────────────────────────────────────────────
+        // import_single() 匯入後 60 秒觸發，補抓 staff/episodes/MAL/Wikipedia/Themes
+        // 此 hook 需在 $import_manager 存在時才掛載，
+        // 且必須在 is_admin() || DOING_CRON 區塊內（Cron 執行時也需要）
+        if ( $import_manager ) {
+            add_action(
+                'anime_sync_enrich_post',
+                function ( int $post_id ) use ( $import_manager ) {
+                    // 防止重複執行：若已補抓則跳過
+                    $enriched_at = get_post_meta( $post_id, '_enriched_at', true );
+                    if ( $enriched_at ) {
+                        return;
+                    }
+                    $import_manager->enrich_single( $post_id );
+                }
+            );
+        }
+        // ─────────────────────────────────────────────────────────────────────
     }
 
 } );
