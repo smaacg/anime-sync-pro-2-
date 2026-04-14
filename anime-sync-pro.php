@@ -2,18 +2,14 @@
 /**
  * Plugin Name:       Anime Sync Pro
  * Description:       從 AniList、Bangumi 自動同步動畫資料。
- * Version:           1.0.3
+ * Version:           1.0.4
  * Author:            Your Name
  * Requires PHP:      8.0
  * Text Domain:       anime-sync-pro
  *
- * Bug fixes in this version:
- *   問題 6 – CPT 註冊加入 post_tag，讓動畫文章支援 WordPress 內建標籤
- *   ACB   – 新增 anime_sync_enrich_post WP Cron hook，
- *           匯入後 60 秒自動補抓 staff / episodes / MAL / Wikipedia / Themes
- *           版本號更新至 1.0.3
- *   ACC   – 修正 Anime_Sync_Import_Manager 建構子只傳 1 個參數的 Fatal error
- *           new Anime_Sync_Import_Manager( $api_handler, $converter )
+ * Bug fixes / features in this version:
+ *   ACD – 新增 anime_series_tax taxonomy（系列分類）
+ *         版本號更新至 1.0.4
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -23,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ============================================================
 // 1. 常數定義
 // ============================================================
-define( 'ANIME_SYNC_PRO_VERSION',  '1.0.3' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.0.4' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -73,16 +69,18 @@ add_action( 'init', function () {
             'all_items'     => '所有動畫',
             'menu_name'     => '動畫',
         ],
-        'public'          => true,
-        'has_archive'     => 'anime',
-        'show_in_rest'    => true,
-        'menu_icon'       => 'dashicons-format-video',
-        'menu_position'   => 5,
-        'supports'        => [ 'title', 'editor', 'thumbnail', 'custom-fields', 'comments' ],
-        'taxonomies'      => [ 'post_tag' ],
-        'capability_type' => 'post',
-        'map_meta_cap'    => true,
-        'rewrite'         => [ 'slug' => 'anime', 'with_front' => false ],
+        'public'             => true,
+        'has_archive'        => 'anime',
+        'show_in_rest'       => true,
+        'show_in_nav_menus'  => true,
+        'show_ui'            => true,
+        'menu_icon'          => 'dashicons-format-video',
+        'menu_position'      => 5,
+        'supports'           => [ 'title', 'editor', 'thumbnail', 'custom-fields', 'comments' ],
+        'taxonomies'         => [ 'post_tag' ],
+        'capability_type'    => 'post',
+        'map_meta_cap'       => true,
+        'rewrite'            => [ 'slug' => 'anime', 'with_front' => false ],
     ] );
 
     // ----------------------------------------------------------
@@ -99,6 +97,7 @@ add_action( 'init', function () {
         ],
         'hierarchical'      => true,
         'show_in_rest'      => true,
+        'show_in_nav_menus' => true,
         'show_admin_column' => true,
         'rewrite'           => [ 'slug' => 'genre', 'with_front' => false ],
     ] );
@@ -117,6 +116,7 @@ add_action( 'init', function () {
         ],
         'hierarchical'      => true,
         'show_in_rest'      => true,
+        'show_in_nav_menus' => true,
         'show_admin_column' => true,
         'rewrite'           => [ 'slug' => 'season', 'with_front' => false ],
     ] );
@@ -135,8 +135,32 @@ add_action( 'init', function () {
         ],
         'hierarchical'      => true,
         'show_in_rest'      => true,
+        'show_in_nav_menus' => true,
         'show_admin_column' => true,
         'rewrite'           => [ 'slug' => 'format', 'with_front' => false ],
+    ] );
+
+    // ----------------------------------------------------------
+    // Taxonomy: anime_series_tax（ACD 新增）
+    // 系列分類，非階層，一部作品可屬於一個系列大群組
+    // 例如：「進擊的巨人」系列、「Fate」系列
+    // ----------------------------------------------------------
+    register_taxonomy( 'anime_series_tax', [ 'anime' ], [
+        'labels' => [
+            'name'              => '系列',
+            'singular_name'     => '系列',
+            'search_items'      => '搜尋系列',
+            'all_items'         => '所有系列',
+            'edit_item'         => '編輯系列',
+            'add_new_item'      => '新增系列',
+            'new_item_name'     => '新系列名稱',
+            'menu_name'         => '系列',
+        ],
+        'hierarchical'      => false,   // 系列不需要父子層級
+        'show_in_rest'      => true,
+        'show_in_nav_menus' => true,
+        'show_admin_column' => true,
+        'rewrite'           => [ 'slug' => 'series', 'with_front' => false ],
     ] );
 
 }, 10 );
@@ -146,7 +170,6 @@ add_action( 'init', function () {
 // ============================================================
 register_activation_hook( __FILE__, function () {
 
-    // 4-1. 執行 Installer
     if ( ! class_exists( 'Anime_Sync_Installer' ) ) {
         $installer_file = ANIME_SYNC_PRO_DIR . 'includes/class-installer.php';
         if ( file_exists( $installer_file ) ) {
@@ -157,7 +180,6 @@ register_activation_hook( __FILE__, function () {
         ( new Anime_Sync_Installer() )->activate();
     }
 
-    // 4-2. 啟用 Cron Manager 排程
     if ( ! class_exists( 'Anime_Sync_Cron_Manager' ) ) {
         $cron_file = ANIME_SYNC_PRO_DIR . 'includes/class-cron-manager.php';
         if ( file_exists( $cron_file ) ) {
@@ -218,56 +240,43 @@ add_action( 'plugins_loaded', function () {
     // 6-4. 後台 + Cron 環境：初始化核心元件
     if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
 
-        // Rate Limiter（最先建立，供後續元件共用）
         $rate_limiter = class_exists( 'Anime_Sync_Rate_Limiter' )
                         ? new Anime_Sync_Rate_Limiter()
                         : null;
 
-        // ID Mapper
         $id_mapper = class_exists( 'Anime_Sync_ID_Mapper' )
                      ? new Anime_Sync_ID_Mapper( $rate_limiter )
                      : null;
 
-        // CN Converter
         $converter = class_exists( 'Anime_Sync_CN_Converter' )
                      ? new Anime_Sync_CN_Converter()
                      : null;
 
-        // API Handler
         $api_handler = class_exists( 'Anime_Sync_API_Handler' )
                        ? new Anime_Sync_API_Handler( $rate_limiter, $id_mapper )
                        : null;
 
-        // Import Manager
-        // ACC 修正：補上第二個參數 $converter，對應 __construct( $api_handler, $cn_converter )
+        // ACD：Import Manager 包含 analyze_series()，不需要額外傳 api_handler 給 Admin
         $import_manager = ( $api_handler && $converter && class_exists( 'Anime_Sync_Import_Manager' ) )
                           ? new Anime_Sync_Import_Manager( $api_handler, $converter )
                           : null;
 
-        // 後台管理介面
         if ( is_admin() && $import_manager && class_exists( 'Anime_Sync_Admin' ) ) {
             new Anime_Sync_Admin( $import_manager );
         }
 
-        // Cron Manager（週期性同步排程）
         if ( $import_manager && class_exists( 'Anime_Sync_Cron_Manager' ) ) {
             new Anime_Sync_Cron_Manager( $import_manager );
         }
 
-        // 後台列表欄位
         if ( is_admin() && class_exists( 'Anime_Sync_Custom_Post_Type' ) ) {
             new Anime_Sync_Custom_Post_Type();
         }
 
-        // ── ACB：補抓任務 hook ────────────────────────────────────────────────
-        // import_single() 匯入後 60 秒觸發，補抓 staff/episodes/MAL/Wikipedia/Themes
-        // 此 hook 需在 $import_manager 存在時才掛載，
-        // 且必須在 is_admin() || DOING_CRON 區塊內（Cron 執行時也需要）
         if ( $import_manager ) {
             add_action(
                 'anime_sync_enrich_post',
                 function ( int $post_id ) use ( $import_manager ) {
-                    // 防止重複執行：若已補抓則跳過
                     if ( get_post_meta( $post_id, '_enriched_at', true ) ) {
                         return;
                     }
@@ -275,7 +284,6 @@ add_action( 'plugins_loaded', function () {
                 }
             );
         }
-        // ─────────────────────────────────────────────────────────────────────
     }
 
 } );
