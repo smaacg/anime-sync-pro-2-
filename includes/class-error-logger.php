@@ -167,10 +167,9 @@ class Anime_Sync_Error_Logger {
      * 注意：PHP 允許同名靜態與實例方法在不同呼叫情境下並存，
      * 但為避免混淆，靜態呼叫時 'debug' 等級會自動對應到 'info'。
      */
-    public static function log( string $level, string $message, array $context = [] ): void {
-        // 'debug' 不在 valid_levels 內，會被實例 log() 自動轉為 'info'
-        ( new self() )->log( $level, $message, $context );
-    }
+   public static function static_log( string $level, string $message, array $context = [] ): void {
+    ( new self() )->log( $level, $message, $context );
+}
 
     /**
      * 靜態快捷方法
