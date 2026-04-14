@@ -303,7 +303,7 @@ class Anime_Sync_ACF_Fields {
     // =========================================================================
     // 群組 2：評分資訊
     // =========================================================================
-    private function register_ratings(): void {
+    private function (): void {
         acf_add_local_field_group( [
             'key'    => 'group_anime_ratings',
             'title'  => '⭐ 評分資訊',
@@ -340,8 +340,8 @@ class Anime_Sync_ACF_Fields {
                     'instructions'  => '範圍 0–10。由每週 cron 自動更新。',
                     'required'      => 0,
                     'min'           => 0,
-                    'max'           => 10,
-                    'step'          => 0.01,
+                    'max'           => 100,
+                    'step'          => 1,
                     'wrapper'       => [ 'width' => '25' ],
                 ],
                 [
