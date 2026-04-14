@@ -356,7 +356,7 @@ class Anime_Sync_API_Handler {
             $raw = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
             if ( $raw !== null ) $score_bangumi = (int) round( (float) $raw * 10 );
         }
-        $score_mal = $this->fetch_mal_score( $mal_id );
+        $score_mal = ( $mal_id && $mal_id > 0 ) ? $this->fetch_mal_score( $mal_id ) : 0;
 
         $studios = [];
         foreach ( $media['studios']['nodes'] ?? [] as $s ) {
