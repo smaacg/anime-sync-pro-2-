@@ -13,6 +13,7 @@ class Anime_Sync_ACF_Fields {
 
     public function __construct() {
         add_action( 'acf/init', [ $this, 'register_all_field_groups' ] );
+        add_action( 'add_meta_boxes', [ $this, 'register_resync_metabox' ] );
     }
 
     public function register_all_field_groups(): void {
@@ -30,7 +31,6 @@ class Anime_Sync_ACF_Fields {
         $this->register_taiwan_info();
         $this->register_faq();
         $this->register_sync_control();
-        $this->register_resync_script();
     }
 
     // =========================================================================
@@ -620,12 +620,11 @@ class Anime_Sync_ACF_Fields {
     // =========================================================================
     private function register_taiwan_info(): void {
 
-        $platforms = $this->get_tw_platforms();
-
-        // 16 個平台個別 URL 欄位（Option A：全部顯示，寬度 50%）
+        $platforms  = $this->get_tw_platforms();
         $url_fields = [];
+
         foreach ( $platforms as $key => $label ) {
-            $field_key = str_replace( '-', '_', $key );
+            $field_key    = str_replace( '-', '_', $key );
             $url_fields[] = [
                 'key'          => 'field_anime_tw_streaming_url_' . $field_key,
                 'label'        => $label . ' 直達連結',
@@ -642,7 +641,6 @@ class Anime_Sync_ACF_Fields {
             'title'  => '🇹🇼 台灣在地資訊',
             'fields' => array_merge(
                 [
-                    // 台灣串流平台 checkbox（16 選項）
                     [
                         'key'           => 'field_anime_tw_streaming',
                         'label'         => '台灣串流平台',
@@ -657,10 +655,8 @@ class Anime_Sync_ACF_Fields {
                         'wrapper'       => [ 'width' => '100' ],
                     ],
                 ],
-                // 16 個平台 URL 欄位
                 $url_fields,
                 [
-                    // 其他串流平台（自訂文字）
                     [
                         'key'           => 'field_anime_tw_streaming_other',
                         'label'         => '其他串流平台（自訂）',
@@ -670,7 +666,6 @@ class Anime_Sync_ACF_Fields {
                         'required'      => 0,
                         'wrapper'       => [ 'width' => '100' ],
                     ],
-                    // 台灣代理商 select
                     [
                         'key'           => 'field_anime_tw_distributor',
                         'label'         => '台灣代理商／發行商',
@@ -696,7 +691,6 @@ class Anime_Sync_ACF_Fields {
                         'allow_null'    => 1,
                         'wrapper'       => [ 'width' => '50' ],
                     ],
-                    // 台灣代理商自訂文字
                     [
                         'key'           => 'field_anime_tw_distributor_custom',
                         'label'         => '台灣代理商（自訂名稱）',
@@ -706,7 +700,6 @@ class Anime_Sync_ACF_Fields {
                         'required'      => 0,
                         'wrapper'       => [ 'width' => '50' ],
                     ],
-                    // 台灣播出時間
                     [
                         'key'           => 'field_anime_tw_broadcast',
                         'label'         => '台灣播出時間',
@@ -729,7 +722,7 @@ class Anime_Sync_ACF_Fields {
     }
 
     // =========================================================================
-    // 群組 9：常見問題（FAQ）— 完全人工
+    // 群組 9：常見問題（FAQ）
     // =========================================================================
     private function register_faq(): void {
         acf_add_local_field_group( [
@@ -760,7 +753,7 @@ class Anime_Sync_ACF_Fields {
     }
 
     // =========================================================================
-    // 群組 10：同步控制
+    // 群組 10：同步控制（移除重新同步按鈕，改為獨立 Meta Box）
     // =========================================================================
     private function register_sync_control(): void {
         acf_add_local_field_group( [
@@ -792,7 +785,7 @@ class Anime_Sync_ACF_Fields {
                     'label'         => '鎖定欄位（防止自動覆寫）',
                     'name'          => 'anime_locked_fields',
                     'type'          => 'checkbox',
-                    'instructions'  => '勾選後，自動更新 cron 將跳過該欄位，保留您的人工修改。',
+                    'instructions'  => '勾選後，自動更新 cron 將跳過該欄位，保留您的人工修改。注意：重新同步 Bangumi 按鈕會強制覆蓋，不受此設定影響。',
                     'required'      => 0,
                     'choices'       => [
                         'anime_title_chinese'    => '中文標題',
@@ -817,16 +810,6 @@ class Anime_Sync_ACF_Fields {
                     'return_format' => 'value',
                     'wrapper'       => [ 'width' => '100' ],
                 ],
-                // F4：重新同步 Bangumi 按鈕
-                [
-                    'key'          => 'field_anime_resync_bangumi_btn',
-                    'label'        => '重新同步 Bangumi',
-                    'name'         => 'anime_resync_bangumi_btn',
-                    'type'         => 'message',
-                    'message'      => '<button type="button" id="anime-resync-bangumi-btn" class="button button-secondary">🔄 重新同步 Bangumi 資料</button> <span id="anime-resync-bangumi-msg" style="margin-left:10px;"></span>',
-                    'instructions' => '點擊後將從 Bangumi 重新抓取：中文標題、簡介、封面、評分、STAFF、CAST、集數列表。',
-                    'wrapper'      => [ 'width' => '100' ],
-                ],
             ],
             'location'    => [
                 [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
@@ -839,55 +822,51 @@ class Anime_Sync_ACF_Fields {
     }
 
     // =========================================================================
-    // F4：重新同步 Bangumi — 後台 AJAX Script
+    // Meta Box：重新同步 Bangumi（原生 WordPress，取代 ACF message 欄位）
     // =========================================================================
-    private function register_resync_script(): void {
-        add_action( 'acf/input/admin_footer', function () {
-            $screen = get_current_screen();
-            if ( ! $screen || $screen->post_type !== 'anime' ) {
-                return;
-            }
-            ?>
-            <script>
-            (function ($) {
-                'use strict';
-                $('#anime-resync-bangumi-btn').on('click', function () {
-                    var $btn      = $(this);
-                    var $msg      = $('#anime-resync-bangumi-msg');
-                    var postId    = $('#post_ID').val();
-                    var bangumiId = $('input[name="anime_bangumi_id"]').val()
-                                 || $('#acf-field_anime_bangumi_id').val();
+    public function register_resync_metabox(): void {
+        add_meta_box(
+            'anime_resync_bangumi',
+            '🔄 重新同步 Bangumi',
+            [ $this, 'render_resync_metabox' ],
+            'anime',
+            'side',
+            'default'
+        );
+    }
 
-                    if ( ! bangumiId ) {
-                        $msg.css('color', 'red').text('請先填入 Bangumi ID 並儲存文章。');
-                        return;
-                    }
+    public function render_resync_metabox( WP_Post $post ): void {
+        $bangumi_id = get_post_meta( $post->ID, 'anime_bangumi_id', true );
+        $last_sync  = get_post_meta( $post->ID, 'anime_last_sync',  true );
+        ?>
+        <div id="anime-resync-wrap">
+            <?php if ( $bangumi_id ) : ?>
+                <p style="margin:0 0 8px;">
+                    Bangumi ID：<strong><?php echo esc_html( $bangumi_id ); ?></strong>
+                </p>
+            <?php else : ?>
+                <p style="margin:0 0 8px;color:#999;">尚未設定 Bangumi ID。</p>
+            <?php endif; ?>
 
-                    $btn.prop('disabled', true);
-                    $msg.css('color', '#666').text('同步中，請稍候…');
+            <?php if ( $last_sync ) : ?>
+                <p style="margin:0 0 8px;font-size:11px;color:#666;">
+                    上次同步：<?php echo esc_html( $last_sync ); ?>
+                </p>
+            <?php endif; ?>
 
-                    $.post(ajaxurl, {
-                        action    : 'anime_resync_bangumi',
-                        nonce     : '<?php echo esc_js( wp_create_nonce( 'anime_sync_nonce' ) ); ?>',
-                        post_id   : postId,
-                        bangumi_id: bangumiId,
-                    }, function (res) {
-                        if ( res.success ) {
-                            $msg.css('color', 'green').text('✅ ' + res.data);
-                            setTimeout(function () { location.reload(); }, 1500);
-                        } else {
-                            $msg.css('color', 'red').text('❌ ' + res.data);
-                        }
-                    }).fail(function () {
-                        $msg.css('color', 'red').text('❌ 網路錯誤，請重試。');
-                    }).always(function () {
-                        $btn.prop('disabled', false);
-                    });
-                });
-            }(jQuery));
-            </script>
-            <?php
-        } );
+            <button
+                type="button"
+                id="anime-resync-bangumi-btn"
+                class="button button-secondary"
+                style="width:100%;"
+                <?php echo $bangumi_id ? '' : 'disabled'; ?>
+            >
+                🔄 重新同步 Bangumi 資料
+            </button>
+
+            <p id="anime-resync-bangumi-msg" style="margin:8px 0 0;min-height:20px;font-size:12px;"></p>
+        </div>
+        <?php
     }
 
     // =========================================================================
