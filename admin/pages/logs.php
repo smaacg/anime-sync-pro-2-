@@ -159,7 +159,7 @@ jQuery(document).ready(function($) {
             type: 'POST',
             data: {
                 action: 'anime_clear_old_logs',
-                nonce: '<?php echo wp_create_nonce("anime_sync_ajax"); ?>'
+                nonce: '<?php echo wp_create_nonce("anime_sync_admin_nonce"); ?>'
             },
             success: function(response) {
                 alert('已清除 ' + response.data.count + ' 筆舊日誌');
