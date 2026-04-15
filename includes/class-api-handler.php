@@ -1135,7 +1135,7 @@ private function fetch_mal_score( ?int $mal_id ): int {
         return $data;
     }
 
- private function get_bgm_staff( int $bangumi_id ): array {
+private function get_bgm_staff( int $bangumi_id ): array {
     $cache_key = 'anime_sync_bgm_staff_' . $bangumi_id;
     $cached    = get_transient( $cache_key );
     if ( $cached !== false ) return (array) $cached;
@@ -1168,6 +1168,32 @@ private function fetch_mal_score( ?int $mal_id ): int {
         '动画制作',   // 動畫製作公司
         '製作',
     ];
+
+    $staff = [];
+    foreach ( $persons as $p ) {
+        $role = $p['relation'] ?? '';
+        if ( in_array( $role, $allowed_roles, true ) ) {
+            $staff[] = [
+                'id'     => $p['id']             ?? 0,
+                'name'   => $p['name']            ?? '',
+                'role'   => $role,
+                'image'  => $p['images']['large'] ?? $p['images']['medium'] ?? '',
+                'source' => 'bangumi',
+            ];
+        }
+    }
+
+    // 原作排最前面，其餘依原順序
+    usort( $staff, function( $a, $b ) {
+        if ( $a['role'] === '原作' ) return -1;
+        if ( $b['role'] === '原作' ) return 1;
+        return 0;
+    } );
+
+    set_transient( $cache_key, $staff, 12 * HOUR_IN_SECONDS );
+    return $staff;
+}
+
 
     $staff = [];
     foreach ( $persons as $p ) {
