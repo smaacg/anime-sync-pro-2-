@@ -216,25 +216,25 @@ class Anime_Sync_API_Handler {
     // PUBLIC – 補抓第二段資料（ACB）
     // =========================================================================
 
-    public function enrich_anime_data( int $post_id ): array|WP_Error {
+public function enrich_anime_data( int $post_id ): array|WP_Error {
 
-        $anilist_id    = (int)    get_post_meta( $post_id, 'anime_anilist_id',    true );
-        $bangumi_id    = (int)    get_post_meta( $post_id, 'anime_bangumi_id',    true );
-$mal_id = (int) get_post_meta( $post_id, 'anime_mal_id', true );
-if ( ! $mal_id ) {
-    $mal_id = (int) get_post_meta( $post_id, 'mal_id', true );
-}
-// ACH 修正：meta 裡是 0 時，從 AniList 重新查 idMal 並補存
-if ( ! $mal_id && $anilist_id ) {
-    $al_raw = $this->fetch_anilist_data( $anilist_id );
-    if ( ! is_wp_error( $al_raw ) ) {
-        $id_mal = $al_raw['data']['Media']['idMal'] ?? null;
-        if ( $id_mal ) {
-            $mal_id = (int) $id_mal;
-            update_post_meta( $post_id, 'anime_mal_id', $mal_id );
+    $anilist_id    = (int)    get_post_meta( $post_id, 'anime_anilist_id',    true );
+    $bangumi_id    = (int)    get_post_meta( $post_id, 'anime_bangumi_id',    true );
+    $mal_id = (int) get_post_meta( $post_id, 'anime_mal_id', true );
+    if ( ! $mal_id ) {
+        $mal_id = (int) get_post_meta( $post_id, 'mal_id', true );
+    }
+    // ACH 修正：meta 裡是 0 時，從 AniList 重新查 idMal 並補存
+    if ( ! $mal_id && $anilist_id ) {
+        $al_raw = $this->fetch_anilist_data( $anilist_id );
+        if ( ! is_wp_error( $al_raw ) ) {
+            $id_mal = $al_raw['data']['Media']['idMal'] ?? null;
+            if ( $id_mal ) {
+                $mal_id = (int) $id_mal;
+                update_post_meta( $post_id, 'anime_mal_id', $mal_id );
+            }
         }
     }
-}
         $title_chinese = (string) get_post_meta( $post_id, 'anime_title_chinese', true );
         $title_native  = (string) get_post_meta( $post_id, 'anime_title_native',  true );
         $title_romaji  = (string) get_post_meta( $post_id, 'anime_title_romaji',  true );
