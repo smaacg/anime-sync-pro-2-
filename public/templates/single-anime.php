@@ -9,6 +9,8 @@
  *       OP/ED 播放器改為 <audio> 標籤（audio_url OGG）
  *       集數列表「顯示全部」與 Cast「顯示全部」加入 inline JS
  *       STAFF 欄位讀取 name（Bangumi 來源）
+ * ACG – 集數標題 name_cn 加入繁體轉換
+ *       集數列表按鈕加入收起功能
  *
  * @package Anime_Sync_Pro
  */
@@ -19,7 +21,7 @@ wp_enqueue_style(
     'anime-sync-single',
     plugin_dir_url( dirname( __FILE__ ) ) . 'assets/css/anime-single.css',
     [],
-    '1.1.6'
+    '1.1.7'
 );
 
 get_header();
@@ -105,7 +107,7 @@ while ( have_posts() ) : the_post();
     ];
 
     // 建立台灣串流平台清單（含個別 URL）
-    $tw_streaming_items = []; // [ 'label' => '...', 'url' => '...' ]
+    $tw_streaming_items = [];
     if ( ! empty( $tw_streaming_raw ) ) {
         $raw_arr = is_array( $tw_streaming_raw ) ? $tw_streaming_raw : [ $tw_streaming_raw ];
         foreach ( $raw_arr as $key ) {
@@ -120,7 +122,6 @@ while ( have_posts() ) : the_post();
             if ( $extra ) $tw_streaming_items[] = [ 'label' => $extra, 'url' => '' ];
         }
     }
-    // 純文字清單（向下相容，用於 FAQ schema 等）
     $tw_streaming_list = array_column( $tw_streaming_items, 'label' );
 
     $format_date = function ( $raw ) {
@@ -450,7 +451,11 @@ while ( have_posts() ) : the_post();
         $ep_name_cn = trim(    $ep['name_cn']  ?? '' );
         $ep_name_ja = trim(    $ep['name']     ?? '' );
         $ep_airdate =          $ep['airdate']  ?? '';
-        $ep_name    = $ep_name_cn ?: $ep_name_ja;
+        // ACG：集數中文標題轉繁體
+        if ( $ep_name_cn !== '' ) {
+            $ep_name_cn = Anime_Sync_CN_Converter::static_convert( $ep_name_cn );
+        }
+        $ep_name = $ep_name_cn ?: $ep_name_ja;
     ?>
     <div class="asd-ep-row<?php echo $i >= 3 ? ' asd-ep-hidden' : ''; ?>">
         <span class="asd-ep-num">第 <?php echo esc_html( $ep_num ); ?> 集</span>
@@ -480,7 +485,6 @@ while ( have_posts() ) : the_post();
     <h2 class="asd-section-title">🎬 STAFF</h2>
     <div class="asd-staff-grid">
     <?php foreach ( $staff_list as $s ) :
-        // ACF：Bangumi staff 使用 name 欄位（無 name_zh）
         $s_name = $s['name'] ?? '';
         $s_role = $s['role'] ?? '';
         $s_img  = $s['image'] ?? '';
@@ -505,7 +509,6 @@ while ( have_posts() ) : the_post();
     <h2 class="asd-section-title">🎭 CAST</h2>
     <div class="asd-cast-grid" id="asd-cast-grid">
     <?php foreach ( $cast_list as $i => $c ) :
-        // ACF：Bangumi chars 使用 name（角色名）、voice_actors[0].name（聲優名）
         $char_name = $c['name']  ?? '';
         $char_img  = $c['image'] ?? '';
         $va_list   = $c['voice_actors'] ?? [];
@@ -547,7 +550,6 @@ while ( have_posts() ) : the_post();
             $t_num     = preg_replace( '/[^0-9]/', '', $t_type );
             $t_label   = str_starts_with( $t_type, 'OP' ) ? 'OP' : 'ED';
             $t_label  .= $t_num ? $t_num : '';
-            // ACF：audio_url 為 OGG 純音訊連結
             $t_audio   = $t['audio_url'] ?? $t['audio'] ?? '';
             $t_video   = $t['video_url'] ?? $t['video_link'] ?? '';
         ?>
@@ -556,7 +558,6 @@ while ( have_posts() ) : the_post();
             <span class="asd-theme-title"><?php echo esc_html( $t_title ); ?></span>
             <?php if ( $t_artist ) : ?><span class="asd-theme-artist"><?php echo esc_html( $t_artist ); ?></span><?php endif; ?>
             <?php if ( $t_audio ) : ?>
-            <!-- ACF：改為 <audio> 純音訊播放，不使用 iframe -->
             <audio controls preload="none" style="width:100%;margin-top:6px;display:block;">
                 <source src="<?php echo esc_url( $t_audio ); ?>" type="audio/ogg">
                 您的瀏覽器不支援音訊播放。
@@ -656,21 +657,29 @@ while ( have_posts() ) : the_post();
 </div><!-- .asd-container -->
 </div><!-- .asd-wrap -->
 
-<!-- ACF：集數展開 & Cast 展開 inline JS，確保不依賴外部 JS 載入順序 -->
 <script>
 (function () {
     'use strict';
     document.addEventListener('DOMContentLoaded', function () {
 
-        // 集數列表「顯示全部」
+        // 集數列表「顯示全部 / 收起」
         var epBtn = document.getElementById('asd-ep-more-btn');
         if (epBtn) {
+            var epTotal = epBtn.dataset.total;
             epBtn.addEventListener('click', function () {
-                document.querySelectorAll('.asd-ep-hidden').forEach(function (el) {
-                    el.classList.remove('asd-ep-hidden');
-                });
-                var wrap = document.querySelector('.asd-ep-more-wrap');
-                if (wrap) wrap.style.display = 'none';
+                var hidden = document.querySelectorAll('#asd-ep-list .asd-ep-hidden');
+                if (hidden.length > 0) {
+                    // 展開
+                    hidden.forEach(function (el) { el.classList.remove('asd-ep-hidden'); });
+                    epBtn.textContent = '收起 ▴';
+                } else {
+                    // 收起
+                    var rows = document.querySelectorAll('#asd-ep-list .asd-ep-row');
+                    rows.forEach(function (el, i) {
+                        if (i >= 3) el.classList.add('asd-ep-hidden');
+                    });
+                    epBtn.textContent = '顯示全部 ' + epTotal + ' 集 ▾';
+                }
             });
         }
 
@@ -702,7 +711,7 @@ while ( have_posts() ) : the_post();
             setInterval(updateCountdown, 60000);
         }
 
-        // Tab 滑動高亮（對應 .asd-tabs）
+        // Tab 滑動高亮
         var tabLinks = document.querySelectorAll('.asd-tabs .asd-tab');
         if (tabLinks.length) {
             window.addEventListener('scroll', function () {
