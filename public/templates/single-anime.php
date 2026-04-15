@@ -484,22 +484,37 @@ while ( have_posts() ) : the_post();
 <section class="asd-section" id="asd-sec-staff">
     <h2 class="asd-section-title">🎬 STAFF</h2>
     <div class="asd-staff-grid">
-    <?php foreach ( $staff_list as $s ) :
-        $s_name = $s['name'] ?? '';
-        $s_role = $s['role'] ?? '';
+    <?php foreach ( $staff_list as $i => $s ) :
+        $s_name = $s['name']  ?? '';
+        $s_role = $s['role']  ?? '';
         $s_img  = $s['image'] ?? '';
     ?>
-    <div class="asd-staff-card">
-        <?php if ( $s_img ) : ?>
-        <div class="asd-staff-avatar"><img src="<?php echo esc_url( $s_img ); ?>" alt="<?php echo esc_attr( $s_name ); ?>" loading="lazy"></div>
-        <?php else : ?><div class="asd-staff-noimg">?</div><?php endif; ?>
-        <div class="asd-staff-info">
+    <div class="asd-staff-card<?php echo $i >= 12 ? ' asd-staff-extra' : ''; ?>">
+        <div class="asd-staff-img">
+            <?php if ( $s_img ) : ?>
+            <img src="<?php echo esc_url( $s_img ); ?>"
+                 alt="<?php echo esc_attr( $s_name ); ?>"
+                 loading="lazy">
+            <?php else : ?>
+            <div class="asd-staff-noimg">
+                <span><?php echo esc_html( mb_substr( $s_name, 0, 1 ) ); ?></span>
+            </div>
+            <?php endif; ?>
+        </div>
+        <div class="asd-staff-names">
             <span class="asd-staff-name"><?php echo esc_html( $s_name ); ?></span>
             <span class="asd-staff-role"><?php echo esc_html( $s_role ); ?></span>
         </div>
     </div>
     <?php endforeach; ?>
     </div>
+    <?php if ( count( $staff_list ) > 12 ) : ?>
+    <div class="asd-staff-more-wrap">
+        <button class="asd-staff-more-btn" id="asd-staff-more-btn">
+            顯示全部 <?php echo count( $staff_list ); ?> 位人員 ▾
+        </button>
+    </div>
+    <?php endif; ?>
 </section>
 <?php endif; ?>
 
