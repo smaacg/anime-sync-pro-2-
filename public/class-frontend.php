@@ -2,6 +2,13 @@
 /**
  * Frontend Handler
  * @package Anime_Sync_Pro
+ *
+ * ACG – enqueue_assets() 加入 is_search + post_type=anime 條件
+ *       load_single_template() 加入 is_search + post_type=anime 條件
+ *       讓搜尋結果頁套用 archive-anime.php 模板並正確載入 CSS/JS
+ *       新增 filter_anime_search()：搜尋時同時查詢
+ *       anime_title_romaji、anime_title_english meta 欄位
+ *       僅在 post_type=anime 搜尋時生效，不影響其他搜尋
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -19,26 +26,58 @@ class Anime_Sync_Frontend {
         add_shortcode( 'anime_streaming', [ $this, 'shortcode_streaming'  ] );
         add_shortcode( 'anime_themes',    [ $this, 'shortcode_themes'     ] );
         add_action( 'rest_api_init',      [ $this, 'register_rest_routes' ] );
+        // ACG：搜尋時同時查詢 romaji / english meta 欄位
+        add_filter( 'posts_search',       [ $this, 'filter_anime_search'  ], 10, 2 );
     }
 
     // =========================================================
     // 資源載入
     // =========================================================
     public function enqueue_assets(): void {
-        if ( ! is_singular( 'anime' ) && ! is_post_type_archive( 'anime' )
-             && ! is_tax( 'genre' ) && ! is_tax( 'anime_season_tax' ) && ! is_tax( 'anime_format_tax' ) ) {
+
+        // ACG：加入搜尋頁條件
+        $is_anime_search = is_search() && get_query_var( 'post_type' ) === 'anime';
+
+        if ( ! is_singular( 'anime' )
+            && ! is_post_type_archive( 'anime' )
+            && ! is_tax( 'genre' )
+            && ! is_tax( 'anime_season_tax' )
+            && ! is_tax( 'anime_format_tax' )
+            && ! $is_anime_search
+        ) {
             return;
         }
 
-        wp_enqueue_style( 'anime-sync-public', ANIME_SYNC_PRO_URL . 'public/assets/css/public.css', [], ANIME_SYNC_PRO_VERSION );
-        wp_enqueue_style( 'anime-sync-style',  ANIME_SYNC_PRO_URL . 'public/assets/css/style.css',  [ 'anime-sync-public' ], ANIME_SYNC_PRO_VERSION );
+        wp_enqueue_style(
+            'anime-sync-public',
+            ANIME_SYNC_PRO_URL . 'public/assets/css/public.css',
+            [],
+            ANIME_SYNC_PRO_VERSION
+        );
+        wp_enqueue_style(
+            'anime-sync-style',
+            ANIME_SYNC_PRO_URL . 'public/assets/css/style.css',
+            [ 'anime-sync-public' ],
+            ANIME_SYNC_PRO_VERSION
+        );
 
-        // ✅ Bug F 修正：補上 anime-single.css 載入
+        // ✅ Bug F 修正：補上 anime-single.css 載入（僅 single 頁）
         if ( is_singular( 'anime' ) ) {
-            wp_enqueue_style( 'anime-sync-single', ANIME_SYNC_PRO_URL . 'public/assets/css/anime-single.css', [ 'anime-sync-public' ], ANIME_SYNC_PRO_VERSION );
+            wp_enqueue_style(
+                'anime-sync-single',
+                ANIME_SYNC_PRO_URL . 'public/assets/css/anime-single.css',
+                [ 'anime-sync-public' ],
+                ANIME_SYNC_PRO_VERSION
+            );
         }
 
-        wp_enqueue_script( 'anime-sync-frontend', ANIME_SYNC_PRO_URL . 'public/assets/js/frontend.js', [ 'jquery' ], ANIME_SYNC_PRO_VERSION, true );
+        wp_enqueue_script(
+            'anime-sync-frontend',
+            ANIME_SYNC_PRO_URL . 'public/assets/js/frontend.js',
+            [ 'jquery' ],
+            ANIME_SYNC_PRO_VERSION,
+            true
+        );
         wp_localize_script( 'anime-sync-frontend', 'animeSyncData', [
             'restUrl' => esc_url_raw( rest_url( 'anime-sync/v1/' ) ),
             'nonce'   => wp_create_nonce( 'wp_rest' ),
@@ -49,19 +88,69 @@ class Anime_Sync_Frontend {
     // 模板覆蓋
     // =========================================================
     public function load_single_template( string $template ): string {
+
         if ( is_singular( 'anime' ) ) {
             $theme = locate_template( 'single-anime.php' );
             if ( $theme ) return $theme;
             $plugin = ANIME_SYNC_PRO_DIR . 'public/templates/single-anime.php';
             if ( file_exists( $plugin ) ) return $plugin;
         }
-        if ( is_post_type_archive( 'anime' ) || is_tax( 'genre' ) || is_tax( 'anime_season_tax' ) || is_tax( 'anime_format_tax' ) ) {
+
+        // ACG：加入搜尋頁條件，anime 搜尋結果頁套用 archive 模板
+        $is_anime_search = is_search() && get_query_var( 'post_type' ) === 'anime';
+
+        if (
+            is_post_type_archive( 'anime' )
+            || is_tax( 'genre' )
+            || is_tax( 'anime_season_tax' )
+            || is_tax( 'anime_format_tax' )
+            || $is_anime_search
+        ) {
             $theme = locate_template( 'archive-anime.php' );
             if ( $theme ) return $theme;
             $plugin = ANIME_SYNC_PRO_DIR . 'public/templates/archive-anime.php';
             if ( file_exists( $plugin ) ) return $plugin;
         }
+
         return $template;
+    }
+
+    // =========================================================
+    // ACG：搜尋 meta 欄位擴展
+    // 讓 anime 搜尋同時查 anime_title_romaji 和 anime_title_english
+    // 只在 post_type=anime 搜尋時觸發，完全不影響其他 post_type 搜尋
+    // =========================================================
+    public function filter_anime_search( string $search, \WP_Query $query ): string {
+
+        // 只處理前台主查詢的 anime 搜尋
+        if ( ! $query->is_search() )                           return $search;
+        if ( $query->get( 'post_type' ) !== 'anime' )          return $search;
+        if ( empty( $search ) )                                return $search;
+
+        $term = $query->get( 's' );
+        if ( empty( $term ) ) return $search;
+
+        global $wpdb;
+        $like = '%' . $wpdb->esc_like( $term ) . '%';
+
+        // 子查詢：找出 romaji 或 english 符合的 post_id
+        $meta_search = $wpdb->prepare(
+            " OR ( {$wpdb->posts}.ID IN (
+                SELECT post_id FROM {$wpdb->postmeta}
+                WHERE (
+                    ( meta_key = 'anime_title_romaji'  AND meta_value LIKE %s )
+                    OR
+                    ( meta_key = 'anime_title_english' AND meta_value LIKE %s )
+                )
+            ) )",
+            $like,
+            $like
+        );
+
+        // 插入到 WordPress 原本 WHERE 條件的最後一個 ) 之前
+        $search = preg_replace( '/\)$/', $meta_search . ')', $search );
+
+        return $search;
     }
 
     // =========================================================
@@ -75,22 +164,24 @@ class Anime_Sync_Frontend {
         $pid   = $post->ID;
         $title = get_post_meta( $pid, 'anime_title_chinese', true ) ?: get_the_title( $pid );
         $desc  = mb_substr( wp_strip_all_tags(
-            get_post_meta( $pid, 'anime_synopsis_chinese', true ) ?: get_post_meta( $pid, 'anime_synopsis', true ) ?: ''
+            get_post_meta( $pid, 'anime_synopsis_chinese', true )
+            ?: get_post_meta( $pid, 'anime_synopsis', true )
+            ?: ''
         ), 0, 160 );
         $cover = get_post_meta( $pid, 'anime_cover_image', true );
         $url   = get_permalink( $pid );
 
-        echo '<meta property="og:type"        content="video.tv_show">' . "\n";
-        echo '<meta property="og:title"       content="' . esc_attr( $title ) . '">' . "\n";
-        echo '<meta property="og:description" content="' . esc_attr( $desc ) . '">' . "\n";
-        echo '<meta property="og:url"         content="' . esc_url( $url ) . '">' . "\n";
+        echo '<meta property="og:type"        content="video.tv_show">'                         . "\n";
+        echo '<meta property="og:title"       content="' . esc_attr( $title ) . '">'            . "\n";
+        echo '<meta property="og:description" content="' . esc_attr( $desc )  . '">'            . "\n";
+        echo '<meta property="og:url"         content="' . esc_url( $url )    . '">'            . "\n";
         echo '<meta property="og:site_name"   content="' . esc_attr( get_bloginfo( 'name' ) ) . '">' . "\n";
-        if ( $cover ) echo '<meta property="og:image" content="' . esc_url( $cover ) . '">' . "\n";
-        echo '<meta name="twitter:card"        content="summary_large_image">' . "\n";
-        echo '<meta name="twitter:title"       content="' . esc_attr( $title ) . '">' . "\n";
-        echo '<meta name="twitter:description" content="' . esc_attr( $desc ) . '">' . "\n";
-        if ( $cover ) echo '<meta name="twitter:image" content="' . esc_url( $cover ) . '">' . "\n";
-        echo '<link rel="canonical" href="' . esc_url( $url ) . '">' . "\n";
+        if ( $cover ) echo '<meta property="og:image" content="' . esc_url( $cover ) . '">'     . "\n";
+        echo '<meta name="twitter:card"        content="summary_large_image">'                  . "\n";
+        echo '<meta name="twitter:title"       content="' . esc_attr( $title ) . '">'           . "\n";
+        echo '<meta name="twitter:description" content="' . esc_attr( $desc )  . '">'           . "\n";
+        if ( $cover ) echo '<meta name="twitter:image" content="' . esc_url( $cover ) . '">'    . "\n";
+        echo '<link rel="canonical" href="'    . esc_url( $url ) . '">'                         . "\n";
     }
 
     // =========================================================
@@ -129,9 +220,24 @@ class Anime_Sync_Frontend {
         $mal     = get_post_meta( $pid, 'anime_score_mal',     true );
         ob_start(); ?>
         <div class="anime-scores">
-            <?php if ( $anilist ) : ?><span class="score score-anilist"><span class="score-label">AniList</span><span class="score-value"><?php echo esc_html( number_format( (float) $anilist, 1 ) ); ?></span></span><?php endif; ?>
-            <?php if ( $bangumi ) : ?><span class="score score-bangumi"><span class="score-label">Bangumi</span><span class="score-value"><?php echo esc_html( number_format( (float) $bangumi, 1 ) ); ?></span></span><?php endif; ?>
-            <?php if ( $mal     ) : ?><span class="score score-mal"><span class="score-label">MAL</span><span class="score-value"><?php echo esc_html( number_format( (float) $mal, 1 ) ); ?></span></span><?php endif; ?>
+            <?php if ( $anilist ) : ?>
+                <span class="score score-anilist">
+                    <span class="score-label">AniList</span>
+                    <span class="score-value"><?php echo esc_html( number_format( (float) $anilist, 1 ) ); ?></span>
+                </span>
+            <?php endif; ?>
+            <?php if ( $bangumi ) : ?>
+                <span class="score score-bangumi">
+                    <span class="score-label">Bangumi</span>
+                    <span class="score-value"><?php echo esc_html( number_format( (float) $bangumi, 1 ) ); ?></span>
+                </span>
+            <?php endif; ?>
+            <?php if ( $mal ) : ?>
+                <span class="score score-mal">
+                    <span class="score-label">MAL</span>
+                    <span class="score-value"><?php echo esc_html( number_format( (float) $mal, 1 ) ); ?></span>
+                </span>
+            <?php endif; ?>
         </div>
         <?php return ob_get_clean();
     }
@@ -152,7 +258,15 @@ class Anime_Sync_Frontend {
                     $url  = $item['url'] ?? '';
                     if ( ! $name ) continue;
                 ?>
-                <li><?php if ( $url ) : ?><a href="<?php echo esc_url( $url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $name ); ?></a><?php else : ?><?php echo esc_html( $name ); ?><?php endif; ?></li>
+                <li>
+                    <?php if ( $url ) : ?>
+                        <a href="<?php echo esc_url( $url ); ?>" target="_blank" rel="noopener">
+                            <?php echo esc_html( $name ); ?>
+                        </a>
+                    <?php else : ?>
+                        <?php echo esc_html( $name ); ?>
+                    <?php endif; ?>
+                </li>
                 <?php endforeach; ?>
             </ul>
         </div>
@@ -170,8 +284,18 @@ class Anime_Sync_Frontend {
         $eds = array_filter( $themes, fn( $t ) => strtoupper( $t['type'] ?? '' ) === 'ED' );
         ob_start(); ?>
         <div class="anime-themes">
-            <?php if ( $ops ) : ?><div class="themes-op"><h4><?php esc_html_e( '片頭曲 (OP)', 'anime-sync-pro' ); ?></h4><?php foreach ( $ops as $t ) $this->render_theme_item( $t ); ?></div><?php endif; ?>
-            <?php if ( $eds ) : ?><div class="themes-ed"><h4><?php esc_html_e( '片尾曲 (ED)', 'anime-sync-pro' ); ?></h4><?php foreach ( $eds as $t ) $this->render_theme_item( $t ); ?></div><?php endif; ?>
+            <?php if ( $ops ) : ?>
+                <div class="themes-op">
+                    <h4><?php esc_html_e( '片頭曲 (OP)', 'anime-sync-pro' ); ?></h4>
+                    <?php foreach ( $ops as $t ) $this->render_theme_item( $t ); ?>
+                </div>
+            <?php endif; ?>
+            <?php if ( $eds ) : ?>
+                <div class="themes-ed">
+                    <h4><?php esc_html_e( '片尾曲 (ED)', 'anime-sync-pro' ); ?></h4>
+                    <?php foreach ( $eds as $t ) $this->render_theme_item( $t ); ?>
+                </div>
+            <?php endif; ?>
         </div>
         <?php return ob_get_clean();
     }
@@ -180,7 +304,9 @@ class Anime_Sync_Frontend {
         $title      = $theme['song_title'] ?? $theme['title'] ?? __( '未知曲目', 'anime-sync-pro' );
         $artists    = $theme['artists'] ?? $theme['by'] ?? [];
         $artist_str = is_array( $artists )
-            ? implode( '、', array_filter( array_map( fn( $a ) => is_array( $a ) ? ( $a['name'] ?? '' ) : (string) $a, $artists ) ) )
+            ? implode( '、', array_filter(
+                array_map( fn( $a ) => is_array( $a ) ? ( $a['name'] ?? '' ) : (string) $a, $artists )
+            ) )
             : (string) $artists;
         $video    = $theme['video_url'] ?? $theme['video'] ?? '';
         $sequence = $theme['sequence'] ?? '';
@@ -188,11 +314,19 @@ class Anime_Sync_Frontend {
         ?>
         <div class="theme-item">
             <div class="theme-info">
-                <?php if ( $sequence ) echo '<span class="theme-seq">' . esc_html( $type . $sequence ) . '</span>'; ?>
+                <?php if ( $sequence ) : ?>
+                    <span class="theme-seq"><?php echo esc_html( $type . $sequence ); ?></span>
+                <?php endif; ?>
                 <span class="theme-title"><?php echo esc_html( $title ); ?></span>
-                <?php if ( $artist_str ) echo '<span class="theme-artist">' . esc_html( $artist_str ) . '</span>'; ?>
+                <?php if ( $artist_str ) : ?>
+                    <span class="theme-artist"><?php echo esc_html( $artist_str ); ?></span>
+                <?php endif; ?>
             </div>
-            <?php if ( $video ) : ?><a href="<?php echo esc_url( $video ); ?>" target="_blank" rel="noopener" class="theme-video-link">▶ <?php esc_html_e( '觀看', 'anime-sync-pro' ); ?></a><?php endif; ?>
+            <?php if ( $video ) : ?>
+                <a href="<?php echo esc_url( $video ); ?>" target="_blank" rel="noopener" class="theme-video-link">
+                    ▶ <?php esc_html_e( '觀看', 'anime-sync-pro' ); ?>
+                </a>
+            <?php endif; ?>
         </div>
         <?php
     }
@@ -205,7 +339,12 @@ class Anime_Sync_Frontend {
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => [ $this, 'rest_get_anime' ],
             'permission_callback' => '__return_true',
-            'args'                => [ 'id' => [ 'validate_callback' => fn( $v ) => is_numeric( $v ), 'sanitize_callback' => 'absint' ] ],
+            'args'                => [
+                'id' => [
+                    'validate_callback' => fn( $v ) => is_numeric( $v ),
+                    'sanitize_callback' => 'absint',
+                ],
+            ],
         ] );
         register_rest_route( 'anime-sync/v1', '/season', [
             'methods'             => WP_REST_Server::READABLE,
@@ -225,9 +364,14 @@ class Anime_Sync_Frontend {
     public function rest_get_season( WP_REST_Request $request ): WP_REST_Response {
         $year   = $request->get_param( 'year' );
         $season = strtoupper( $request->get_param( 'season' ) ?? '' );
-        $args   = [ 'post_type' => 'anime', 'post_status' => 'publish', 'posts_per_page' => 100, 'meta_query' => [] ];
+        $args   = [
+            'post_type'      => 'anime',
+            'post_status'    => 'publish',
+            'posts_per_page' => 100,
+            'meta_query'     => [],
+        ];
         if ( $year )   $args['meta_query'][] = [ 'key' => 'anime_season_year', 'value' => $year, 'type' => 'NUMERIC' ];
-        if ( $season ) $args['meta_query'][] = [ 'key' => 'anime_season', 'value' => $season ];
+        if ( $season ) $args['meta_query'][] = [ 'key' => 'anime_season',      'value' => $season ];
         if ( count( $args['meta_query'] ) > 1 ) $args['meta_query']['relation'] = 'AND';
         $q     = new WP_Query( $args );
         $items = array_map( [ $this, 'build_rest_response' ], $q->posts );
@@ -257,7 +401,7 @@ class Anime_Sync_Frontend {
             }
         }
 
-        // ✅ Bug E 修正：使用正確 taxonomy slug 'genre'，移除不存在的 'anime_tag'
+        // ✅ Bug E 修正：使用正確 taxonomy slug 'genre'
         $genres = get_the_terms( $id, 'genre' );
 
         return [
