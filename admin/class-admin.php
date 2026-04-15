@@ -68,27 +68,30 @@ class Anime_Sync_Admin {
      * @param int $anilist_id
      * @return array $result（含 enrich 結果）
      */
-    private function import_and_enrich( int $anilist_id ): array {
-        $result = $this->import_manager->import_single( $anilist_id );
+private function import_and_enrich( int $anilist_id ): array {
+    $result = $this->import_manager->import_single( $anilist_id );
 
-        // 匯入成功且拿到 post_id 才跑 enrich
-        if ( ! empty( $result['success'] ) && ! empty( $result['post_id'] ) ) {
-            $post_id = (int) $result['post_id'];
+    if ( ! empty( $result['success'] ) && ! empty( $result['post_id'] ) ) {
+        $post_id = (int) $result['post_id'];
 
-            if ( class_exists( 'Anime_Sync_API_Handler' ) ) {
-                $api    = new Anime_Sync_API_Handler();
-                $enrich = $api->enrich_anime_data( $post_id );
+        // ACH：清除物件快取，確保 enrich 讀到最新 meta
+        wp_cache_flush();
 
-                if ( ! is_wp_error( $enrich ) ) {
-                    $result['enriched'] = array_keys( $enrich );
-                } else {
-                    $result['enrich_error'] = $enrich->get_error_message();
-                }
+        if ( class_exists( 'Anime_Sync_API_Handler' ) ) {
+            $api    = new Anime_Sync_API_Handler();
+            $enrich = $api->enrich_anime_data( $post_id );
+
+            if ( ! is_wp_error( $enrich ) ) {
+                $result['enriched'] = array_keys( $enrich );
+            } else {
+                $result['enrich_error'] = $enrich->get_error_message();
             }
         }
-
-        return $result;
     }
+
+    return $result;
+}
+
 
     // =========================================================================
     // Admin Menu
