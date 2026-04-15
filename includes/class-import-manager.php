@@ -126,15 +126,17 @@ class Anime_Sync_Import_Manager {
         }
 
         return [
-            'success'         => true,
-            'message'         => $base_message,
-            'post_id'         => $post_id,
-            'title'           => $display_title,
-            'edit_url'        => get_edit_post_link( $post_id, 'raw' ),
-            'summary'         => $summary,
-            'bangumi_missing' => $bangumi_missing,
-            'needs_enrich'    => true,
-        ];
+    'success'         => true,
+    'message'         => $base_message,
+    'post_id'         => $post_id,
+    'mal_id'          => $anime_data['mal_id'] ?? 0,   // ★ 補加這行
+    'title'           => $display_title,
+    'edit_url'        => get_edit_post_link( $post_id, 'raw' ),
+    'summary'         => $summary,
+    'bangumi_missing' => $bangumi_missing,
+    'needs_enrich'    => true,
+];
+
     }
 
     // =========================================================================
