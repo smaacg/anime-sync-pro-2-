@@ -480,27 +480,15 @@ while ( have_posts() ) : the_post();
 <?php endif; ?>
 
 <!-- ═══ STAFF ═══ -->
-<?php if ( $staff_list ) : ?>
+<?php if ( ! empty( $staff_list ) ) : ?>
 <section class="asd-section" id="asd-sec-staff">
     <h2 class="asd-section-title">🎬 STAFF</h2>
     <div class="asd-staff-grid">
     <?php foreach ( $staff_list as $i => $s ) :
         $s_name = $s['name']  ?? '';
         $s_role = $s['role']  ?? '';
-        $s_img  = $s['image'] ?? '';
     ?>
     <div class="asd-staff-card<?php echo $i >= 12 ? ' asd-staff-extra' : ''; ?>">
-        <div class="asd-staff-img">
-            <?php if ( $s_img ) : ?>
-            <img src="<?php echo esc_url( $s_img ); ?>"
-                 alt="<?php echo esc_attr( $s_name ); ?>"
-                 loading="lazy">
-            <?php else : ?>
-            <div class="asd-staff-noimg">
-                <span><?php echo esc_html( mb_substr( $s_name, 0, 1 ) ); ?></span>
-            </div>
-            <?php endif; ?>
-        </div>
         <div class="asd-staff-names">
             <span class="asd-staff-name"><?php echo esc_html( $s_name ); ?></span>
             <span class="asd-staff-role"><?php echo esc_html( $s_role ); ?></span>
@@ -519,7 +507,7 @@ while ( have_posts() ) : the_post();
 <?php endif; ?>
 
 <!-- ═══ CAST ═══ -->
-<?php if ( $cast_list ) : ?>
+<?php if ( ! empty( $cast_list ) ) : ?>
 <section class="asd-section" id="asd-sec-cast">
     <h2 class="asd-section-title">🎭 CAST</h2>
     <div class="asd-cast-grid" id="asd-cast-grid">
@@ -532,19 +520,31 @@ while ( have_posts() ) : the_post();
     <div class="asd-cast-card<?php echo $i >= 12 ? ' asd-cast-extra' : ''; ?>">
         <div class="asd-cast-img">
             <?php if ( $char_img ) : ?>
-            <img src="<?php echo esc_url( $char_img ); ?>" alt="<?php echo esc_attr( $char_name ); ?>" loading="lazy">
-            <?php else : ?><div class="asd-cast-noimg">?</div><?php endif; ?>
+            <img src="<?php echo esc_url( $char_img ); ?>"
+                 alt="<?php echo esc_attr( $char_name ); ?>"
+                 loading="lazy">
+            <?php else : ?>
+            <div class="asd-cast-noimg">
+                <?php echo esc_html( mb_substr( $char_name, 0, 1 ) ); ?>
+            </div>
+            <?php endif; ?>
         </div>
         <div class="asd-cast-names">
-            <?php if ( $char_name ) echo '<span class="asd-cast-char">' . esc_html( $char_name ) . '</span>'; ?>
-            <?php if ( $va_name )   echo '<span class="asd-cast-va">CV: ' . esc_html( $va_name ) . '</span>'; ?>
+            <?php if ( $char_name ) : ?>
+            <span class="asd-cast-char"><?php echo esc_html( $char_name ); ?></span>
+            <?php endif; ?>
+            <?php if ( $va_name ) : ?>
+            <span class="asd-cast-va">CV: <?php echo esc_html( $va_name ); ?></span>
+            <?php endif; ?>
         </div>
     </div>
     <?php endforeach; ?>
     </div>
     <?php if ( count( $cast_list ) > 12 ) : ?>
     <div class="asd-cast-more-wrap">
-        <button class="asd-cast-more-btn" id="asd-cast-more-btn">顯示全部 <?php echo count( $cast_list ); ?> 位角色 ▾</button>
+        <button class="asd-cast-more-btn" id="asd-cast-more-btn">
+            顯示全部 <?php echo count( $cast_list ); ?> 位角色 ▾
+        </button>
     </div>
     <?php endif; ?>
 </section>
