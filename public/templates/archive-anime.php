@@ -4,14 +4,11 @@
  * Plugin: Anime Sync Pro
  * Path: wp-content/plugins/anime-sync-pro/public/templates/archive-anime.php
  *
- * ACG – 視覺全面對齊 anime-single.css 設計語言（glassmorphism、紫色主色、pill badge）
- *       加入 WordPress 原生搜尋框
- *       移除不存在的 anime-archive.css enqueue
- *       搜尋頁（is_search + post_type=anime）標題與麵包屑支援
+ * ACG v2 – 修正毛玻璃效果：改用 .aaa-wrap::before 偽元素背景，繞過 Elementor body 覆蓋
+ *          卡片背景加深，確保 backdrop-filter 有視覺對比
+ *          強制 .aaa-wrap 文字顏色，避免主題干擾
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
-
-// ✅ ACG：移除對不存在的 anime-archive.css 的 enqueue，避免空 HTTP request
 
 get_header();
 
@@ -234,8 +231,8 @@ $breadcrumb_schema = [
         'SUMMER' => '夏季', 'FALL'   => '秋季',
     ];
     $format_labels = [
-        'TV'       => 'TV',     'TV_SHORT' => 'TV短篇', 'MOVIE'   => '劇場版',
-        'OVA'      => 'OVA',    'ONA'      => 'ONA',    'SPECIAL' => '特別篇',
+        'TV'       => 'TV',      'TV_SHORT' => 'TV短篇', 'MOVIE'   => '劇場版',
+        'OVA'      => 'OVA',     'ONA'      => 'ONA',    'SPECIAL' => '特別篇',
         'MUSIC'    => 'MV',
     ];
     $status_labels = [
@@ -383,57 +380,63 @@ $breadcrumb_schema = [
 
 <style>
 /* ============================================================
-   ACG：CSS 變數（對齊 anime-single.css 設計語言，獨立定義避免依賴）
+   ACG v2：CSS 變數（對齊 anime-single.css 設計語言，獨立定義避免依賴）
 ============================================================ */
 .aaa-wrap {
-    --aaa-primary:        #7c5cff;
-    --aaa-primary-2:      #4cc9f0;
-    --aaa-accent:         #ff78c8;
-    --aaa-success:        #34d399;
-    --aaa-warning:        #fbbf24;
+    --aaa-primary:       #7c5cff;
+    --aaa-primary-2:     #4cc9f0;
+    --aaa-accent:        #ff78c8;
+    --aaa-success:       #34d399;
+    --aaa-warning:       #fbbf24;
 
-    --aaa-bg:             #07111f;
-    --aaa-bg-2:           #0a1730;
-    --aaa-bg-3:           #10213f;
+    --aaa-bg:            #07111f;
+    --aaa-bg-2:          #0a1730;
+    --aaa-bg-3:          #10213f;
 
-    --aaa-text:           #f7f9ff;
-    --aaa-text-soft:      rgba(247,249,255,0.82);
-    --aaa-text-muted:     rgba(247,249,255,0.62);
-    --aaa-text-faint:     rgba(247,249,255,0.42);
+    --aaa-text:          #f7f9ff;
+    --aaa-text-soft:     rgba(247,249,255,0.82);
+    --aaa-text-muted:    rgba(247,249,255,0.62);
+    --aaa-text-faint:    rgba(247,249,255,0.42);
 
-    --aaa-border:         rgba(255,255,255,0.10);
-    --aaa-border-strong:  rgba(255,255,255,0.18);
+    --aaa-border:        rgba(255,255,255,0.10);
+    --aaa-border-strong: rgba(255,255,255,0.18);
 
-    --aaa-surface:        rgba(255,255,255,0.055);
-    --aaa-surface-2:      rgba(255,255,255,0.08);
-    --aaa-surface-3:      rgba(255,255,255,0.12);
+    --aaa-surface:       rgba(10,20,40,0.55);
+    --aaa-surface-2:     rgba(10,20,40,0.70);
+    --aaa-surface-3:     rgba(10,20,40,0.82);
 
-    --aaa-blur:           blur(16px);
-    --aaa-radius-sm:      10px;
-    --aaa-radius-md:      18px;
-    --aaa-radius-lg:      24px;
-    --aaa-radius-pill:    999px;
+    --aaa-blur:          blur(16px);
+    --aaa-radius-sm:     10px;
+    --aaa-radius-md:     18px;
+    --aaa-radius-lg:     24px;
+    --aaa-radius-pill:   999px;
 
-    --aaa-shadow-sm:      0 8px 24px rgba(0,0,0,0.18);
-    --aaa-shadow-md:      0 16px 40px rgba(0,0,0,0.26);
-    --aaa-shadow-lg:      0 24px 64px rgba(0,0,0,0.38);
+    --aaa-shadow-sm:     0 8px 24px rgba(0,0,0,0.28);
+    --aaa-shadow-md:     0 16px 40px rgba(0,0,0,0.38);
+    --aaa-shadow-lg:     0 24px 64px rgba(0,0,0,0.50);
 
-    --aaa-transition:     .25s ease;
+    --aaa-transition:    .25s ease;
+
+    /* 強制文字顏色，避免 Elementor / 主題覆蓋 */
+    color: #f7f9ff;
+    position: relative;
 }
 
 /* ============================================================
-   Body 背景光暈（對齊 single 頁氛圍）
+   ACG v2：背景光暈 — 用 ::before 偽元素 position:fixed
+   完全繞過 Elementor 的 body / #page 背景設定
 ============================================================ */
-body.archive.post-type-archive-anime,
-body.tax-genre,
-body.tax-anime_season_tax,
-body.tax-anime_format_tax,
-body.search-results {
+.aaa-wrap::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
     background:
-        radial-gradient(circle at top left,  rgba(124,92,255,0.16), transparent 30%),
-        radial-gradient(circle at top right, rgba(76,201,240,0.12), transparent 26%),
-        linear-gradient(180deg, #07111f 0%, #091426 40%, #0a1730 100%);
-    color: #f7f9ff;
+        radial-gradient(circle at 15% 10%,  rgba(124,92,255,0.22), transparent 32%),
+        radial-gradient(circle at 85% 8%,   rgba(76,201,240,0.16), transparent 28%),
+        radial-gradient(circle at 50% 90%,  rgba(124,92,255,0.10), transparent 40%),
+        linear-gradient(180deg, #07111f 0%, #091426 45%, #0a1730 100%);
+    pointer-events: none;
 }
 
 /* ============================================================
@@ -459,7 +462,7 @@ body.search-results {
     margin: 20px 0 0;
     padding: 12px 20px;
     border-radius: var(--aaa-radius-pill);
-    background: rgba(10,18,34,0.55);
+    background: var(--aaa-surface);
     border: 1px solid var(--aaa-border);
     backdrop-filter: var(--aaa-blur);
     -webkit-backdrop-filter: var(--aaa-blur);
@@ -653,15 +656,15 @@ body.search-results {
 
 .aaa-filter-btn:hover {
     color: #fff;
-    background: rgba(124,92,255,0.14);
-    border-color: rgba(124,92,255,0.38);
+    background: rgba(124,92,255,0.18);
+    border-color: rgba(124,92,255,0.42);
 }
 
 .aaa-filter-btn.active {
     color: #fff;
-    background: rgba(124,92,255,0.20);
-    border-color: rgba(124,92,255,0.55);
-    box-shadow: 0 0 14px rgba(124,92,255,0.22);
+    background: rgba(124,92,255,0.28);
+    border-color: rgba(124,92,255,0.60);
+    box-shadow: 0 0 16px rgba(124,92,255,0.28);
 }
 
 /* ============================================================
@@ -684,6 +687,7 @@ body.search-results {
 
 /* ============================================================
    卡片（glassmorphism）
+   ACG v2：background 改為半透明深色，讓 backdrop-filter 有對比
 ============================================================ */
 .aaa-card {
     border-radius: var(--aaa-radius-md);
@@ -697,9 +701,9 @@ body.search-results {
 }
 
 .aaa-card:hover {
-    transform: translateY(-5px);
+    transform: translateY(-6px);
     box-shadow: var(--aaa-shadow-md);
-    border-color: var(--aaa-border-strong);
+    border-color: rgba(124,92,255,0.35);
 }
 
 .aaa-card-link {
@@ -725,7 +729,7 @@ body.search-results {
 }
 
 .aaa-card:hover .aaa-card-cover {
-    transform: scale(1.05);
+    transform: scale(1.06);
 }
 
 .aaa-no-cover {
@@ -736,11 +740,11 @@ body.search-results {
     font-size: 13px;
     height: 100%;
     background:
-        radial-gradient(circle at 30% 20%, rgba(124,92,255,0.20), transparent 34%),
+        radial-gradient(circle at 30% 20%, rgba(124,92,255,0.24), transparent 34%),
         linear-gradient(135deg, #0d1d38, #101d35);
 }
 
-/* ── 狀態 Badge（pill + 半透明，對齊 single 頁）── */
+/* ── 狀態 Badge ── */
 .aaa-status-badge {
     position: absolute;
     top: 10px;
@@ -754,18 +758,18 @@ body.search-results {
     -webkit-backdrop-filter: blur(8px);
 }
 
-.s-fin { background: rgba(52,211,153,0.18);  color: #34d399; border: 1px solid rgba(52,211,153,0.32); }
-.s-rel { background: rgba(76,201,240,0.18);  color: #4cc9f0; border: 1px solid rgba(76,201,240,0.32); }
-.s-pre { background: rgba(251,191,36,0.18);  color: #fbbf24; border: 1px solid rgba(251,191,36,0.32); }
-.s-can { background: rgba(251,113,133,0.18); color: #fb7185; border: 1px solid rgba(251,113,133,0.32); }
-.s-hia { background: rgba(251,113,133,0.18); color: #fb7185; border: 1px solid rgba(251,113,133,0.32); }
+.s-fin { background: rgba(52,211,153,0.20);  color: #34d399; border: 1px solid rgba(52,211,153,0.36); }
+.s-rel { background: rgba(76,201,240,0.20);  color: #4cc9f0; border: 1px solid rgba(76,201,240,0.36); }
+.s-pre { background: rgba(251,191,36,0.20);  color: #fbbf24; border: 1px solid rgba(251,191,36,0.36); }
+.s-can { background: rgba(251,113,133,0.20); color: #fb7185; border: 1px solid rgba(251,113,133,0.36); }
+.s-hia { background: rgba(251,113,133,0.20); color: #fb7185; border: 1px solid rgba(251,113,133,0.36); }
 
 /* ── 評分 Badge ── */
 .aaa-score-badge {
     position: absolute;
     bottom: 10px;
     right: 10px;
-    background: rgba(0,0,0,0.70);
+    background: rgba(0,0,0,0.72);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     color: #fbbf24;
@@ -773,12 +777,13 @@ body.search-results {
     border-radius: var(--aaa-radius-pill);
     font-size: 12px;
     font-weight: 800;
-    border: 1px solid rgba(251,191,36,0.22);
+    border: 1px solid rgba(251,191,36,0.28);
 }
 
 /* ── 卡片內容 ── */
 .aaa-card-body {
     padding: 12px 14px 14px;
+    background: var(--aaa-surface-2);
 }
 
 .aaa-card-title {
@@ -816,9 +821,9 @@ body.search-results {
     font-weight: 600;
 }
 
-.aaa-meta-format { background: rgba(124,92,255,0.16); color: #a48bff; border: 1px solid rgba(124,92,255,0.28); }
-.aaa-meta-season { background: rgba(52,211,153,0.12); color: #34d399; border: 1px solid rgba(52,211,153,0.24); }
-.aaa-meta-ep     { background: rgba(76,201,240,0.12); color: #4cc9f0; border: 1px solid rgba(76,201,240,0.24); }
+.aaa-meta-format { background: rgba(124,92,255,0.20); color: #b8a0ff; border: 1px solid rgba(124,92,255,0.34); }
+.aaa-meta-season { background: rgba(52,211,153,0.16); color: #34d399; border: 1px solid rgba(52,211,153,0.30); }
+.aaa-meta-ep     { background: rgba(76,201,240,0.16); color: #4cc9f0; border: 1px solid rgba(76,201,240,0.30); }
 
 .aaa-card-pop {
     font-size: 11px;
@@ -858,25 +863,28 @@ body.search-results {
     font-size: 14px;
     font-weight: 600;
     border: 1px solid var(--aaa-border);
+    backdrop-filter: var(--aaa-blur);
+    -webkit-backdrop-filter: var(--aaa-blur);
     transition: all var(--aaa-transition);
 }
 
 .aaa-pagination .page-numbers:hover {
     color: #fff;
-    background: rgba(124,92,255,0.18);
-    border-color: rgba(124,92,255,0.42);
+    background: rgba(124,92,255,0.22);
+    border-color: rgba(124,92,255,0.48);
 }
 
 .aaa-pagination .page-numbers.current {
     background: linear-gradient(135deg, var(--aaa-primary), #9d6bff);
     color: #fff;
     border-color: transparent;
-    box-shadow: 0 6px 18px rgba(124,92,255,0.32);
+    box-shadow: 0 6px 20px rgba(124,92,255,0.38);
 }
 
 .aaa-pagination .page-numbers.dots {
     background: none;
     border: none;
+    backdrop-filter: none;
     cursor: default;
     color: var(--aaa-text-faint);
 }
@@ -919,8 +927,8 @@ body.search-results {
 
 .aaa-seo-tag:hover {
     color: #fff;
-    background: rgba(124,92,255,0.12);
-    border-color: rgba(124,92,255,0.32);
+    background: rgba(124,92,255,0.14);
+    border-color: rgba(124,92,255,0.36);
 }
 
 /* ============================================================
@@ -947,7 +955,7 @@ body.search-results {
     border-radius: var(--aaa-radius-pill);
     text-decoration: none;
     font-weight: 700;
-    box-shadow: 0 10px 26px rgba(124,92,255,0.28);
+    box-shadow: 0 10px 26px rgba(124,92,255,0.32);
     transition: transform var(--aaa-transition), opacity var(--aaa-transition);
 }
 
