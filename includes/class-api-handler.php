@@ -1194,27 +1194,6 @@ private function get_bgm_staff( int $bangumi_id ): array {
     return $staff;
 }
 
-
-    $staff = [];
-    foreach ( $persons as $p ) {
-        $role = $p['relation'] ?? '';
-        if ( in_array( $role, $allowed_roles, true ) ) {
-            $staff[] = [
-                'id'     => $p['id']             ?? 0,
-                'name'   => $p['name']            ?? '',
-                'role'   => $role,
-                'image'  => $p['images']['large'] ?? $p['images']['medium'] ?? '',
-                'source' => 'bangumi',
-            ];
-        }
-    }
-
-    set_transient( $cache_key, $staff, 12 * HOUR_IN_SECONDS );
-    return $staff;
-}
-
-
-
     private function get_bgm_chars( int $bangumi_id ): array {
         $cache_key = 'anime_sync_bgm_chars_' . $bangumi_id;
         $cached    = get_transient( $cache_key );
