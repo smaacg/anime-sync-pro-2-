@@ -220,7 +220,10 @@ class Anime_Sync_API_Handler {
 
         $anilist_id    = (int)    get_post_meta( $post_id, 'anime_anilist_id',    true );
         $bangumi_id    = (int)    get_post_meta( $post_id, 'anime_bangumi_id',    true );
-        $mal_id        = (int)    get_post_meta( $post_id, 'anime_mal_id',        true );
+        $mal_id = (int) get_post_meta( $post_id, 'anime_mal_id', true );
+if ( ! $mal_id ) {
+    $mal_id = (int) get_post_meta( $post_id, 'mal_id', true );
+}
         $title_chinese = (string) get_post_meta( $post_id, 'anime_title_chinese', true );
         $title_native  = (string) get_post_meta( $post_id, 'anime_title_native',  true );
         $title_romaji  = (string) get_post_meta( $post_id, 'anime_title_romaji',  true );
