@@ -2,6 +2,10 @@
  * anime-single.css  —  Anime Sync Pro
  * Path : wp-content/plugins/anime-sync-pro/public/assets/css/anime-single.css
  *
+ * v11.5  ABU  ── 評分卡統一大小
+ *               移除 OPT4 第一個評分放大（scale 1.1）
+ *               三個評分卡改為四邊品牌色框線（border 取代 border-top）
+ *               移除 first-child 特殊樣式
  * v11.4  ABT  ── 配色 + 佈局更新
  *               背景改為 #1E242B 靜夜深藍黑，卡片底 #242C35
  *               封面圖放大至 220×308 px（2:3）
@@ -230,7 +234,6 @@ body.single-anime .asd-banner {
 
 /* ════════════════════════════════════════════════════════════════════════════
    評分列 — Glass 風格
-   OPT4 — 第一個評分放大 + 品牌框線
    OPT7 — GPU 加速 will-change
 ════════════════════════════════════════════════════════════════════════════ */
 
@@ -260,16 +263,15 @@ body.single-anime .asd-banner {
     transform:    translateY(-3px);
 }
 
-/* OPT4 */
-.asd-hero-scores .asd-score-block:first-child {
-    transform:  scale(1.1);
-    border:     2px solid var(--asd-primary);
-    box-shadow: var(--glass-shadow), 0 0 16px rgba(232,93,38,.25);
-}
-.asd-hero-scores .asd-score-block:first-child:hover { transform: scale(1.1) translateY(-3px); }
-.asd-hero-scores .asd-score-block:first-child.asd-score-al  { border-top-color: var(--asd-score-al); }
-.asd-hero-scores .asd-score-block:first-child.asd-score-mal { border-top-color: var(--asd-score-mal); }
-.asd-hero-scores .asd-score-block:first-child.asd-score-bgm { border-top-color: var(--asd-score-bgm); }
+/* 三個評分卡等大，各自保留四邊品牌色框線 */
+.asd-score-al  { border: 2px solid var(--asd-score-al);  }
+.asd-score-mal { border: 2px solid var(--asd-score-mal); }
+.asd-score-bgm { border: 2px solid var(--asd-score-bgm); }
+
+/* hover 時維持原 transform，不放大 */
+.asd-score-al:hover  { border-color: var(--asd-score-al);  transform: translateY(-3px); }
+.asd-score-mal:hover { border-color: var(--asd-score-mal); transform: translateY(-3px); }
+.asd-score-bgm:hover { border-color: var(--asd-score-bgm); transform: translateY(-3px); }
 
 .asd-score-platform { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--asd-text-muted); margin-bottom: 2px; }
 .asd-score-val {
@@ -280,10 +282,8 @@ body.single-anime .asd-banner {
 .asd-score-al  .asd-score-val { background: var(--asd-score-al);  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 .asd-score-mal .asd-score-val { background: var(--asd-score-mal); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 .asd-score-bgm .asd-score-val { background: var(--asd-score-bgm); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.asd-score-al  { border-top: 2px solid var(--asd-score-al);  }
-.asd-score-mal { border-top: 2px solid var(--asd-score-mal); }
-.asd-score-bgm { border-top: 2px solid var(--asd-score-bgm); }
 .asd-score-max { font-size: 11px; color: var(--asd-text-dim); margin-top: 1px; }
+
 
 /* ════════════════════════════════════════════════════════════════════════════
    快速連結
@@ -1042,8 +1042,6 @@ body.single-anime .asd-banner {
     .asd-rec-title        { font-size: 12px; }
     .asd-score-block      { min-width: 70px; padding: 8px 12px; }
     .asd-score-val        { font-size: 1.25rem; }
-    .asd-hero-scores .asd-score-block:first-child       { transform: scale(1.05); }
-    .asd-hero-scores .asd-score-block:first-child:hover { transform: scale(1.05) translateY(-2px); }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
