@@ -23,6 +23,11 @@
  * ACF – enqueue_admin_assets() 擴充載入條件，涵蓋 anime 文章編輯頁
  *       animeSyncAdmin 補入 resync i18n 鍵值
  *       建構子新增 wp_ajax_anime_resync_bangumi 掛載
+ *
+ * ACH – 所有匯入方式（單筆/季度/ID清單/系列/人氣）在 import_single() 後
+ *       自動呼叫 enrich_anime_data()，確保 MAL 評分、Wikipedia、
+ *       AnimeThemes 等第二段資料一定被寫入。
+ *       set_time_limit 從 120 調整為 180 以因應額外 API 請求。
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -46,12 +51,43 @@ class Anime_Sync_Admin {
         add_action( 'wp_ajax_anime_sync_bulk_action',        [ $this, 'handle_ajax_bulk_action'        ] );
         add_action( 'wp_ajax_anime_sync_save_bangumi_id',    [ $this, 'handle_ajax_save_bangumi_id'    ] );
         add_action( 'wp_ajax_anime_sync_enrich_single',      [ $this, 'handle_ajax_enrich_single'      ] );
-        // ACD 新增
         add_action( 'wp_ajax_anime_sync_analyze_series',     [ $this, 'handle_ajax_analyze_series'     ] );
         add_action( 'wp_ajax_anime_sync_import_series',      [ $this, 'handle_ajax_import_series'      ] );
         add_action( 'wp_ajax_anime_sync_popularity_ranking', [ $this, 'handle_ajax_popularity_ranking' ] );
-        // ACF 新增：Bangumi 重新同步
         add_action( 'wp_ajax_anime_resync_bangumi',          [ $this, 'handle_ajax_resync_bangumi'     ] );
+    }
+
+    // =========================================================================
+    // ACH 內部 Helper：import_single 後自動 enrich
+    // =========================================================================
+
+    /**
+     * 執行 import_single()，成功後自動呼叫 enrich_anime_data()。
+     * 所有匯入 handler 統一走這個方法，確保 MAL 評分一定被寫入。
+     *
+     * @param int $anilist_id
+     * @return array $result（含 enrich 結果）
+     */
+    private function import_and_enrich( int $anilist_id ): array {
+        $result = $this->import_manager->import_single( $anilist_id );
+
+        // 匯入成功且拿到 post_id 才跑 enrich
+        if ( ! empty( $result['success'] ) && ! empty( $result['post_id'] ) ) {
+            $post_id = (int) $result['post_id'];
+
+            if ( class_exists( 'Anime_Sync_API_Handler' ) ) {
+                $api    = new Anime_Sync_API_Handler();
+                $enrich = $api->enrich_anime_data( $post_id );
+
+                if ( ! is_wp_error( $enrich ) ) {
+                    $result['enriched'] = array_keys( $enrich );
+                } else {
+                    $result['enrich_error'] = $enrich->get_error_message();
+                }
+            }
+        }
+
+        return $result;
     }
 
     // =========================================================================
@@ -84,16 +120,19 @@ class Anime_Sync_Admin {
     public function render_settings()       { $this->safe_include_page( 'settings.php'       ); }
 
     // =========================================================================
-    // AJAX：單筆匯入
+    // AJAX：單筆匯入（ACH：改用 import_and_enrich）
     // =========================================================================
 
     public function handle_ajax_import_single(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
-        @set_time_limit( 120 );
+
+        @set_time_limit( 180 ); // ACH：從 120 調高至 180
+
         $anilist_id = isset( $_POST['anilist_id'] ) ? intval( $_POST['anilist_id'] ) : 0;
         if ( ! $anilist_id ) wp_send_json_error( [ 'message' => '無效的 ID' ] );
-        $result = $this->import_manager->import_single( $anilist_id );
+
+        $result = $this->import_and_enrich( $anilist_id ); // ACH：自動 enrich
         wp_send_json_success( $result );
     }
 
@@ -219,7 +258,7 @@ class Anime_Sync_Admin {
     }
 
     // =========================================================================
-    // AJAX：批次操作
+    // AJAX：批次操作（ACH：refetch 改用 import_and_enrich）
     // =========================================================================
 
     public function handle_ajax_bulk_action(): void {
@@ -230,7 +269,7 @@ class Anime_Sync_Admin {
         if ( empty( $action ) || empty( $post_ids ) ) wp_send_json_error( '參數錯誤' );
         $allowed_actions = [ 'publish', 'draft', 'delete', 'refetch' ];
         if ( ! in_array( $action, $allowed_actions, true ) ) wp_send_json_error( '不允許的操作' );
-        if ( $action === 'refetch' ) @set_time_limit( 120 * count( $post_ids ) );
+        if ( $action === 'refetch' ) @set_time_limit( 180 * count( $post_ids ) );
         $count = 0;
         foreach ( $post_ids as $post_id ) {
             if ( ! $post_id || get_post_type( $post_id ) !== 'anime' ) continue;
@@ -249,7 +288,8 @@ class Anime_Sync_Admin {
                 case 'refetch':
                     $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
                     if ( $anilist_id ) {
-                        $r = $this->import_manager->import_single( $anilist_id );
+                        // ACH：refetch 也走 import_and_enrich
+                        $r = $this->import_and_enrich( $anilist_id );
                         if ( ! empty( $r['success'] ) ) $count++;
                     }
                     break;
@@ -337,12 +377,7 @@ class Anime_Sync_Admin {
     }
 
     // =========================================================================
-    // AJAX：系列分析（ACD，Tab 4）
-    // ACE 修正：
-    //   1. is_wp_error() 防呆
-    //   2. 判斷改用 empty($result['nodes'])
-    //   3. 回傳時將 nodes 映射為前端 JS 需要的 'tree' key
-    //   4. 補算 total / imported 統計
+    // AJAX：系列分析（ACE 修正）
     // =========================================================================
 
     public function handle_ajax_analyze_series(): void {
@@ -356,17 +391,14 @@ class Anime_Sync_Admin {
 
         $result = $this->import_manager->analyze_series( $anilist_id );
 
-        // 防呆：WP_Error
         if ( is_wp_error( $result ) ) {
             wp_send_json_error( [ 'message' => $result->get_error_message() ] );
         }
 
-        // 防呆：nodes 為空
         if ( empty( $result['nodes'] ) ) {
             wp_send_json_error( [ 'message' => '找不到系列資料，請確認 ID 是否正確' ] );
         }
 
-        // 補算 total / imported 統計（前端顯示用）
         $nodes    = $result['nodes'];
         $total    = count( $nodes );
         $imported = count( array_filter( $nodes, fn( $n ) => ! empty( $n['imported'] ) ) );
@@ -374,21 +406,21 @@ class Anime_Sync_Admin {
         wp_send_json_success( [
             'root_id'     => $result['root_id'],
             'series_name' => $result['series_name'],
-            'tree'        => $nodes,    // 前端 JS 讀 res.data.tree
+            'tree'        => $nodes,
             'total'       => $total,
             'imported'    => $imported,
         ] );
     }
 
     // =========================================================================
-    // AJAX：系列匯入（ACD，Tab 4）
+    // AJAX：系列匯入（ACH：改用 import_and_enrich）
     // =========================================================================
 
     public function handle_ajax_import_series(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
 
-        @set_time_limit( 120 );
+        @set_time_limit( 180 ); // ACH：從 120 調高至 180
 
         $anilist_id  = intval( $_POST['anilist_id']  ?? 0 );
         $series_name = sanitize_text_field( $_POST['series_name'] ?? '' );
@@ -396,7 +428,7 @@ class Anime_Sync_Admin {
 
         if ( ! $anilist_id ) wp_send_json_error( [ 'message' => '無效的 AniList ID' ] );
 
-        $result = $this->import_manager->import_single( $anilist_id );
+        $result = $this->import_and_enrich( $anilist_id ); // ACH：自動 enrich
 
         if ( ! empty( $result['success'] ) && ! empty( $result['post_id'] ) && $series_name !== '' ) {
             $this->import_manager->assign_series_taxonomy( (int) $result['post_id'], $series_name, $root_id );
@@ -448,7 +480,7 @@ class Anime_Sync_Admin {
             wp_send_json_error( [ 'message' => '找不到 API Handler 類別' ] );
         }
 
-        $api = new Anime_Sync_API_Handler();
+        $api    = new Anime_Sync_API_Handler();
         $result = $api->ajax_resync_bangumi( $post_id, $bangumi_id );
 
         if ( is_wp_error( $result ) ) {
