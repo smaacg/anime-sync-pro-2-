@@ -77,9 +77,13 @@ private function import_and_enrich( int $anilist_id ): array {
         // 清除物件快取，確保 enrich 讀到最新 meta
         wp_cache_flush();
 
+        // ★ 確保 anime_mal_id 正確存入，防止 null 被存成 0
+        if ( ! empty( $result['mal_id'] ) ) {
+            update_post_meta( $post_id, 'anime_mal_id', (int) $result['mal_id'] );
+        }
+
         if ( class_exists( 'Anime_Sync_API_Handler' ) ) {
             // 強制刪除 _enriched_at 鎖，確保重抓時一定重跑 enrich
-            // 避免 MAL / Wikipedia / AnimeThemes 因前次失敗而永遠不補
             delete_post_meta( $post_id, '_enriched_at' );
 
             $api    = new Anime_Sync_API_Handler();
