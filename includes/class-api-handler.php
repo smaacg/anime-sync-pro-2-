@@ -1135,7 +1135,7 @@ private function fetch_mal_score( ?int $mal_id ): int {
         return $data;
     }
 
-  private function get_bgm_staff( int $bangumi_id ): array {
+ private function get_bgm_staff( int $bangumi_id ): array {
     $cache_key = 'anime_sync_bgm_staff_' . $bangumi_id;
     $cached    = get_transient( $cache_key );
     if ( $cached !== false ) return (array) $cached;
@@ -1150,12 +1150,23 @@ private function fetch_mal_score( ?int $mal_id ): int {
     $persons = json_decode( wp_remote_retrieve_body( $response ), true );
     if ( ! is_array( $persons ) ) return [];
 
-    // ACH：只保留主要職位
+    // ACH：只保留核心主創職位（依據 Bangumi 實際 relation 值）
     $allowed_roles = [
-        '導演', '監督', '原作', '系列構成', '腳本',
-        '人物設定', '角色設計', '音樂', '音楽',
-        '製作人', '製片人', 'Director', 'Series Composition',
-        'Character Design', 'Music', 'Original Creator',
+        '导演',       // 監督
+        '原作',       // 原作
+        '系列构成',   // 系列構成
+        '脚本',       // 腳本
+        '人物原案',   // 人物原案
+        '角色设计',   // 角色設計
+        '人物设定',   // 人物設定
+        '音乐',       // 音樂
+        '音響監督',
+        '音响监督',
+        '主题歌演出', // OP/ED 演出
+        '主题歌作词', // OP/ED 作詞
+        '主题歌作曲', // OP/ED 作曲
+        '动画制作',   // 動畫製作公司
+        '製作',
     ];
 
     $staff = [];
@@ -1170,12 +1181,12 @@ private function fetch_mal_score( ?int $mal_id ): int {
                 'source' => 'bangumi',
             ];
         }
-        if ( count( $staff ) >= 20 ) break;
     }
 
     set_transient( $cache_key, $staff, 12 * HOUR_IN_SECONDS );
     return $staff;
 }
+
 
 
     private function get_bgm_chars( int $bangumi_id ): array {
