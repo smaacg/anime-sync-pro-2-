@@ -9,6 +9,8 @@
  *       新增 filter_anime_search()：搜尋時同時查詢
  *       anime_title_romaji、anime_title_english meta 欄位
  *       僅在 post_type=anime 搜尋時生效，不影響其他搜尋
+ * ACG v2 – anime-single.css 擴展至 archive / taxonomy / search 頁
+ *          確保 --asd-* CSS 變數在所有 anime 頁面皆可用
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -61,8 +63,15 @@ class Anime_Sync_Frontend {
             ANIME_SYNC_PRO_VERSION
         );
 
-        // ✅ Bug F 修正：補上 anime-single.css 載入（僅 single 頁）
-        if ( is_singular( 'anime' ) ) {
+        // ✅ Bug F 修正：anime-single.css 載入
+        // ACG v2：擴展至 archive / taxonomy / search 頁，確保 --asd-* 變數全站可用
+        if ( is_singular( 'anime' )
+            || is_post_type_archive( 'anime' )
+            || is_tax( 'genre' )
+            || is_tax( 'anime_season_tax' )
+            || is_tax( 'anime_format_tax' )
+            || $is_anime_search
+        ) {
             wp_enqueue_style(
                 'anime-sync-single',
                 ANIME_SYNC_PRO_URL . 'public/assets/css/anime-single.css',
@@ -123,9 +132,9 @@ class Anime_Sync_Frontend {
     public function filter_anime_search( string $search, \WP_Query $query ): string {
 
         // 只處理前台主查詢的 anime 搜尋
-        if ( ! $query->is_search() )                           return $search;
-        if ( $query->get( 'post_type' ) !== 'anime' )          return $search;
-        if ( empty( $search ) )                                return $search;
+        if ( ! $query->is_search() )                  return $search;
+        if ( $query->get( 'post_type' ) !== 'anime' ) return $search;
+        if ( empty( $search ) )                       return $search;
 
         $term = $query->get( 's' );
         if ( empty( $term ) ) return $search;
@@ -171,17 +180,17 @@ class Anime_Sync_Frontend {
         $cover = get_post_meta( $pid, 'anime_cover_image', true );
         $url   = get_permalink( $pid );
 
-        echo '<meta property="og:type"        content="video.tv_show">'                         . "\n";
-        echo '<meta property="og:title"       content="' . esc_attr( $title ) . '">'            . "\n";
-        echo '<meta property="og:description" content="' . esc_attr( $desc )  . '">'            . "\n";
-        echo '<meta property="og:url"         content="' . esc_url( $url )    . '">'            . "\n";
+        echo '<meta property="og:type"        content="video.tv_show">'                              . "\n";
+        echo '<meta property="og:title"       content="' . esc_attr( $title ) . '">'                 . "\n";
+        echo '<meta property="og:description" content="' . esc_attr( $desc )  . '">'                 . "\n";
+        echo '<meta property="og:url"         content="' . esc_url( $url )    . '">'                 . "\n";
         echo '<meta property="og:site_name"   content="' . esc_attr( get_bloginfo( 'name' ) ) . '">' . "\n";
-        if ( $cover ) echo '<meta property="og:image" content="' . esc_url( $cover ) . '">'     . "\n";
-        echo '<meta name="twitter:card"        content="summary_large_image">'                  . "\n";
-        echo '<meta name="twitter:title"       content="' . esc_attr( $title ) . '">'           . "\n";
-        echo '<meta name="twitter:description" content="' . esc_attr( $desc )  . '">'           . "\n";
-        if ( $cover ) echo '<meta name="twitter:image" content="' . esc_url( $cover ) . '">'    . "\n";
-        echo '<link rel="canonical" href="'    . esc_url( $url ) . '">'                         . "\n";
+        if ( $cover ) echo '<meta property="og:image" content="' . esc_url( $cover ) . '">'          . "\n";
+        echo '<meta name="twitter:card"        content="summary_large_image">'                       . "\n";
+        echo '<meta name="twitter:title"       content="' . esc_attr( $title ) . '">'                . "\n";
+        echo '<meta name="twitter:description" content="' . esc_attr( $desc )  . '">'                . "\n";
+        if ( $cover ) echo '<meta name="twitter:image" content="' . esc_url( $cover ) . '">'         . "\n";
+        echo '<link rel="canonical" href="'    . esc_url( $url ) . '">'                              . "\n";
     }
 
     // =========================================================
@@ -370,8 +379,8 @@ class Anime_Sync_Frontend {
             'posts_per_page' => 100,
             'meta_query'     => [],
         ];
-        if ( $year )   $args['meta_query'][] = [ 'key' => 'anime_season_year', 'value' => $year, 'type' => 'NUMERIC' ];
-        if ( $season ) $args['meta_query'][] = [ 'key' => 'anime_season',      'value' => $season ];
+        if ( $year )   $args['meta_query'][] = [ 'key' => 'anime_season_year', 'value' => $year,   'type' => 'NUMERIC' ];
+        if ( $season ) $args['meta_query'][] = [ 'key' => 'anime_season',      'value' => $season               ];
         if ( count( $args['meta_query'] ) > 1 ) $args['meta_query']['relation'] = 'AND';
         $q     = new WP_Query( $args );
         $items = array_map( [ $this, 'build_rest_response' ], $q->posts );
