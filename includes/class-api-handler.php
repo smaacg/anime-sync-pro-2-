@@ -1009,31 +1009,56 @@ if ( ! $mal_id ) {
         return $decoded;
     }
 
-    // =========================================================================
-    // PRIVATE – MAL 評分（ACG：統一 User-Agent）
-    // =========================================================================
+// =========================================================================
+// PRIVATE – MAL 評分（ACG：統一 User-Agent）
+// =========================================================================
 
-    private function fetch_mal_score( ?int $mal_id ): int {
-        if ( ! $mal_id || $mal_id <= 0 ) return 0;
+// =========================================================================
+// PRIVATE – MAL 評分（ACH：改用 cURL 繞過 Hostinger wp_remote_get 504）
+// =========================================================================
 
-        $cache_key = 'anime_sync_mal_score_' . $mal_id;
-        $cached    = get_transient( $cache_key );
-        if ( $cached !== false ) return (int) $cached;
+private function fetch_mal_score( ?int $mal_id ): int {
+    if ( ! $mal_id || $mal_id <= 0 ) return 0;
 
-        $this->rate_limiter->wait_if_needed( 'jikan' );
-        $response = wp_remote_get( self::JIKAN_ANIME_URL . $mal_id, [
-            'timeout' => 10,
-            'headers' => [ 'User-Agent' => self::USER_AGENT ],
-        ] );
-        if ( is_wp_error( $response ) ) return 0;
-        if ( (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return 0;
+    $cache_key = 'anime_sync_mal_score_' . $mal_id;
+    $cached    = get_transient( $cache_key );
+    if ( $cached !== false ) return (int) $cached;
 
-        $data  = json_decode( wp_remote_retrieve_body( $response ), true );
-        $score = isset( $data['data']['score'] ) ? (int) round( (float) $data['data']['score'] * 10 ) : 0;
+    $this->rate_limiter->wait_if_needed( 'jikan' );
 
-        set_transient( $cache_key, $score, 12 * HOUR_IN_SECONDS );
-        return $score;
+    $url = self::JIKAN_ANIME_URL . $mal_id;
+    $ch  = curl_init();
+    curl_setopt_array( $ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_USERAGENT      => self::USER_AGENT,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ] );
+    $body = curl_exec( $ch );
+    $code = (int) curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+    $err  = curl_error( $ch );
+    curl_close( $ch );
+
+    if ( $err !== '' ) {
+        error_log( '[MAL] cURL error: ' . $err );
+        return 0;
     }
+    if ( $code !== 200 ) {
+        error_log( '[MAL] cURL HTTP code: ' . $code . ' for MAL ID: ' . $mal_id );
+        return 0;
+    }
+
+    $data  = json_decode( $body, true );
+    $score = isset( $data['data']['score'] ) ? (int) round( (float) $data['data']['score'] * 10 ) : 0;
+
+    error_log( '[MAL] ID: ' . $mal_id . ' score: ' . $score );
+
+    set_transient( $cache_key, $score, 12 * HOUR_IN_SECONDS );
+    return $score;
+}
+
 
     // =========================================================================
     // PRIVATE – Wikipedia URL
