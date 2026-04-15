@@ -102,7 +102,7 @@ $seasons       = [ 'WINTER', 'SPRING', 'SUMMER', 'FALL' ];
 
     <!-- ───────────────── Filter Bar ───────────────── -->
     <form method="get" class="anime-sync-filter-form" style="margin:16px 0;">
-        <input type="hidden" name="page" value="anime-sync-review" />
+        <input type="hidden" name="page" value="anime-sync-queue" />
 
         <select name="filter_status">
             <option value="draft"   <?php selected( $filter_status, 'draft' );   ?>>
@@ -146,7 +146,7 @@ $seasons       = [ 'WINTER', 'SPRING', 'SUMMER', 'FALL' ];
             <?php esc_html_e( '篩選', 'anime-sync-pro' ); ?>
         </button>
 
-        <a href="<?php echo esc_url( admin_url( 'admin.php?page=anime-sync-review' ) ); ?>"
+        <a href="<?php echo esc_url( admin_url( 'admin.php?page=anime-sync-queue' ) ); ?>"
            class="button button-link">
             <?php esc_html_e( '重設', 'anime-sync-pro' ); ?>
         </a>
@@ -385,7 +385,7 @@ $seasons       = [ 'WINTER', 'SPRING', 'SUMMER', 'FALL' ];
             <div class="tablenav-pages">
                 <?php
                 $base_url = add_query_arg( [
-                    'page'           => 'anime-sync-review',
+                    'page'           => 'anime-sync-queue',
                     'filter_status'  => $filter_status,
                     'filter_season'  => $filter_season,
                     'filter_year'    => $filter_year,
