@@ -441,7 +441,7 @@ if ( ! $term ) {
         }
 
         // 製作公司 → anime_studio_tax taxonomy
-        $studios_raw = $data['studios'] ?? '';
+$studios_raw = $data['anime_studios'] ?? '';
         if ( ! empty( $studios_raw ) ) {
             $studio_names    = array_filter( array_map( 'trim', explode( ',', $studios_raw ) ) );
             $studio_term_ids = [];
