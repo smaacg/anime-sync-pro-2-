@@ -7,6 +7,8 @@
  *       Tab 4 relation_type 空值顯示「根源」而非「—」
  *       Tab 5 全部補完：action 名稱、res.data.items、item.anilist_id、
  *              翻頁累加邏輯（第 1 頁替換，後續追加）
+ * ACJ – Tab 2 季度結果加入格式篩選列（TV/MOVIE/OVA/ONA/SPECIAL）
+ *       匯入時只收集可見勾選項（:checked:visible）
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -90,6 +92,20 @@ $converter_stats = $cn_converter->get_stats();
             </div>
             <div id="season-preview" style="display:none;">
                 <p id="season-preview-summary" class="description" style="font-size:13px;"></p>
+
+                <!-- ACJ：格式篩選列 -->
+                <div id="season-format-filter" style="margin-bottom:12px; padding:10px 12px; background:#f6f7f7; border:1px solid #ddd; border-radius:4px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+                    <strong style="margin-right:4px;">篩選格式：</strong>
+                    <label><input type="checkbox" class="format-filter-check" value="TV" checked> TV</label>
+                    <label><input type="checkbox" class="format-filter-check" value="MOVIE" checked> MOVIE</label>
+                    <label><input type="checkbox" class="format-filter-check" value="OVA" checked> OVA</label>
+                    <label><input type="checkbox" class="format-filter-check" value="ONA" checked> ONA</label>
+                    <label><input type="checkbox" class="format-filter-check" value="SPECIAL" checked> SPECIAL</label>
+                    <label><input type="checkbox" class="format-filter-check" value="MUSIC"> MUSIC</label>
+                    <button type="button" id="btn-apply-format-filter" class="button button-small" style="margin-left:8px;">套用篩選</button>
+                    <span id="season-filter-count" style="color:#666; font-size:12px;"></span>
+                </div>
+
                 <div class="asc-table-wrap">
                     <table class="wp-list-table widefat fixed striped asc-season-table">
                         <thead><tr>
@@ -261,6 +277,8 @@ $converter_stats = $cn_converter->get_stats();
 #single-import-result.success { background: #edfaef; border: 1px solid #46b450; color: #235926; }
 #single-import-result.warning { background: #fff8e5; border: 1px solid #d97706; color: #7a4b00; }
 #single-import-result.error   { background: #fcf0f1; border: 1px solid #dc3232; color: #a42821; }
+/* ACJ：格式篩選列隱藏的列 */
+#season-anime-tbody tr.format-hidden { display: none; }
 </style>
 
 <script>
@@ -372,7 +390,7 @@ jQuery( function( $ ) {
         .done( function(res) {
             if ( res.success && res.data.list ) {
                 renderSeasonTable( res.data.list );
-                $( '#season-preview-summary' ).text( '共找到 ' + res.data.list.length + ' 部。' );
+                updateSeasonSummary();
                 $( '#season-preview' ).show();
                 $( '#btn-season-import' ).prop('disabled',false);
             } else { alert( res.data || '查詢失敗' ); }
@@ -384,7 +402,8 @@ jQuery( function( $ ) {
         var html = '';
         $.each( list, function(i, item) {
             var imp = item.imported ? '<span class="status-imported">✅ 已匯入</span>' : '<span class="status-new">⬜ 未匯入</span>';
-            html += '<tr>' +
+            var fmt = ( item.format || '' ).toUpperCase();
+            html += '<tr data-format="' + esc(fmt) + '">' +
                 '<td><input type="checkbox" class="season-item-check" value="'+item.anilist_id+'" '+(item.imported?'':'checked')+'></td>' +
                 '<td>'+item.anilist_id+'</td><td>'+(item.title_romaji||'-')+'</td>' +
                 '<td>'+(item.format||'-')+'</td><td>'+(item.episodes||'?')+'</td>' +
@@ -394,13 +413,53 @@ jQuery( function( $ ) {
         $( '#season-anime-tbody' ).html( html );
     }
 
+    // ACJ：更新摘要文字（顯示中 / 全部 / 勾選數）
+    function updateSeasonSummary() {
+        var total    = $( '#season-anime-tbody tr' ).length;
+        var visible  = $( '#season-anime-tbody tr:visible' ).length;
+        var checked  = $( '.season-item-check:checked:visible' ).length;
+        $( '#season-preview-summary' ).text(
+            '共 ' + total + ' 部，目前顯示 ' + visible + ' 部，已勾選 ' + checked + ' 部。'
+        );
+        $( '#season-filter-count' ).text( '顯示 ' + visible + ' / ' + total + ' 部' );
+    }
+
+    // ACJ：套用格式篩選
+    $( '#btn-apply-format-filter' ).on( 'click', function() {
+        var checked = [];
+        $( '.format-filter-check:checked' ).each( function() {
+            checked.push( $( this ).val().toUpperCase() );
+        } );
+        $( '#season-anime-tbody tr' ).each( function() {
+            var fmt = ( $( this ).data('format') || '' ).toUpperCase();
+            if ( checked.length === 0 || checked.indexOf( fmt ) !== -1 ) {
+                $( this ).show();
+            } else {
+                $( this ).hide();
+                // 隱藏的列取消勾選，避免被匯入
+                $( this ).find( '.season-item-check' ).prop( 'checked', false );
+            }
+        } );
+        updateSeasonSummary();
+    } );
+
     $( '#season-select-all' ).on( 'change', function() {
-        $( '.season-item-check' ).prop( 'checked', $( this ).is(':checked') );
+        // 只操作可見列
+        $( '#season-anime-tbody tr:visible .season-item-check' ).prop( 'checked', $( this ).is(':checked') );
+        updateSeasonSummary();
+    } );
+
+    // 勾選變動時更新摘要
+    $( document ).on( 'change', '.season-item-check', function() {
+        updateSeasonSummary();
     } );
 
     $( '#btn-season-import' ).on( 'click', function() {
+        // ACJ：只收集可見且勾選的項目
         var ids = [];
-        $( '.season-item-check:checked' ).each( function() { ids.push( parseInt( $( this ).val() ) ); } );
+        $( '#season-anime-tbody tr:visible .season-item-check:checked' ).each( function() {
+            ids.push( parseInt( $( this ).val() ) );
+        } );
         if ( !ids.length ) { alert('請至少選擇一部動畫'); return; }
         seasonStop.value = false;
         $( '#btn-season-import' ).prop('disabled',true);
@@ -462,7 +521,6 @@ jQuery( function( $ ) {
     var seriesStop = { value: false };
     var seriesMeta = { series_name: '', root_id: 0, series_romaji: '' };
 
-
     $( '#btn-analyze-series' ).on( 'click', function() {
         var id = parseInt( $( '#series-anilist-id' ).val() );
         if ( !id || id <= 0 ) { alert('請輸入有效的 AniList ID'); return; }
@@ -496,14 +554,12 @@ jQuery( function( $ ) {
         var labelMap = { 'PREQUEL':'前作','SEQUEL':'續作','SIDE_STORY':'外傳','SPIN_OFF':'衍生','ALTERNATIVE':'平行','PARENT':'主作品' };
         var html = '';
         $.each( tree, function(i, node) {
-            // ACE 修正①：使用 node.anilist_id，不再用 node.id
             var aid     = node.anilist_id;
             var name    = node.title_chinese || node.title_romaji || node.title_native || ('ID ' + aid);
             var imp     = node.imported
                 ? '<span class="status-imported">✅ 已匯入</span>'
                 : '<span class="status-new">⬜ 未匯入</span>';
             var checked = node.imported ? '' : 'checked';
-            // ACE 修正②：relation_type 空值顯示「根源」
             var relType = node.relation_type
                 ? ( labelMap[node.relation_type] || node.relation_type )
                 : '根源';
@@ -534,9 +590,9 @@ jQuery( function( $ ) {
         $( '#series-progress-wrap' ).show();
         $( '#series-import-log' ).empty();
         throttledImport( ids, function(id,done) {
-$.post( AJAX_URL, { action:'anime_sync_import_series', anilist_id:id,
-    series_name:seriesMeta.series_name, root_id:seriesMeta.root_id,
-    series_romaji:seriesMeta.series_romaji, nonce:NONCE } )
+            $.post( AJAX_URL, { action:'anime_sync_import_series', anilist_id:id,
+                series_name:seriesMeta.series_name, root_id:seriesMeta.root_id,
+                series_romaji:seriesMeta.series_romaji, nonce:NONCE } )
             .done( function(res) {
                 var label=(res.data&&res.data.title)?res.data.title:id;
                 var msg=(res.data&&res.data.message)?res.data.message:'Done';
@@ -555,22 +611,20 @@ $.post( AJAX_URL, { action:'anime_sync_import_series', anilist_id:id,
     } );
     $( '#btn-series-stop' ).on( 'click', function() { seriesStop.value = true; } );
 
-    /* ── TAB 5：人氣排行匯入（ACE 全部補完）────────────────────────── */
+    /* ── TAB 5：人氣排行匯入 ────────────────────────────────────── */
     var rankingPage = 1;
     var rankingStop = { value: false };
 
-    // ACE 修正③：action 改為 anime_sync_popularity_ranking
     function loadRankingPage() {
         $( '#ranking-load-spinner' ).show();
         $( '#btn-ranking-load' ).prop('disabled',true);
         $( '#btn-ranking-more' ).prop('disabled',true);
 
         $.post( AJAX_URL, {
-            action : 'anime_sync_popularity_ranking',   // ✅ 正確 action
+            action : 'anime_sync_popularity_ranking',
             page   : rankingPage,
             nonce  : NONCE
         } ).done( function(res) {
-            // ACE 修正④：讀取 res.data.items
             if ( res.success && res.data && res.data.items ) {
                 renderRankingTable( res.data.items );
                 $( '#ranking-preview' ).show();
@@ -596,22 +650,20 @@ $.post( AJAX_URL, { action:'anime_sync_import_series', anilist_id:id,
 
     $( '#btn-ranking-load' ).on( 'click', function() {
         rankingPage = 1;
-        $( '#ranking-tbody' ).empty();       // 重新載入從第 1 頁
+        $( '#ranking-tbody' ).empty();
         $( '#ranking-page-num' ).text(1);
         loadRankingPage();
     } );
 
     $( '#btn-ranking-more' ).on( 'click', function() {
         rankingPage++;
-        loadRankingPage();                   // 追加下一頁
+        loadRankingPage();
     } );
 
-    // ACE 修正⑤：用 item.anilist_id；rankingPage===1 替換，後續追加
     function renderRankingTable( items ) {
         var startRank = ( rankingPage - 1 ) * 50 + 1;
         var html = '';
         $.each( items, function(i, item) {
-            // ✅ 使用 item.anilist_id
             var aid    = item.anilist_id;
             var name   = item.title_chinese || item.title_romaji || item.title_native || ('ID ' + aid);
             var cover  = item.cover_image
@@ -636,7 +688,6 @@ $.post( AJAX_URL, { action:'anime_sync_import_series', anilist_id:id,
                 '<td>' + imp + '</td>' +
                 '</tr>';
         } );
-        // ✅ 第 1 頁替換，後續頁追加
         if ( rankingPage === 1 ) {
             $( '#ranking-tbody' ).html( html );
         } else {
@@ -676,5 +727,5 @@ $.post( AJAX_URL, { action:'anime_sync_import_series', anilist_id:id,
     } );
     $( '#btn-ranking-stop' ).on( 'click', function() { rankingStop.value = true; } );
 
-} ); // jQuery ready
+} );
 </script>
