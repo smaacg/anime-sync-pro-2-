@@ -460,7 +460,8 @@ jQuery( function( $ ) {
 
     /* ── TAB 4：系列分析匯入 ─────────────────────────────────────── */
     var seriesStop = { value: false };
-    var seriesMeta = { series_name: '', root_id: 0 };
+    var seriesMeta = { series_name: '', root_id: 0, series_romaji: '' };
+
 
     $( '#btn-analyze-series' ).on( 'click', function() {
         var id = parseInt( $( '#series-anilist-id' ).val() );
@@ -472,8 +473,9 @@ jQuery( function( $ ) {
         .done( function(res) {
             if ( res.success && res.data.tree ) {
                 var d = res.data;
-                seriesMeta.series_name = d.series_name;
-                seriesMeta.root_id     = d.root_id;
+                seriesMeta.series_name   = d.series_name;
+                seriesMeta.root_id       = d.root_id;
+                seriesMeta.series_romaji = d.series_romaji || '';
                 $( '#series-info' ).html(
                     '🎯 <strong>系列名稱：' + esc(d.series_name) + '</strong>　' +
                     '根源 ID：' + d.root_id + '　共 ' + d.total + ' 部　' +
@@ -532,8 +534,9 @@ jQuery( function( $ ) {
         $( '#series-progress-wrap' ).show();
         $( '#series-import-log' ).empty();
         throttledImport( ids, function(id,done) {
-            $.post( AJAX_URL, { action:'anime_sync_import_series', anilist_id:id,
-                series_name:seriesMeta.series_name, root_id:seriesMeta.root_id, nonce:NONCE } )
+$.post( AJAX_URL, { action:'anime_sync_import_series', anilist_id:id,
+    series_name:seriesMeta.series_name, root_id:seriesMeta.root_id,
+    series_romaji:seriesMeta.series_romaji, nonce:NONCE } )
             .done( function(res) {
                 var label=(res.data&&res.data.title)?res.data.title:id;
                 var msg=(res.data&&res.data.message)?res.data.message:'Done';
