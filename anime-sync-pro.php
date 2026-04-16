@@ -175,6 +175,26 @@ add_action( 'init', function () {
     ] );
 
 }, 10 );
+// ----------------------------------------------------------
+// Taxonomy: anime_studio_tax
+// ----------------------------------------------------------
+register_taxonomy( 'anime_studio_tax', [ 'anime' ], [
+    'labels' => [
+        'name'          => '製作公司',
+        'singular_name' => '製作公司',
+        'search_items'  => '搜尋製作公司',
+        'all_items'     => '所有製作公司',
+        'edit_item'     => '編輯製作公司',
+        'add_new_item'  => '新增製作公司',
+        'new_item_name' => '新製作公司名稱',
+        'menu_name'     => '製作公司',
+    ],
+    'hierarchical'      => false,
+    'show_in_rest'      => true,
+    'show_in_nav_menus' => true,
+    'show_admin_column' => true,
+    'rewrite'           => [ 'slug' => 'studio', 'with_front' => false ],
+] );
 
 // ============================================================
 // 4. 啟用 Hook
