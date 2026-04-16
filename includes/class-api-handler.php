@@ -462,41 +462,45 @@ if ( ! $mal_id ) {
     // PUBLIC – 系列樹（ACD）
     // =========================================================================
 
-    public function get_series_tree( int $anilist_id ): array|WP_Error {
+public function get_series_tree( int $anilist_id ): array|WP_Error {
 
-        $cache_key = 'anime_sync_series_tree_' . $anilist_id;
-        $cached    = get_transient( $cache_key );
-        if ( $cached !== false ) return $cached;
+    $cache_key = 'anime_sync_series_tree_' . $anilist_id;
+    $cached    = get_transient( $cache_key );
+    if ( $cached !== false ) return $cached;
 
-        $root_id = $this->find_series_root( $anilist_id );
-        if ( is_wp_error( $root_id ) ) return $root_id;
+    $root_id = $this->find_series_root( $anilist_id );
+    if ( is_wp_error( $root_id ) ) return $root_id;
 
-        $nodes = $this->expand_series_tree( $root_id );
-        if ( is_wp_error( $nodes ) ) return $nodes;
+    $nodes = $this->expand_series_tree( $root_id );
+    if ( is_wp_error( $nodes ) ) return $nodes;
 
-        $series_name = '';
-        foreach ( $nodes as $node ) {
-            if ( (int) $node['anilist_id'] === $root_id ) {
-                $series_name = $node['title_chinese'] ?: $node['title_romaji'] ?: '';
-                $series_name = preg_replace(
-                    '/[\s：:]*(\d+(?:st|nd|rd|th)?[\s]*[Ss]eason|第[一二三四五六七八九十\d]+[季期]|[Ss]\d+).*$/u',
-                    '',
-                    $series_name
-                );
-                $series_name = trim( $series_name );
-                break;
-            }
+    $series_name   = '';
+    $series_romaji = '';  // ACI 新增
+
+    foreach ( $nodes as $node ) {
+        if ( (int) $node['anilist_id'] === $root_id ) {
+            $series_name = $node['title_chinese'] ?: $node['title_romaji'] ?: '';
+            $series_name = preg_replace(
+                '/[\s：:]*(\d+(?:st|nd|rd|th)?[\s]*[Ss]eason|第[一二三四五六七八九十\d]+[季期]|[Ss]\d+).*$/u',
+                '',
+                $series_name
+            );
+            $series_name   = trim( $series_name );
+            $series_romaji = $node['title_romaji'] ?? '';  // ACI 新增
+            break;
         }
-
-        $result = [
-            'root_id'     => $root_id,
-            'series_name' => $series_name,
-            'nodes'       => $nodes,
-        ];
-
-        set_transient( $cache_key, $result, 6 * HOUR_IN_SECONDS );
-        return $result;
     }
+
+    $result = [
+        'root_id'       => $root_id,
+        'series_name'   => $series_name,
+        'series_romaji' => $series_romaji,  // ACI 新增
+        'nodes'         => $nodes,
+    ];
+
+    set_transient( $cache_key, $result, 6 * HOUR_IN_SECONDS );
+    return $result;
+}
 
     // =========================================================================
     // PUBLIC – AniList 人氣排行（ACD + ACE）
