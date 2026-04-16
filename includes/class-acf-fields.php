@@ -859,7 +859,6 @@ class Anime_Sync_ACF_Fields {
                 id="anime-resync-bangumi-btn"
                 class="button button-secondary"
                 style="width:100%;"
-                <?php echo $bangumi_id ? '' : 'disabled'; ?>
             >
                 🔄 重新同步 Bangumi 資料
             </button>
