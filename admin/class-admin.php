@@ -630,7 +630,7 @@ class Anime_Sync_Admin {
         $version = defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0';
 
         wp_enqueue_style(  'anime-sync-admin', $url . 'admin/assets/css/admin.css', [],           $version );
-        wp_enqueue_script( 'anime-sync-admin', $url . 'admin/assets/js/admin.js',  [ 'jquery' ], $version, true );
+        wp_enqueue_script( 'anime-sync-admin', $url . 'admin/assets/js/admin.js', [ 'jquery' ], time(), true );
         wp_localize_script( 'anime-sync-admin', 'animeSyncAdmin', [
             'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
             'nonce'         => wp_create_nonce( 'anime_sync_admin_nonce' ),
