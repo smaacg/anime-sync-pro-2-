@@ -1293,7 +1293,7 @@ while ( have_posts() ) :
                     <section class="asd-section">
                         <h2 class="asd-section-title">💡 推薦入口</h2>
                         <div class="asd-synopsis"><?php echo wp_kses_post( $affiliate_html ); ?></div>
-                    </section>
+                    </section> <?php endif; ?> 
 <?php if ( ! empty( $genre_terms ) || ! empty( $season_child_terms ) || $studio ) : ?>
     <section class="asd-section">
         <h2 class="asd-section-title">🏷 作品標籤</h2>
