@@ -898,28 +898,6 @@ while ( have_posts() ) :
                     <?php endforeach; ?>
                 </div>
 
-                <?php if ( ! empty( $genre_terms ) || ! empty( $season_child_terms ) ) : ?>
-                    <div class="asd-seo-links">
-                        <?php if ( ! empty( $genre_terms ) ) : ?>
-                            <div class="asd-seo-row">
-                                <span class="asd-seo-label">類型：</span>
-                                <?php foreach ( $genre_terms as $gt ) : ?>
-                                    <a href="<?php echo esc_url( get_term_link( $gt ) ); ?>" class="asd-seo-tag"><?php echo esc_html( $gt->name ); ?></a>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if ( ! empty( $season_child_terms ) ) : ?>
-                            <div class="asd-seo-row">
-                                <span class="asd-seo-label">季度：</span>
-                                <?php foreach ( $season_child_terms as $st ) : ?>
-                                    <a href="<?php echo esc_url( get_term_link( $st ) ); ?>" class="asd-seo-tag"><?php echo esc_html( $st->name ); ?></a>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                <?php endif; ?>
-
                 <?php if ( $status === 'RELEASING' && ! empty( $airing_data['airingAt'] ) ) : ?>
                     <div class="asd-airing-bar">
                         <span>📅 第 <?php echo esc_html( isset( $airing_data['episode'] ) ? $airing_data['episode'] : '' ); ?> 集播出倒數：</span>
@@ -1272,6 +1250,30 @@ while ( have_posts() ) :
                     <section class="asd-section">
                         <h2 class="asd-section-title">💡 推薦入口</h2>
                         <div class="asd-synopsis"><?php echo wp_kses_post( $affiliate_html ); ?></div>
+                    </section>
+                <?php endif; ?>
+                <?php if ( ! empty( $genre_terms ) || ! empty( $season_child_terms ) ) : ?>
+                    <section class="asd-section">
+                        <h2 class="asd-section-title">🏷 作品標籤</h2>
+
+
+                            <?php if ( ! empty( $genre_terms ) ) : ?>
+                                <div class="asd-seo-row">
+                                    <span class="asd-seo-label">類型：</span>
+                                    <?php foreach ( $genre_terms as $gt ) : ?>
+                                        <a href="<?php echo esc_url( get_term_link( $gt ) ); ?>" class="asd-seo-tag"><?php echo esc_html( $gt->name ); ?></a>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ( ! empty( $season_child_terms ) ) : ?>
+                                <div class="asd-seo-row">
+                                    <span class="asd-seo-label">季度：</span>
+                                    <?php foreach ( $season_child_terms as $st ) : ?>
+                                        <a href="<?php echo esc_url( get_term_link( $st ) ); ?>" class="asd-seo-tag"><?php echo esc_html( $st->name ); ?></a>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
                     </section>
                 <?php endif; ?>
 
