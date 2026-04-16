@@ -9,7 +9,6 @@
 ( function ( $ ) {
     'use strict';
 
-    // ✅ 修正：包在 document.ready 確保 DOM 已載入
     $( function () {
 
         /* ═══════════════════════════════════════════════════════════
@@ -144,7 +143,6 @@
         let seasonAnimeList  = [];
         let seasonImportStop = false;
 
-        /* ── Step 1: Query ── */
         $( '#btn-season-query' ).on( 'click', function () {
             const season     = $( '#season-select' ).val();
             const year       = parseInt( $( '#season-year-select' ).val() );
@@ -227,12 +225,10 @@
             $( '#season-preview' ).show();
         }
 
-        /* ── Select all ── */
         $( document ).on( 'change', '#season-select-all', function () {
             $( '.season-item-check' ).prop( 'checked', this.checked );
         } );
 
-        /* ── Step 2: Import ── */
         $( '#btn-season-import' ).on( 'click', async function () {
             const selectedIds = $( '.season-item-check:checked' )
                 .map( function () { return parseInt( $( this ).val() ); } )
@@ -319,7 +315,6 @@
             $btnStop.hide();
         } );
 
-        /* ── Stop season ── */
         $( '#btn-season-stop' ).on( 'click', function () {
             seasonImportStop = true;
             $( this ).prop( 'disabled', true )
@@ -479,49 +474,60 @@
             } ).done( callback );
         };
 
-    } ); // end document.ready
-
-} )( jQuery );
-        /* ═══════════════════════════════════════════════════════════
+ /* ═══════════════════════════════════════════════════════════
            RESYNC BANGUMI（Meta Box 按鈕）
         ══════════════════════════════════════════════════════════ */
+
+        // 監聽 ACF Bangumi ID 欄位輸入，即時啟用／停用按鈕
+        $( document ).on(
+            'input change',
+            'input[name="anime_bangumi_id"], #acf-field_anime_bangumi_id',
+            function () {
+                var val = parseInt( $( this ).val(), 10 );
+                $( '#anime-resync-bangumi-btn' ).prop( 'disabled', ! ( val > 0 ) );
+            }
+        );
 
         $( '#anime-resync-bangumi-btn' ).on( 'click', function () {
             var $btn      = $( this );
             var $msg      = $( '#anime-resync-bangumi-msg' );
             var postId    = $( '#post_ID' ).val();
+
+            // 優先讀 ACF 欄位當前值（不需要先儲存）
             var bangumiId = $( 'input[name="anime_bangumi_id"]' ).val()
                          || $( '#acf-field_anime_bangumi_id' ).val();
 
             if ( ! bangumiId || parseInt( bangumiId, 10 ) <= 0 ) {
                 $msg.css( 'color', '#d63638' )
-                    .text( animeSyncAdmin.i18n.error_no_id || '請先填入 Bangumi ID 並儲存文章。' );
+                    .text( animeSyncAdmin.error_no_id || '請先填入 Bangumi ID。' );
                 return;
             }
 
             $btn.prop( 'disabled', true );
             $msg.css( 'color', '#666' )
-                .text( animeSyncAdmin.i18n.syncing || '同步中，請稍候…' );
+                .text( animeSyncAdmin.syncing || '同步中，請稍候…' );
 
             $.ajax( {
                 url     : ajaxurl,
                 type    : 'POST',
                 data    : {
-                    action    : 'anime_resync_bangumi',
-                    nonce     : animeSyncAdmin.nonce,
-                    post_id   : postId,
-                    bangumi_id: bangumiId,
+                    action     : 'anime_resync_bangumi',
+                    nonce      : animeSyncAdmin.nonce,
+                    post_id    : postId,
+                    bangumi_id : bangumiId,
                 },
-                dataType: 'json',
-                timeout : 60000,
+                dataType : 'json',
+                timeout  : 60000,
             } )
             .done( function ( res ) {
                 if ( res && res.success ) {
                     $msg.css( 'color', '#00a32a' )
-                        .text( animeSyncAdmin.i18n.sync_success || '✅ 同步完成，頁面即將重新整理…' );
+                        .text( animeSyncAdmin.sync_success || '✅ 同步完成，頁面即將重新整理…' );
                     setTimeout( function () { location.reload(); }, 1500 );
                 } else {
-                    var errMsg = ( res && res.data ) ? res.data : '未知錯誤';
+                    var errMsg = ( res && res.data && res.data.message )
+                        ? res.data.message
+                        : ( res && res.data ? res.data : '未知錯誤' );
                     $msg.css( 'color', '#d63638' ).text( '❌ ' + errMsg );
                     $btn.prop( 'disabled', false );
                 }
@@ -529,8 +535,12 @@
             .fail( function ( xhr, status ) {
                 var detail = status === 'timeout'
                     ? '請求逾時，請重試。'
-                    : ( animeSyncAdmin.i18n.network_error || '網路錯誤，請重試。' );
+                    : ( animeSyncAdmin.network_error || '網路錯誤，請重試。' );
                 $msg.css( 'color', '#d63638' ).text( '❌ ' + detail );
                 $btn.prop( 'disabled', false );
             } );
         } );
+
+    } ); // end document.ready
+
+} )( jQuery );
