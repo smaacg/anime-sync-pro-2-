@@ -564,47 +564,40 @@ class Anime_Sync_Admin {
             $relations = json_decode( $relations_raw, true );
             if ( ! is_array( $relations ) ) continue;
 
-            foreach ( $relations as $rel ) {
-                $type = strtoupper(
-                    isset( $rel['type'] )
-                        ? $rel['type']
-                        : ( isset( $rel['relation_label'] ) ? $rel['relation_label'] : '' )
-                );
+foreach ( $relations as $rel ) {
+    $type = strtoupper( $rel['relation_type'] ?? '' );
 
-                if ( ! in_array( $type, $relation_types, true ) ) continue;
+    if ( ! in_array( $type, $relation_types, true ) ) continue;
 
-                $rel_anilist_id = isset( $rel['anilist_id'] ) ? intval( $rel['anilist_id'] ) : 0;
-                if ( ! $rel_anilist_id ) continue;
+    $rel_anilist_id = isset( $rel['id'] ) ? intval( $rel['id'] ) : 0;
+    if ( ! $rel_anilist_id ) continue;
 
-                // 檢查相關作品是否已在站內（含 draft）
-                $existing = get_posts( [
-                    'post_type'      => 'anime',
-                    'post_status'    => [ 'publish', 'draft' ],
-                    'posts_per_page' => 1,
-                    'fields'         => 'ids',
-                    'no_found_rows'  => true,
-                    'meta_query'     => [ [
-                        'key'   => 'anime_anilist_id',
-                        'value' => $rel_anilist_id,
-                        'type'  => 'NUMERIC',
-                    ] ],
-                ] );
+    // 檢查相關作品是否已在站內（含 draft）
+    $existing = get_posts( [
+        'post_type'      => 'anime',
+        'post_status'    => [ 'publish', 'draft' ],
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'meta_query'     => [ [
+            'key'   => 'anime_anilist_id',
+            'value' => $rel_anilist_id,
+            'type'  => 'NUMERIC',
+        ] ],
+    ] );
 
-                if ( empty( $existing ) ) {
-                    $gaps[] = [
-                        'source_id'          => $post_id,
-                        'source_title'       => get_post_meta( $post_id, 'anime_title_chinese', true )
-                                                ?: get_the_title( $post_id ),
-                        'source_url'         => get_edit_post_link( $post_id ),
-                        'relation_type'      => $type,
-                        'missing_anilist_id' => $rel_anilist_id,
-                        'missing_title'      => isset( $rel['title'] )
-                                                ? $rel['title']
-                                                : ( isset( $rel['title_zh'] ) ? $rel['title_zh'] : '' ),
-                    ];
-                }
-            }
-        }
+    if ( empty( $existing ) ) {
+        $gaps[] = [
+            'source_id'          => $post_id,
+            'source_title'       => get_post_meta( $post_id, 'anime_title_chinese', true )
+                                    ?: get_the_title( $post_id ),
+            'source_url'         => get_edit_post_link( $post_id ),
+            'relation_type'      => $type,
+            'missing_anilist_id' => $rel_anilist_id,
+            'missing_title'      => $rel['title'] ?? '',  // ✅ title 是正確的 key
+        ];
+    }
+}
 
         // 寫入快取（6 小時）
         set_transient( $cache_key, $gaps, 6 * HOUR_IN_SECONDS );
