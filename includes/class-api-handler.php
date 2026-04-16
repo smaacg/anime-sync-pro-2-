@@ -1069,28 +1069,30 @@ private function fetch_mal_score( ?int $mal_id ): int {
     // =========================================================================
 
     private function fetch_wikipedia_url( string $title_chinese, string $title_native, string $title_romaji, string $title_english ): string {
+        $candidates = [ $title_chinese, $title_native, $title_romaji, $title_english ];
+
         if ( $title_chinese !== '' ) {
-            $url = $this->search_wiki_zh( $title_chinese );
+            $url = $this->search_wiki_zh( $title_chinese, $candidates );
             if ( $url !== '' ) return $url;
         }
         if ( $title_native !== '' ) {
-            $url = $this->search_wiki_zh( $title_native );
+            $url = $this->search_wiki_zh( $title_native, $candidates );
             if ( $url !== '' ) return $url;
         }
         $try = $title_english ?: $title_romaji;
         if ( $try !== '' ) {
-            $url = $this->search_wiki_en( $try );
+            $url = $this->search_wiki_en( $try, $candidates );
             if ( $url !== '' ) return $url;
         }
         return '';
     }
 
-    private function search_wiki_zh( string $title ): string {
+    private function search_wiki_zh( string $title, array $candidates = [] ): string {
         $response = wp_remote_get( add_query_arg( [
             'action'   => 'query',
             'list'     => 'search',
             'srsearch' => $title,
-            'srlimit'  => 1,
+            'srlimit'  => 3,
             'format'   => 'json',
         ], self::WIKI_ZH_API ), [ 'timeout' => 5 ] );
 
@@ -1098,16 +1100,52 @@ private function fetch_mal_score( ?int $mal_id ): int {
         $data = json_decode( wp_remote_retrieve_body( $response ), true );
         $hits = $data['query']['search'] ?? [];
         if ( empty( $hits ) ) return '';
-        return 'https://zh.wikipedia.org/wiki/' . rawurlencode( str_replace( ' ', '_', $hits[0]['title'] ) );
+
+        foreach ( $hits as $hit ) {
+            $page_title = $hit['title'] ?? '';
+            if ( $page_title === '' ) continue;
+            if ( $this->wiki_title_matches( $page_title, $candidates ) ) {
+                return 'https://zh.wikipedia.org/wiki/' . rawurlencode( str_replace( ' ', '_', $page_title ) );
+            }
+        }
+        return '';
     }
 
-    private function search_wiki_en( string $title ): string {
+    private function search_wiki_en( string $title, array $candidates = [] ): string {
         $slug     = str_replace( ' ', '_', $title );
         $response = wp_remote_get( self::WIKI_EN_REST . rawurlencode( $slug ), [ 'timeout' => 5 ] );
         if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return '';
-        $data = json_decode( wp_remote_retrieve_body( $response ), true );
-        return $data['content_urls']['desktop']['page'] ?? '';
+        $data       = json_decode( wp_remote_retrieve_body( $response ), true );
+        $url        = $data['content_urls']['desktop']['page'] ?? '';
+        $page_title = $data['title'] ?? '';
+
+        if ( $url !== '' && $page_title !== '' && ! $this->wiki_title_matches( $page_title, $candidates ) ) {
+            return '';
+        }
+        return $url;
     }
+
+    private function wiki_title_matches( string $page_title, array $candidates ): bool {
+        $page_lower = mb_strtolower( $page_title );
+        foreach ( $candidates as $candidate ) {
+            $candidate = trim( (string) $candidate );
+            if ( $candidate === '' ) continue;
+            $cand_lower = mb_strtolower( $candidate );
+
+            // 包含判斷
+            if ( mb_strpos( $page_lower, $cand_lower ) !== false || mb_strpos( $cand_lower, $page_lower ) !== false ) {
+                return true;
+            }
+
+            // 相似度判斷
+            similar_text( $page_lower, $cand_lower, $percent );
+            if ( $percent >= 35 ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     // =========================================================================
     // PRIVATE – Bangumi 資料（ACG：統一 User-Agent）
