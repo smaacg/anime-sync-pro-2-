@@ -271,9 +271,9 @@ add_action( 'plugins_loaded', function () {
                           ? new Anime_Sync_Import_Manager( $api_handler, $converter )
                           : null;
 
-        if ( is_admin() && $import_manager && class_exists( 'Anime_Sync_Admin' ) ) {
-            new Anime_Sync_Admin( $import_manager );
-        }
+if ( is_admin() && class_exists( 'Anime_Sync_Admin' ) ) {
+    new Anime_Sync_Admin( $import_manager );  // $import_manager 可以是 null，Admin 內部自行判斷
+}
 
         if ( $import_manager && class_exists( 'Anime_Sync_Cron_Manager' ) ) {
             new Anime_Sync_Cron_Manager( $import_manager );
