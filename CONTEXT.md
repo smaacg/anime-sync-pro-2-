@@ -1,6 +1,6 @@
 # CONTEXT.md — Anime Sync Pro 插件開發紀錄
 
-最後更新：2026-04-14
+最後更新：2026-04-16
 
 ---
 
@@ -17,9 +17,44 @@
 
 ## 檔案結構
 
-anime-sync-pro/ ├── includes/ │ ├── class-api-handler.php ← 核心 API 處理（本次修改） │ ├── class-acf-fields.php ← ACF 欄位定義（本次修改） │ ├── class-import-manager.php ← 匯入管理 │ ├── class-cn-converter.php ← 簡繁轉換 │ ├── class-cron-manager.php ← 排程 │ ├── class-custom-post-type.php ← CPT 定義 │ ├── class-error-logger.php ← 錯誤記錄 │ ├── class-id-mapper.php ← ID 對應（AniList/MAL/Bangumi） │ ├── class-image-handler.php ← 圖片處理 │ ├── class-installer.php ← 安裝器 │ ├── class-performance.php ← 效能 │ ├── class-rate-limiter.php ← API 速率限制 │ ├── class-review-queue.php ← 審核佇列 │ └── class-security.php ← 安全 ├── admin/ │ ├── class-admin.php ← 後台 AJAX handlers │ └── pages/ │ ├── import-tool.php ← 匯入工具 UI（5 個 Tab） │ ├── dashboard.php │ ├── logs.php │ ├── published-list.php │ ├── review-preview.php │ ├── review-queue.php │ └── settings.php └── public/ ├── class-frontend.php ← 前台類別 ├── assets/ │ ├── css/anime-single.css ← 單一動畫頁樣式（v11.2） │ └── js/frontend.js ← 前台 JS（本次修改） └── templates/ ├── single-anime.php ← 單一動畫頁模板（本次修改） └── archive-anime.php ← 動畫列表頁模板
+```
+anime-sync-pro/
+├── includes/
+│   ├── class-api-handler.php       ← 核心 API 處理
+│   ├── class-acf-fields.php        ← ACF 欄位定義
+│   ├── class-import-manager.php    ← 匯入管理（本次修改）
+│   ├── class-cn-converter.php      ← 簡繁轉換
+│   ├── class-cron-manager.php      ← 排程
+│   ├── class-custom-post-type.php  ← CPT 定義
+│   ├── class-error-logger.php      ← 錯誤記錄
+│   ├── class-id-mapper.php         ← ID 對應
+│   ├── class-image-handler.php     ← 圖片處理
+│   ├── class-installer.php         ← 安裝器
+│   ├── class-performance.php       ← 效能
+│   ├── class-rate-limiter.php      ← API 速率限制
+│   ├── class-review-queue.php      ← 審核佇列
+│   └── class-security.php          ← 安全
+├── admin/
+│   ├── class-admin.php             ← 後台 AJAX handlers（本次修改）
+│   └── pages/
+│       ├── import-tool.php         ← 匯入工具 UI（本次修改）
+│       ├── dashboard.php
+│       ├── logs.php
+│       ├── published-list.php
+│       ├── review-preview.php
+│       ├── review-queue.php        ← 審核佇列 UI（本次修改）
+│       └── settings.php
+└── public/
+    ├── class-frontend.php          ← 前台類別（本次修改）
+    ├── assets/
+    │   ├── css/anime-single.css    ← 單一動畫頁樣式（v11.2）
+    │   └── js/frontend.js
+    └── templates/
+        ├── single-anime.php        ← 單一動畫頁模板（v12.1，本次修改）
+        ├── archive-anime.php       ← 動畫列表頁模板（CSS 命名參考）
+        └── archive-series.php      ← 【NEW】系列列表頁模板（待新增）
+```
 
-Copy
 ---
 
 ## API 資料來源
@@ -81,9 +116,9 @@ Copy
 ### 台灣在地資訊
 | Meta Key | 說明 |
 |----------|------|
-| `anime_tw_streaming` | 陣列，勾選的平台 key（bahamut/netflix/disney/amazon/kktv/friday/catchplay/bilibili/crunchyroll/hulu/hidive/ani-one/muse/viu/wetv/youtube） |
+| `anime_tw_streaming` | 陣列，勾選的平台 key |
 | `anime_tw_streaming_other` | 其他平台（逗號分隔文字） |
-| `anime_tw_streaming_url_{key}` | 各平台個別連結（16 個，key 同上，ani-one 的 key 為 ani_one） |
+| `anime_tw_streaming_url_{key}` | 各平台個別連結（16 個） |
 | `anime_tw_distributor` | 代理商 key |
 | `anime_tw_distributor_custom` | 自訂代理商名稱 |
 | `anime_tw_broadcast` | 播出時間文字 |
@@ -102,6 +137,139 @@ Copy
 | `_bangumi_id_manually_set` | 1 = 手動設定，不被覆蓋 |
 | `_series_root_anilist_id` | 系列根源 AniList ID |
 | `anime_locked_fields` | 鎖定不被自動更新的欄位陣列 |
+
+---
+
+## 分類法（Taxonomy）
+
+| Slug | 說明 |
+|------|------|
+| `genre` | 動畫類型（動作/愛情等） |
+| `anime_season_tax` | 播出季度（2024 Spring 等） |
+| `anime_format_tax` | 動畫格式（tv/movie 等） |
+| `anime_series_tax` | 系列（進擊的巨人系列等） |
+| `post_tag` | WordPress 標籤（動畫 tag，英翻中） |
+
+**`anime_series_tax` 命名規則：**
+- Term **slug** = romaji sanitized（e.g., `fate-series`）
+- Term **name** = 中文名稱（e.g., `Fate 系列`）
+- Term meta `anime_series_root_id` = 系列根 AniList ID（integer）
+- **注意**：現有已建立的 term 若使用舊 slug，需至 WP 後台 → 分類法手動更新
+
+---
+
+## AJAX Actions
+
+| Action | 處理器 | 說明 |
+|--------|--------|------|
+| `anime_sync_import_single` | class-admin.php | 單筆匯入 |
+| `anime_sync_enrich_single` | class-admin.php | 手動補抓 |
+| `anime_sync_query_season` | class-admin.php | 季度查詢 |
+| `anime_sync_bulk_action` | class-admin.php | 批次操作 |
+| `anime_sync_save_bangumi_id` | class-admin.php | 儲存 Bangumi ID |
+| `anime_sync_update_map` | class-admin.php | 更新 ID 對照表 |
+| `anime_sync_clear_cache` | class-admin.php | 清除快取 |
+| `anime_sync_clear_logs` | class-admin.php | 清除日誌 |
+| `anime_sync_analyze_series` | class-admin.php | 系列分析 |
+| `anime_sync_import_series` | class-admin.php | 系列匯入 |
+| `anime_sync_popularity_ranking` | class-admin.php | 人氣排行（Tab 5） |
+| `anime_sync_resync_bangumi` | class-acf-fields.php | 重新同步 Bangumi |
+| `anime_sync_scan_series_gaps` | class-admin.php | **【NEW】** 系列缺漏掃描 |
+
+---
+
+## 本次新增功能：系列頁面 + 缺漏掃描
+
+### 修改清單（7 個檔案 + 1 個新檔案）
+
+#### 1. `includes/class-api-handler.php`（約 +3 行）
+- **位置**：`get_series_tree()` 回傳陣列
+- **修改**：新增 `'series_romaji' => $root_node['title_romaji'] ?? ''`
+- **原因**：提供 romaji slug 給下游使用
+
+#### 2. `includes/class-import-manager.php`（約 +5 行）
+- **位置**：`assign_series_taxonomy()` 函式簽名與 slug 產生邏輯
+- **修改**：
+  - 函式簽名改為 `assign_series_taxonomy(int $post_id, string $series_name, int $root_id = 0, string $series_romaji = '')`
+  - slug 邏輯改為：`$slug = $series_romaji ? sanitize_title($series_romaji) : sanitize_title($series_name)`
+
+#### 3. `admin/class-admin.php`（約 +60 行）
+- **`handle_ajax_analyze_series()`**：回傳陣列加入 `series_romaji`
+- **`handle_ajax_import_series()`**：從 `$_POST['series_romaji']` 接收並傳給 `assign_series_taxonomy()`
+- **新增 AJAX hook**：`add_action('wp_ajax_anime_sync_scan_series_gaps', [$this, 'handle_ajax_scan_series_gaps'])`
+- **新增 `handle_ajax_scan_series_gaps()`**：
+  - 掃描所有已入庫 anime posts 的 `anime_relations_json`
+  - 篩選 relation type：`PREQUEL`, `SEQUEL`, `PARENT`, `SIDE_STORY`, `SPIN_OFF`（全部包含，以彩色 badge 區分）
+  - 比對 `anime_anilist_id` 是否已入庫
+  - 列出缺漏項目
+  - 使用 transient 快取 `anime_sync_series_gaps`，有效期 6 小時
+  - **Bug #7**：成功匯入後（`import_and_enrich()` 內）呼叫 `delete_transient('anime_sync_series_gaps')` 清除快取
+  - 顯示快取建立時間與「強制重新掃描」按鈕
+
+#### 4. `admin/pages/import-tool.php`（約 +3 行）
+- **位置**：Tab 4（系列分析）前端 JS 的 `seriesMeta` 物件與 AJAX POST
+- **修改**：
+  - `seriesMeta` 初始化改為：`{ series_name: '', root_id: 0, series_romaji: '' }`
+  - `analyze_series` 回應後將 `series_romaji` 存入 `seriesMeta.series_romaji`
+  - 匯入 POST 資料加入 `series_romaji: seriesMeta.series_romaji`
+
+#### 5. `admin/pages/review-queue.php`（約 +80 行）
+- **位置**：Filter Bar 與 Bulk Actions 之間
+- **修改**：
+  - 新增「系列缺漏掃描」按鈕
+  - 新增掃描結果展示區（以彩色 badge 區分 relation type）
+  - 新增 inline jQuery JS（與現有按鈕風格一致，使用 `animeSyncAdmin.nonce` 與 `$.post(ajaxurl, {...})`）
+
+#### 6. `public/class-frontend.php`（約 +15 行）
+- **`enqueue_assets()`**：加入 `is_tax('anime_series_tax')` 條件，載入對應 CSS
+- **`load_single_template()`**：加入系列頁路由，回傳 `archive-series.php`
+- **新增 `pre_get_posts` hook**：`add_action('pre_get_posts', [$this, 'sort_series_archive'])`
+- **新增 `sort_series_archive()`**：
+  - 條件：`$query->is_tax('anime_series_tax')` ← **Bug #6 已修正**（使用 `$query->is_tax()` 而非全域 `is_tax()`）
+  - 排序：`meta_key = anime_season_year` ASC，次要 `anime_start_date` ASC
+  - `posts_per_page = -1`（載入全部，注意超大系列的效能影響）
+
+#### 7. `public/templates/single-anime.php`（約 +25 行）
+- **位置**：Hero 區塊，`.asd-hero-title` 之後、`.asd-action-row` 之前
+- **修改**：插入系列入口 badge
+- **邏輯**：
+  ```php
+  $series_terms = get_the_terms($post_id, 'anime_series_tax');
+  if (!empty($series_terms) && !is_wp_error($series_terms)) {
+      $series = $series_terms[0];
+      if ($series->count >= 2) {
+          // 輸出系列 badge，含系列名稱與連結
+      }
+  }
+  ```
+- **顯示條件**：系列 term 存在 **且** 該系列作品數 ≥ 2，否則完全不輸出（不影響現有 Hero 設計）
+- **樣式**：使用現有 `--asd-*` CSS 變數，不新增 CSS 檔案
+
+#### 8. `public/templates/archive-series.php`（約 +300 行）**【NEW FILE】**
+- **版型**：兩欄佈局，左側主內容（動畫卡片列表）＋右側 Sidebar（統計、快速跳轉、相關標籤）
+- **Hero 區**：系列名稱（中文 + romaji）、作品總數、年份跨度
+- **Schema**：`TVSeries` + `BreadcrumbList`
+- **卡片欄位**：封面圖、格式 badge、中文標題、日文標題、播出季度、集數、評分
+- **排序**：`anime_season_year` ASC → `anime_start_date` ASC（由 `pre_get_posts` hook 控制）
+- **CSS 前綴**：`.asa-*`（archive-series-anime），避免與 `.aaa-*`（archive-anime）衝突
+- **CSS 位置**：全部 inline 寫於檔案底部（與 `archive-anime.php` 相同模式）
+- **Bug #8 優化**：一次 query 取得所有 posts 存入陣列，主內容與 sidebar 統計（總數、總集數、年份）共用同一陣列，避免重複查詢
+
+---
+
+## 資料流程圖（Romaji Slug）
+
+```
+AniList API
+  └─ get_series_tree() 回傳 series_romaji（root node title_romaji）
+       └─ handle_ajax_analyze_series() 將 series_romaji 加入 JSON response
+            └─ Tab 4 JS 存入 seriesMeta.series_romaji
+                 └─ 點擊匯入 → POST series_romaji
+                      └─ handle_ajax_import_series() 接收
+                           └─ assign_series_taxonomy($post_id, $name, $root_id, $series_romaji)
+                                └─ slug = sanitize_title($series_romaji)
+                                     └─ Term slug = "fate-series"（URL 友善）
+```
 
 ---
 
@@ -130,8 +298,11 @@ Copy
   "image": "https://lain.bgm.tv/pic/crt/...",
   "source": "bangumi"
 }
-Bangumi Cast（get_bgm_chars()）
-Copy{
+```
+
+### Bangumi Cast（`get_bgm_chars()`）
+```json
+{
   "id": 67890,
   "name": "主角名",
   "role": "主角",
@@ -141,8 +312,11 @@ Copy{
   ],
   "source": "bangumi"
 }
-AniList Staff fallback（parse_staff()）
-Copy{
+```
+
+### AniList Staff fallback（`parse_staff()`）
+```json
+{
   "id": 12345,
   "name": "Yamada Taro",
   "native": "山田太郎",
@@ -150,58 +324,37 @@ Copy{
   "image": "...",
   "source": "anilist"
 }
-前端讀取邏輯：
+```
 
-Staff：$s['name']（Bangumi/AniList 共用 name key）
-Cast 角色名：$c['name']
-Cast 聲優名：$c['voice_actors'][0]['name']
-本次修改紀錄（版本 ACF）
-includes/class-api-handler.php
-fetch_animethemes()：include 加入 videos.audio，fields[audio]=link，解析 video['audio']['link'] 存為 audio_url
-enrich_anime_data()：Staff/Cast 改為 Bangumi 直接取代（移除 array_merge）
-get_full_anime_data()：Staff/Cast 改為 Bangumi 優先取代（有 Bangumi 就完全用，否則 fallback AniList）
-includes/class-acf-fields.php
-新增 register_faq() 群組，欄位 anime_faq_json（textarea，手動 JSON）
-register_taiwan_info() 新增 16 個平台 URL 欄位（anime_tw_streaming_url_{key}，全部直接顯示，ACF FREE 相容）
-ajax_resync_bangumi() Staff/Cast 改為直接取代
-新增 register_faq() 呼叫於 register_field_groups()
-public/templates/single-anime.php（版本 1.1.6）
-FAQ：完全改為人工，讀取 anime_faq_json，移除所有自動生成邏輯
-台灣串流：讀取 16 個 anime_tw_streaming_url_{key} meta，有 URL 輸出連結，無 URL 輸出純文字
-OP/ED 播放器：改為 <audio controls> 標籤，src 為 audio_url（OGG）
-Staff：讀取 $s['name']（Bangumi 來源無 name_zh）
-Cast：讀取 $c['name']（角色名）、$c['voice_actors'][0]['name']（聲優名）
-集數展開 & Cast 展開：inline JS 於頁面底部，不依賴 frontend.js
-Tab 滑動高亮：inline JS 處理 .asd-tabs .asd-tab
-public/assets/js/frontend.js
-移除 initQuickNav()（.anime-quick-nav 選擇器已廢棄，邏輯移至 single-anime.php inline JS）
-移除 initStickyNav()（同上）
-保留 initLazyLoad()
-新增 initStickyTabs()（.asd-tabs sticky 效果）
-已知問題與待辦
-編號	問題	狀態
-1	現有已入庫動畫的 anime_themes 需重新 enrich 才能取得 audio_url	⚠️ 需手動觸發 enrich 或清除 cache
-2	_enriched_at 存在時 enrich_single() 回傳 already_enriched，需手動刪除 meta 才能重跑	⚠️ 已知限制
-3	Bangumi API 無法找到對應時，Staff/Cast 維持 AniList 英文資料	✅ 符合設計（Q3 已確認）
-4	anime_tw_streaming_url_ani_one meta key 中使用底線（ani_one），對應 checkbox key 為 ani-one	⚠️ 注意對應關係
-分類法（Taxonomy）
-Slug	說明
-genre	動畫類型（動作/愛情等）
-anime_season_tax	播出季度（2024 Spring 等）
-anime_format_tax	動畫格式（tv/movie 等）
-anime_series_tax	系列（進擊的巨人系列等）
-post_tag	WordPress 標籤（動畫 tag，英翻中）
-AJAX Actions
-Action	處理器	說明
-anime_sync_import_single	class-admin.php	單筆匯入
-anime_sync_enrich_single	class-admin.php	手動補抓
-anime_sync_query_season	class-admin.php	季度查詢
-anime_sync_bulk_action	class-admin.php	批次操作
-anime_sync_save_bangumi_id	class-admin.php	儲存 Bangumi ID
-anime_sync_update_map	class-admin.php	更新 ID 對照表
-anime_sync_clear_cache	class-admin.php	清除快取
-anime_sync_clear_logs	class-admin.php	清除日誌
-anime_sync_analyze_series	class-admin.php	系列分析
-anime_sync_import_series	class-admin.php	系列匯入
-anime_sync_popularity_ranking	class-admin.php	人氣排行（Tab 5）
-anime_sync_resync_bangumi	class-acf-fields.php	重新同步 Bangumi
+**前端讀取邏輯：**
+- Staff：`$s['name']`（Bangumi/AniList 共用 name key）
+- Cast 角色名：`$c['name']`
+- Cast 聲優名：`$c['voice_actors'][0]['name']`
+
+---
+
+## 已知問題與待辦
+
+| 編號 | 問題 | 狀態 |
+|------|------|------|
+| 1 | 現有已入庫動畫的 `anime_themes` 需重新 enrich 才能取得 audio_url | ⚠️ 需手動觸發 enrich 或清除 cache |
+| 2 | `_enriched_at` 存在時 `enrich_single()` 回傳 `already_enriched`，需手動刪除 meta 才能重跑 | ⚠️ 已知限制 |
+| 3 | Bangumi API 無法找到對應時，Staff/Cast 維持 AniList 英文資料 | ✅ 符合設計 |
+| 4 | `anime_tw_streaming_url_ani_one` meta key 中使用底線（`ani_one`），對應 checkbox key 為 `ani-one` | ⚠️ 注意對應關係 |
+| 5 | 現有系列 term 若以中文建立 slug，需至 WP 後台手動更新為 romaji slug | ⚠️ 需手動處理 |
+| 6 | `sort_series_archive()` 必須使用 `$query->is_tax()` 而非全域 `is_tax()` | ✅ 已確認修正 |
+| 7 | 成功匯入後需呼叫 `delete_transient('anime_sync_series_gaps')` 清除缺漏掃描快取 | ✅ 已確認修正位置 |
+| 8 | `archive-series.php` sidebar 統計需與主內容共用同一 query 陣列，避免重複查詢 | ✅ 已確認設計 |
+
+---
+
+## 建議實作順序
+
+1. `includes/class-api-handler.php`
+2. `includes/class-import-manager.php`
+3. `admin/class-admin.php`
+4. `admin/pages/import-tool.php`
+5. `admin/pages/review-queue.php`
+6. `public/class-frontend.php`
+7. `public/templates/single-anime.php`
+8. `public/templates/archive-series.php`
