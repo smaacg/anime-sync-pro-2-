@@ -11,6 +11,11 @@
  *       僅在 post_type=anime 搜尋時生效，不影響其他搜尋
  * ACG v2 – anime-single.css 擴展至 archive / taxonomy / search 頁
  *          確保 --asd-* CSS 變數在所有 anime 頁面皆可用
+ * ACG v3 – 新增 anime_series_tax 系列分類法支援
+ *          enqueue_assets() 加入 is_tax('anime_series_tax') 條件
+ *          load_single_template() 加入系列頁路由 → archive-series.php
+ *          新增 pre_get_posts hook → sort_series_archive()
+ *          sort_series_archive() 使用 $query->is_tax() 避免全域污染（Bug #6 修正）
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -30,6 +35,8 @@ class Anime_Sync_Frontend {
         add_action( 'rest_api_init',      [ $this, 'register_rest_routes' ] );
         // ACG：搜尋時同時查詢 romaji / english meta 欄位
         add_filter( 'posts_search',       [ $this, 'filter_anime_search'  ], 10, 2 );
+        // ACG v3：系列頁排序 hook
+        add_action( 'pre_get_posts',      [ $this, 'sort_series_archive'  ] );
     }
 
     // =========================================================
@@ -45,6 +52,7 @@ class Anime_Sync_Frontend {
             && ! is_tax( 'genre' )
             && ! is_tax( 'anime_season_tax' )
             && ! is_tax( 'anime_format_tax' )
+            && ! is_tax( 'anime_series_tax' )
             && ! $is_anime_search
         ) {
             return;
@@ -65,11 +73,13 @@ class Anime_Sync_Frontend {
 
         // ✅ Bug F 修正：anime-single.css 載入
         // ACG v2：擴展至 archive / taxonomy / search 頁，確保 --asd-* 變數全站可用
+        // ACG v3：加入 anime_series_tax
         if ( is_singular( 'anime' )
             || is_post_type_archive( 'anime' )
             || is_tax( 'genre' )
             || is_tax( 'anime_season_tax' )
             || is_tax( 'anime_format_tax' )
+            || is_tax( 'anime_series_tax' )
             || $is_anime_search
         ) {
             wp_enqueue_style(
@@ -105,6 +115,14 @@ class Anime_Sync_Frontend {
             if ( file_exists( $plugin ) ) return $plugin;
         }
 
+        // ACG v3：系列頁路由 → archive-series.php
+        if ( is_tax( 'anime_series_tax' ) ) {
+            $theme = locate_template( 'archive-series.php' );
+            if ( $theme ) return $theme;
+            $plugin = ANIME_SYNC_PRO_DIR . 'public/templates/archive-series.php';
+            if ( file_exists( $plugin ) ) return $plugin;
+        }
+
         // ACG：加入搜尋頁條件，anime 搜尋結果頁套用 archive 模板
         $is_anime_search = is_search() && get_query_var( 'post_type' ) === 'anime';
 
@@ -122,6 +140,25 @@ class Anime_Sync_Frontend {
         }
 
         return $template;
+    }
+
+    // =========================================================
+    // ACG v3：系列頁排序
+    // Bug #6 修正：使用 $query->is_tax() 而非全域 is_tax()
+    // 排序：anime_season_year ASC → anime_start_date ASC
+    // posts_per_page = -1 載入全部（注意超大系列效能）
+    // =========================================================
+    public function sort_series_archive( \WP_Query $query ): void {
+
+        // 只處理前台主查詢的系列分類法頁面
+        if ( is_admin() ) return;
+        if ( ! $query->is_main_query() ) return;
+        if ( ! $query->is_tax( 'anime_series_tax' ) ) return;
+
+        $query->set( 'posts_per_page', -1 );
+        $query->set( 'meta_key', 'anime_season_year' );
+        $query->set( 'orderby', 'meta_value_num' );
+        $query->set( 'order', 'ASC' );
     }
 
     // =========================================================
