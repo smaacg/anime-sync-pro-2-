@@ -464,20 +464,20 @@ while ( have_posts() ) :
                 )
             );
 
-            if ( ! empty( $qr ) ) {
-                $site_rel_post = $qr[0];
+if ( ! empty( $qr ) ) {
+    $site_rel_post = $qr[0];
 
-                $site_relations[] = array(
-                    'title_zh'       => isset( $rel['title_zh'] ) ? $rel['title_zh'] : ( isset( $rel['title'] ) ? $rel['title'] : '' ),
-                    'title_native'   => isset( $rel['title_native'] ) ? $rel['title_native'] : ( isset( $rel['native'] ) ? $rel['native'] : '' ),
-                    'relation_label' => isset( $rel['relation_label'] ) ? $rel['relation_label'] : ( isset( $rel['type'] ) ? $rel['type'] : '' ),
-                    'format'         => isset( $rel['format'] ) ? $rel['format'] : '',
-                    'cover_image'    => get_post_meta( $site_rel_post->ID, 'anime_cover_image', true ) ? get_post_meta( $site_rel_post->ID, 'anime_cover_image', true ) : ( isset( $rel['cover_image'] ) ? $rel['cover_image'] : '' ),
-                    'url'            => get_permalink( $site_rel_post->ID ),
-                );
-            }
-        }
-    }
+    $site_relations[] = array(
+        'title_zh'       => get_post_meta( $site_rel_post->ID, 'anime_title_chinese', true )
+                            ?: ( isset( $rel['title_zh'] ) ? $rel['title_zh'] : ( isset( $rel['title'] ) ? $rel['title'] : '' ) ),
+        'title_native'   => isset( $rel['title_native'] ) ? $rel['title_native'] : ( isset( $rel['native'] ) ? $rel['native'] : '' ),
+        'relation_label' => isset( $rel['relation_label'] ) ? $rel['relation_label'] : ( isset( $rel['type'] ) ? $rel['type'] : '' ),
+        'format'         => isset( $rel['format'] ) ? $rel['format'] : '',
+        'cover_image'    => get_post_meta( $site_rel_post->ID, 'anime_cover_image', true ) ? get_post_meta( $site_rel_post->ID, 'anime_cover_image', true ) : ( isset( $rel['cover_image'] ) ? $rel['cover_image'] : '' ),
+        'url'            => get_permalink( $site_rel_post->ID ),
+    );
+}
+
 
     /* Schema */
     $schema_type = 'TVSeries';
