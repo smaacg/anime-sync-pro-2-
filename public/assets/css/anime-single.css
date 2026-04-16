@@ -1456,3 +1456,111 @@ a.asd-stream-card:hover{
     border-color: rgba(76,201,240,0.55);
     color: #4cc9f0;
 }
+/* ── Hero New Layout Fix (v12.2) ── */
+.asd-hero-new {
+  position: relative;
+  z-index: 1;
+}
+
+.asd-hero-new > .asd-hero-poster,
+.asd-hero-new > .asd-hero-body,
+.asd-hero-new > .asd-hero-sidebar {
+  position: relative;
+  z-index: 1;
+}
+
+/* 三欄 grid：海報 | 內容 | 側邊欄 */
+.asd-hero-layout {
+  max-width: var(--asd-container);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: var(--asd-hero-cover-w) minmax(0, 1fr) 220px;
+  gap: 28px;
+  align-items: end;
+  position: relative;
+  z-index: 1;
+}
+
+/* 標題強制換行，不讓長標題破版 */
+.asd-hero-title {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  max-width: 100%;
+  white-space: normal;
+}
+
+/* 響應式：1024px 以下改二欄，側欄移下 */
+@media (max-width: 1024px) {
+  .asd-hero-layout {
+    grid-template-columns: var(--asd-hero-cover-w) minmax(0, 1fr);
+  }
+  .asd-hero-sidebar {
+    grid-column: 1 / -1;
+  }
+}
+
+/* 響應式：720px 以下單欄 */
+@media (max-width: 720px) {
+  .asd-hero-layout {
+    grid-template-columns: 1fr;
+  }
+  .asd-hero-poster {
+    max-width: 200px;
+  }
+}
+
+/* ── 外部連結（AniList / MAL / Bangumi）── */
+.asd-ext-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.asd-ext-source-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: .85rem;
+  font-weight: 600;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.07);
+  color: var(--asd-text-soft);
+  transition: all .2s ease;
+  text-decoration: none;
+}
+
+.asd-ext-source-links a:hover {
+  background: rgba(255,255,255,.13);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.asd-ext-source-links a.asd-ext--al  { border-color: rgba(0,164,255,.35); }
+.asd-ext-source-links a.asd-ext--mal { border-color: rgba(46,81,162,.45); }
+.asd-ext-source-links a.asd-ext--bgm { border-color: rgba(240,145,87,.35); }
+
+/* ── OP/ED 歌手名 / 歌名原文 ── */
+.asd-music-song-native {
+  display: block;
+  font-size: .82rem;
+  color: var(--asd-text-faint);
+  margin-top: 2px;
+}
+
+.asd-music-artist {
+  margin-top: 6px;
+  font-size: .88rem;
+  color: var(--asd-text-soft);
+}
+
+/* ── 最後同步時間 ── */
+.asd-last-sync {
+  margin-top: 10px;
+  font-size: .8rem;
+  color: var(--asd-text-faint);
+}
