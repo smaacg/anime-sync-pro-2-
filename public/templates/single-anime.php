@@ -447,7 +447,6 @@ while ( have_posts() ) :
             if ( ! $rel_anilist_id ) {
                 continue;
             }
-
             $qr = get_posts(
                 array(
                     'post_type'      => 'anime',
@@ -464,40 +463,40 @@ while ( have_posts() ) :
                 )
             );
 
-if ( ! empty( $qr ) ) {
-    $site_rel_post = $qr[0];
+            if ( ! empty( $qr ) ) {
+                $site_rel_post = $qr[0];
 
-    $relation_labels = array(
-        'PREQUEL'     => '前傳',
-        'SEQUEL'      => '續集',
-        'PARENT'      => '正篇',
-        'SIDE_STORY'  => '番外篇',
-        'CHARACTER'   => '角色客串',
-        'SUMMARY'     => '總集篇',
-        'ALTERNATIVE' => '替代版本',
-        'SPIN_OFF'    => '衍生作品',
-        'OTHER'       => '其他',
-        'SOURCE'      => '原作',
-        'COMPILATION' => '合輯',
-        'CONTAINS'    => '收錄',
-        'ANIME'       => '動漫',
-    );
+                $relation_labels = array(
+                    'PREQUEL'     => '前傳',
+                    'SEQUEL'      => '續集',
+                    'PARENT'      => '原作',
+                    'SIDE_STORY'  => '外傳',
+                    'CHARACTER'   => '角色',
+                    'SUMMARY'     => '總集篇',
+                    'ALTERNATIVE' => '異世界版',
+                    'SPIN_OFF'    => '衍生',
+                    'OTHER'       => '其他',
+                    'SOURCE'      => '原作',
+                    'COMPILATION' => '合輯',
+                    'CONTAINS'    => '收錄',
+                    'ANIME'       => '動畫',
+                );
 
-    $raw_label = isset( $rel['relation_label'] ) ? $rel['relation_label'] : ( isset( $rel['type'] ) ? $rel['type'] : '' );
+                $raw_label = isset( $rel['relation_label'] ) ? $rel['relation_label'] : ( isset( $rel['type'] ) ? $rel['type'] : '' );
 
-    $site_relations[] = array(
-        'title_zh'       => get_post_meta( $site_rel_post->ID, 'anime_title_chinese', true )
-                            ?: ( isset( $rel['title_zh'] ) ? $rel['title_zh'] : ( isset( $rel['title'] ) ? $rel['title'] : '' ) ),
-        'title_native'   => isset( $rel['title_native'] ) ? $rel['title_native'] : ( isset( $rel['native'] ) ? $rel['native'] : '' ),
-        'relation_label' => isset( $relation_labels[ $raw_label ] ) ? $relation_labels[ $raw_label ] : $raw_label,
-        'format'         => isset( $rel['format'] ) ? $rel['format'] : '',
-        'cover_image'    => get_post_meta( $site_rel_post->ID, 'anime_cover_image', true )
-                            ?: ( isset( $rel['cover_image'] ) ? $rel['cover_image'] : '' ),
-        'url'            => get_permalink( $site_rel_post->ID ),
-    );
-}
-
-
+                $site_relations[] = array(
+                    'title_zh'       => get_post_meta( $site_rel_post->ID, 'anime_title_chinese', true )
+                                        ?: ( isset( $rel['title_zh'] ) ? $rel['title_zh'] : ( isset( $rel['title'] ) ? $rel['title'] : '' ) ),
+                    'title_native'   => isset( $rel['title_native'] ) ? $rel['title_native'] : ( isset( $rel['native'] ) ? $rel['native'] : '' ),
+                    'relation_label' => isset( $relation_labels[ $raw_label ] ) ? $relation_labels[ $raw_label ] : $raw_label,
+                    'format'         => isset( $rel['format'] ) ? $rel['format'] : '',
+                    'cover_image'    => get_post_meta( $site_rel_post->ID, 'anime_cover_image', true )
+                                        ?: ( isset( $rel['cover_image'] ) ? $rel['cover_image'] : '' ),
+                    'url'            => get_permalink( $site_rel_post->ID ),
+                );
+            }
+        }
+    }
 
     /* Schema */
     $schema_type = 'TVSeries';
@@ -732,6 +731,23 @@ if ( ! empty( $qr ) ) {
             <?php if ( $title_romaji ) : ?>
                 <p class="asd-hero-native asd-hero-romaji"><?php echo esc_html( $title_romaji ); ?></p>
             <?php endif; ?>
+
+            <?php /* ── 系列入口 Badge（Bug #6：count >= 2 才顯示）── */ ?>
+            <?php
+            $series_tax_terms = get_the_terms( $post_id, 'anime_series_tax' );
+            if ( ! empty( $series_tax_terms ) && ! is_wp_error( $series_tax_terms ) ) :
+                $series_tax      = $series_tax_terms[0];
+                $series_tax_url  = get_term_link( $series_tax );
+                if ( $series_tax->count >= 2 && ! is_wp_error( $series_tax_url ) ) :
+            ?>
+                <a href="<?php echo esc_url( $series_tax_url ); ?>" class="asd-series-entry-badge">
+                    📺 系列：<?php echo esc_html( $series_tax->name ); ?>　→ 查看全系列
+                </a>
+            <?php
+                endif;
+            endif;
+            ?>
+
 
             <div class="asd-hero-badges">
                 <?php
