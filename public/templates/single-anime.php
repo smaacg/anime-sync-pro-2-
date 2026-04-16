@@ -1294,63 +1294,99 @@ while ( have_posts() ) :
                         <h2 class="asd-section-title">💡 推薦入口</h2>
                         <div class="asd-synopsis"><?php echo wp_kses_post( $affiliate_html ); ?></div>
                     </section>
-                <?php endif; ?>
-                <?php if ( ! empty( $genre_terms ) || ! empty( $season_child_terms ) ) : ?>
-                    <section class="asd-section">
-                        <h2 class="asd-section-title">🏷 作品標籤</h2>
+<?php if ( ! empty( $genre_terms ) || ! empty( $season_child_terms ) || $studio ) : ?>
+    <section class="asd-section">
+        <h2 class="asd-section-title">🏷 作品標籤</h2>
+
+        <?php if ( ! empty( $genre_terms ) ) : ?>
+            <div class="asd-seo-row">
+                <span class="asd-seo-label">類型：</span>
+                <?php foreach ( $genre_terms as $gt ) : ?>
+                    <a href="<?php echo esc_url( get_term_link( $gt ) ); ?>" class="asd-seo-tag"><?php echo esc_html( $gt->name ); ?></a>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ( ! empty( $season_child_terms ) ) : ?>
+            <div class="asd-seo-row">
+                <span class="asd-seo-label">季度：</span>
+                <?php foreach ( $season_child_terms as $st ) : ?>
+                    <a href="<?php echo esc_url( get_term_link( $st ) ); ?>" class="asd-seo-tag"><?php echo esc_html( $st->name ); ?></a>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php
+        $studio_terms = get_the_terms( $post_id, 'anime_studio_tax' );
+        if ( ! empty( $studio_terms ) && ! is_wp_error( $studio_terms ) ) : ?>
+            <div class="asd-seo-row">
+                <span class="asd-seo-label">製作：</span>
+                <?php foreach ( $studio_terms as $i => $st ) : ?>
+                    <a href="<?php echo esc_url( get_term_link( $st ) ); ?>" class="asd-seo-tag"><?php echo esc_html( $st->name ); ?></a><?php echo ( $i < count( $studio_terms ) - 1 ) ? '、' : ''; ?>
+                <?php endforeach; ?>
+            </div>
+        <?php elseif ( $studio ) : ?>
+            <div class="asd-seo-row">
+                <span class="asd-seo-label">製作：</span>
+                <span class="asd-seo-tag"><?php echo esc_html( $studio ); ?></span>
+            </div>
+        <?php endif; ?>
+
+    </section>
+<?php endif; ?>
 
 
-                            <?php if ( ! empty( $genre_terms ) ) : ?>
-                                <div class="asd-seo-row">
-                                    <span class="asd-seo-label">類型：</span>
-                                    <?php foreach ( $genre_terms as $gt ) : ?>
-                                        <a href="<?php echo esc_url( get_term_link( $gt ) ); ?>" class="asd-seo-tag"><?php echo esc_html( $gt->name ); ?></a>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
+                <?php if ( $official_site || $twitter_url || $wikipedia_url || $tiktok_url || $anilist_id || $mal_id || $bangumi_id ) : ?>
+    <section class="asd-section">
+        <h2 class="asd-section-title">🔗 外部連結</h2>
 
-                            <?php if ( ! empty( $season_child_terms ) ) : ?>
-                                <div class="asd-seo-row">
-                                    <span class="asd-seo-label">季度：</span>
-                                    <?php foreach ( $season_child_terms as $st ) : ?>
-                                        <a href="<?php echo esc_url( get_term_link( $st ) ); ?>" class="asd-seo-tag"><?php echo esc_html( $st->name ); ?></a>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
-                    </section>
-                <?php endif; ?>
+        <div class="asd-stream-list">
+            <?php if ( $official_site ) : ?>
+                <div class="asd-stream-item">
+                    <a href="<?php echo esc_url( $official_site ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-link">官方網站 ↗</a>
+                </div>
+            <?php endif; ?>
 
-                <?php if ( $official_site || $twitter_url || $wikipedia_url || $tiktok_url ) : ?>
-                    <section class="asd-section">
-                        <h2 class="asd-section-title">🔗 外部連結</h2>
+            <?php if ( $twitter_url ) : ?>
+                <div class="asd-stream-item">
+                    <a href="<?php echo esc_url( $twitter_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-link">Twitter ↗</a>
+                </div>
+            <?php endif; ?>
 
-                        <div class="asd-stream-list">
-                            <?php if ( $official_site ) : ?>
-                                <div class="asd-stream-item">
-                                    <a href="<?php echo esc_url( $official_site ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-link">官方網站 ↗</a>
-                                </div>
-                            <?php endif; ?>
+            <?php if ( $wikipedia_url ) : ?>
+                <div class="asd-stream-item">
+                    <a href="<?php echo esc_url( $wikipedia_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-link">Wikipedia ↗</a>
+                </div>
+            <?php endif; ?>
 
-                            <?php if ( $twitter_url ) : ?>
-                                <div class="asd-stream-item">
-                                    <a href="<?php echo esc_url( $twitter_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-link">Twitter ↗</a>
-                                </div>
-                            <?php endif; ?>
+            <?php if ( $tiktok_url ) : ?>
+                <div class="asd-stream-item">
+                    <a href="<?php echo esc_url( $tiktok_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-link">TikTok ↗</a>
+                </div>
+            <?php endif; ?>
 
-                            <?php if ( $wikipedia_url ) : ?>
-                                <div class="asd-stream-item">
-                                    <a href="<?php echo esc_url( $wikipedia_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-link">Wikipedia ↗</a>
-                                </div>
-                            <?php endif; ?>
+            <?php if ( $anilist_id ) : ?>
+                <div class="asd-stream-item">
+                    <a href="https://anilist.co/anime/<?php echo esc_attr( $anilist_id ); ?>/" target="_blank" rel="noopener noreferrer" class="asd-stream-link">AniList ↗</a>
+                </div>
+            <?php endif; ?>
 
-                            <?php if ( $tiktok_url ) : ?>
-                                <div class="asd-stream-item">
-                                    <a href="<?php echo esc_url( $tiktok_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-link">TikTok ↗</a>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </section>
-                <?php endif; ?>
+            <?php if ( $mal_id ) : ?>
+                <div class="asd-stream-item">
+                    <a href="https://myanimelist.net/anime/<?php echo esc_attr( $mal_id ); ?>/" target="_blank" rel="noopener noreferrer" class="asd-stream-link">MyAnimeList ↗</a>
+                </div>
+            <?php endif; ?>
+
+            <?php if ( $bangumi_id ) : ?>
+                <div class="asd-stream-item">
+                    <a href="https://bgm.tv/subject/<?php echo esc_attr( $bangumi_id ); ?>/" target="_blank" rel="noopener noreferrer" class="asd-stream-link">Bangumi ↗</a>
+                </div>
+            <?php endif; ?>
+
+        </div>
+    </section>
+<?php endif; ?>
+
 
             </aside>
         <?php endif; ?>
