@@ -1224,6 +1224,13 @@ while ( have_posts() ) :
                 </section>
             <?php endif; ?>
 
+            <?php // ── 留言區（wpDiscuz） ── ?>
+            <?php if ( comments_open() || get_comments_number() ) : ?>
+                <div class="asd-section asd-comments-wrap">
+                    <?php comments_template(); ?>
+                </div>
+            <?php endif; ?>
+
         </main>
 
         <?php if ( $has_sidebar_content ) : ?>
