@@ -193,16 +193,16 @@ class Anime_Sync_Import_Manager {
      * @param int    $root_id     AniList 根源作品 ID（存入 meta，方便日後查詢）
      * @return bool
      */
-    public function assign_series_taxonomy( int $post_id, string $series_name, int $root_id = 0 ): bool {
+    public function assign_series_taxonomy( int $post_id, string $series_name, int $root_id = 0, string $series_romaji = '' ): bool {
         if ( ! $post_id || $series_name === '' ) return false;
 
         $series_name = trim( $series_name );
 
         // 查找或建立 term（修正：明確處理 term_exists 回傳型別）
         $term = term_exists( $series_name, 'anime_series_tax' );
-        if ( ! $term ) {
-            $slug   = sanitize_title( $series_name );
-            $result = wp_insert_term( $series_name, 'anime_series_tax', [ 'slug' => $slug ] );
+if ( ! $term ) {
+    $slug   = $series_romaji !== '' ? sanitize_title( $series_romaji ) : sanitize_title( $series_name );
+    $result = wp_insert_term( $series_name, 'anime_series_tax', [ 'slug' => $slug ] );
             if ( is_wp_error( $result ) ) return false;
             $term_id = (int) $result['term_id'];
         } else {
