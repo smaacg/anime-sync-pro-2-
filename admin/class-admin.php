@@ -28,6 +28,13 @@
  *       自動呼叫 enrich_anime_data()，確保 MAL 評分、Wikipedia、
  *       AnimeThemes 等第二段資料一定被寫入。
  *       set_time_limit 從 120 調整為 180 以因應額外 API 請求。
+ *
+ * ACI – handle_ajax_analyze_series() 回傳新增 series_romaji。
+ *       handle_ajax_import_series() 接收 series_romaji 並傳入
+ *       assign_series_taxonomy()。
+ *       新增 handle_ajax_scan_series_gaps()：掃描缺失系列關聯。
+ *       import_and_enrich() 結尾清除 anime_sync_series_gaps transient。
+ *       建構子新增 wp_ajax_anime_sync_scan_series_gaps 掛載。
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -55,6 +62,8 @@ class Anime_Sync_Admin {
         add_action( 'wp_ajax_anime_sync_import_series',      [ $this, 'handle_ajax_import_series'      ] );
         add_action( 'wp_ajax_anime_sync_popularity_ranking', [ $this, 'handle_ajax_popularity_ranking' ] );
         add_action( 'wp_ajax_anime_resync_bangumi',          [ $this, 'handle_ajax_resync_bangumi'     ] );
+        // ACI：系列缺口掃描
+        add_action( 'wp_ajax_anime_sync_scan_series_gaps',   [ $this, 'handle_ajax_scan_series_gaps'   ] );
     }
 
     // =========================================================================
@@ -68,38 +77,40 @@ class Anime_Sync_Admin {
      * @param int $anilist_id
      * @return array $result（含 enrich 結果）
      */
-private function import_and_enrich( int $anilist_id ): array {
-    $result = $this->import_manager->import_single( $anilist_id );
+    private function import_and_enrich( int $anilist_id ): array {
+        $result = $this->import_manager->import_single( $anilist_id );
 
-    if ( ! empty( $result['success'] ) && ! empty( $result['post_id'] ) ) {
-        $post_id = (int) $result['post_id'];
+        if ( ! empty( $result['success'] ) && ! empty( $result['post_id'] ) ) {
+            $post_id = (int) $result['post_id'];
 
-        // 清除物件快取，確保 enrich 讀到最新 meta
-        wp_cache_flush();
+            // 清除物件快取，確保 enrich 讀到最新 meta
+            wp_cache_flush();
 
-        // ★ 確保 anime_mal_id 正確存入，防止 null 被存成 0
-        if ( ! empty( $result['mal_id'] ) ) {
-            update_post_meta( $post_id, 'anime_mal_id', (int) $result['mal_id'] );
-        }
-
-        if ( class_exists( 'Anime_Sync_API_Handler' ) ) {
-            // 強制刪除 _enriched_at 鎖，確保重抓時一定重跑 enrich
-            delete_post_meta( $post_id, '_enriched_at' );
-
-            $api    = new Anime_Sync_API_Handler();
-            $enrich = $api->enrich_anime_data( $post_id );
-
-            if ( ! is_wp_error( $enrich ) ) {
-                $result['enriched'] = array_keys( $enrich );
-            } else {
-                $result['enrich_error'] = $enrich->get_error_message();
+            // ★ 確保 anime_mal_id 正確存入，防止 null 被存成 0
+            if ( ! empty( $result['mal_id'] ) ) {
+                update_post_meta( $post_id, 'anime_mal_id', (int) $result['mal_id'] );
             }
+
+            if ( class_exists( 'Anime_Sync_API_Handler' ) ) {
+                // 強制刪除 _enriched_at 鎖，確保重抓時一定重跑 enrich
+                delete_post_meta( $post_id, '_enriched_at' );
+
+                $api    = new Anime_Sync_API_Handler();
+                $enrich = $api->enrich_anime_data( $post_id );
+
+                if ( ! is_wp_error( $enrich ) ) {
+                    $result['enriched'] = array_keys( $enrich );
+                } else {
+                    $result['enrich_error'] = $enrich->get_error_message();
+                }
+            }
+
+            // ACI Bug #7：清除系列缺口 transient，下次掃描會重新計算
+            delete_transient( 'anime_sync_series_gaps' );
         }
+
+        return $result;
     }
-
-    return $result;
-}
-
 
     // =========================================================================
     // Admin Menu
@@ -388,7 +399,7 @@ private function import_and_enrich( int $anilist_id ): array {
     }
 
     // =========================================================================
-    // AJAX：系列分析（ACE 修正）
+    // AJAX：系列分析（ACE 修正 + ACI：回傳 series_romaji）
     // =========================================================================
 
     public function handle_ajax_analyze_series(): void {
@@ -415,16 +426,17 @@ private function import_and_enrich( int $anilist_id ): array {
         $imported = count( array_filter( $nodes, fn( $n ) => ! empty( $n['imported'] ) ) );
 
         wp_send_json_success( [
-            'root_id'     => $result['root_id'],
-            'series_name' => $result['series_name'],
-            'tree'        => $nodes,
-            'total'       => $total,
-            'imported'    => $imported,
+            'root_id'       => $result['root_id'],
+            'series_name'   => $result['series_name'],
+            'series_romaji' => $result['series_romaji'] ?? '',  // ACI：新增
+            'tree'          => $nodes,
+            'total'         => $total,
+            'imported'      => $imported,
         ] );
     }
 
     // =========================================================================
-    // AJAX：系列匯入（ACH：改用 import_and_enrich）
+    // AJAX：系列匯入（ACH：改用 import_and_enrich + ACI：接收 series_romaji）
     // =========================================================================
 
     public function handle_ajax_import_series(): void {
@@ -433,16 +445,23 @@ private function import_and_enrich( int $anilist_id ): array {
 
         @set_time_limit( 180 ); // ACH：從 120 調高至 180
 
-        $anilist_id  = intval( $_POST['anilist_id']  ?? 0 );
-        $series_name = sanitize_text_field( $_POST['series_name'] ?? '' );
-        $root_id     = intval( $_POST['root_id']     ?? 0 );
+        $anilist_id    = intval( $_POST['anilist_id']  ?? 0 );
+        $series_name   = sanitize_text_field( $_POST['series_name']   ?? '' );
+        $root_id       = intval( $_POST['root_id']     ?? 0 );
+        $series_romaji = sanitize_text_field( $_POST['series_romaji'] ?? '' ); // ACI：新增
 
         if ( ! $anilist_id ) wp_send_json_error( [ 'message' => '無效的 AniList ID' ] );
 
         $result = $this->import_and_enrich( $anilist_id ); // ACH：自動 enrich
 
         if ( ! empty( $result['success'] ) && ! empty( $result['post_id'] ) && $series_name !== '' ) {
-            $this->import_manager->assign_series_taxonomy( (int) $result['post_id'], $series_name, $root_id );
+            // ACI：傳入 series_romaji 讓 assign_series_taxonomy() 用 romaji 建立 slug
+            $this->import_manager->assign_series_taxonomy(
+                (int) $result['post_id'],
+                $series_name,
+                $root_id,
+                $series_romaji
+            );
             $result['series_assigned'] = true;
         }
 
@@ -499,6 +518,103 @@ private function import_and_enrich( int $anilist_id ): array {
         }
 
         wp_send_json_success( [ 'message' => '✅ 同步完成', 'updated' => $result ] );
+    }
+
+    // =========================================================================
+    // AJAX：系列缺口掃描（ACI 新增）
+    // =========================================================================
+
+    public function handle_ajax_scan_series_gaps(): void {
+        check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( '權限不足' );
+        }
+
+        $force     = ! empty( $_POST['force'] );
+        $cache_key = 'anime_sync_series_gaps';
+
+        // 未強制更新時，優先回傳快取
+        if ( ! $force ) {
+            $cached = get_transient( $cache_key );
+            if ( false !== $cached ) {
+                wp_send_json_success( [
+                    'gaps'      => $cached,
+                    'cached'    => true,
+                    'cached_at' => get_option( 'anime_sync_series_gaps_time', '' ),
+                ] );
+            }
+        }
+
+        $relation_types = [ 'PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'SPIN_OFF' ];
+        $gaps           = [];
+
+        // 取所有已發布動畫 ID
+        $posts = get_posts( [
+            'post_type'      => 'anime',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+        ] );
+
+        foreach ( $posts as $post_id ) {
+            $relations_raw = get_post_meta( $post_id, 'anime_relations_json', true );
+            if ( empty( $relations_raw ) ) continue;
+
+            $relations = json_decode( $relations_raw, true );
+            if ( ! is_array( $relations ) ) continue;
+
+            foreach ( $relations as $rel ) {
+                $type = strtoupper(
+                    isset( $rel['type'] )
+                        ? $rel['type']
+                        : ( isset( $rel['relation_label'] ) ? $rel['relation_label'] : '' )
+                );
+
+                if ( ! in_array( $type, $relation_types, true ) ) continue;
+
+                $rel_anilist_id = isset( $rel['anilist_id'] ) ? intval( $rel['anilist_id'] ) : 0;
+                if ( ! $rel_anilist_id ) continue;
+
+                // 檢查相關作品是否已在站內（含 draft）
+                $existing = get_posts( [
+                    'post_type'      => 'anime',
+                    'post_status'    => [ 'publish', 'draft' ],
+                    'posts_per_page' => 1,
+                    'fields'         => 'ids',
+                    'no_found_rows'  => true,
+                    'meta_query'     => [ [
+                        'key'   => 'anime_anilist_id',
+                        'value' => $rel_anilist_id,
+                        'type'  => 'NUMERIC',
+                    ] ],
+                ] );
+
+                if ( empty( $existing ) ) {
+                    $gaps[] = [
+                        'source_id'          => $post_id,
+                        'source_title'       => get_post_meta( $post_id, 'anime_title_chinese', true )
+                                                ?: get_the_title( $post_id ),
+                        'source_url'         => get_edit_post_link( $post_id ),
+                        'relation_type'      => $type,
+                        'missing_anilist_id' => $rel_anilist_id,
+                        'missing_title'      => isset( $rel['title'] )
+                                                ? $rel['title']
+                                                : ( isset( $rel['title_zh'] ) ? $rel['title_zh'] : '' ),
+                    ];
+                }
+            }
+        }
+
+        // 寫入快取（6 小時）
+        set_transient( $cache_key, $gaps, 6 * HOUR_IN_SECONDS );
+        update_option( 'anime_sync_series_gaps_time', current_time( 'mysql' ) );
+
+        wp_send_json_success( [
+            'gaps'      => $gaps,
+            'cached'    => false,
+            'cached_at' => current_time( 'mysql' ),
+        ] );
     }
 
     // =========================================================================
