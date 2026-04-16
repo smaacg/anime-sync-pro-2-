@@ -447,10 +447,10 @@
             ajaxPost( { action: 'anime_sync_get_stats' } ).done( function ( resp ) {
                 if ( ! resp.success ) { return; }
                 const d = resp.data;
-                setStatCell( '#stat-total',      d.total_anime );
-                setStatCell( '#stat-published',  d.published );
-                setStatCell( '#stat-draft',      d.draft );
-                setStatCell( '#stat-airing',     d.airing );
+                setStatCell( '#stat-total',       d.total_anime );
+                setStatCell( '#stat-published',   d.published );
+                setStatCell( '#stat-draft',       d.draft );
+                setStatCell( '#stat-airing',      d.airing );
                 setStatCell( '#stat-pending-bgm', d.pending_bangumi );
                 setStatCell( '#stat-map-entries', d.map_entries
                     ? Number( d.map_entries ).toLocaleString() : '—' );
@@ -474,14 +474,14 @@
             } ).done( callback );
         };
 
- /* ═══════════════════════════════════════════════════════════
+        /* ═══════════════════════════════════════════════════════════
            RESYNC BANGUMI（Meta Box 按鈕）
         ══════════════════════════════════════════════════════════ */
 
-        // 監聽 ACF Bangumi ID 欄位輸入，即時啟用／停用按鈕
+        // 監聽 ACF Bangumi ID 欄位，即時啟用／停用按鈕
         $( document ).on(
             'input change',
-            'input[name="anime_bangumi_id"], #acf-field_anime_bangumi_id',
+            '#acf-field_anime_bangumi_id, input[name="acf[field_anime_bangumi_id]"]',
             function () {
                 var val = parseInt( $( this ).val(), 10 );
                 $( '#anime-resync-bangumi-btn' ).prop( 'disabled', ! ( val > 0 ) );
@@ -489,13 +489,24 @@
         );
 
         $( '#anime-resync-bangumi-btn' ).on( 'click', function () {
-            var $btn      = $( this );
-            var $msg      = $( '#anime-resync-bangumi-msg' );
-            var postId    = $( '#post_ID' ).val();
+            var $btn = $( this );
+            var $msg = $( '#anime-resync-bangumi-msg' );
 
-            // 優先讀 ACF 欄位當前值（不需要先儲存）
-            var bangumiId = $( 'input[name="anime_bangumi_id"]' ).val()
-                         || $( '#acf-field_anime_bangumi_id' ).val();
+            // post_ID：草稿頁從 hidden input 或 URL 參數取得
+            var postId = $( '#post_ID' ).val()
+                      || new URLSearchParams( window.location.search ).get( 'post' )
+                      || '0';
+
+            // ACF number 欄位實際渲染的 selector
+            var bangumiId = $( '#acf-field_anime_bangumi_id' ).val()
+                         || $( 'input[name="acf[field_anime_bangumi_id]"]' ).val()
+                         || '';
+
+            if ( ! postId || postId === '0' ) {
+                $msg.css( 'color', '#d63638' )
+                    .text( '請先儲存草稿以取得文章 ID，再執行同步。' );
+                return;
+            }
 
             if ( ! bangumiId || parseInt( bangumiId, 10 ) <= 0 ) {
                 $msg.css( 'color', '#d63638' )
@@ -508,9 +519,9 @@
                 .text( animeSyncAdmin.syncing || '同步中，請稍候…' );
 
             $.ajax( {
-                url     : ajaxurl,
-                type    : 'POST',
-                data    : {
+                url      : ajaxurl,
+                type     : 'POST',
+                data     : {
                     action     : 'anime_resync_bangumi',
                     nonce      : animeSyncAdmin.nonce,
                     post_id    : postId,
