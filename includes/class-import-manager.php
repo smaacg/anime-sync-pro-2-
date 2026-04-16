@@ -440,21 +440,30 @@ if ( ! $term ) {
             if ( ! empty( $tag_ids ) ) wp_set_post_terms( $post_id, $tag_ids, 'post_tag' );
         }
 
-        // 製作公司 tag
+        // 製作公司 → anime_studio_tax taxonomy
         $studios_raw = $data['studios'] ?? '';
         if ( ! empty( $studios_raw ) ) {
-            $studio_names = array_filter( array_map( 'trim', explode( ',', $studios_raw ) ) );
-            $studio_tag_ids = [];
-            foreach ( $studio_names as $studio ) {
-                $tag_id = $this->find_or_create_tag( $studio );  // 複用現有方法，內部已處理建立邏輯
-                if ( $tag_id ) $studio_tag_ids[] = $tag_id;
+            $studio_names    = array_filter( array_map( 'trim', explode( ',', $studios_raw ) ) );
+            $studio_term_ids = [];
+            foreach ( $studio_names as $studio_name ) {
+                if ( $studio_name === '' ) continue;
+                $term = term_exists( $studio_name, 'anime_studio_tax' );
+                if ( ! $term ) {
+                    $term = wp_insert_term( $studio_name, 'anime_studio_tax', [
+                        'slug' => sanitize_title( $studio_name ),
+                    ] );
+                }
+                if ( ! is_wp_error( $term ) ) {
+                    $studio_term_ids[] = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+                }
             }
-            if ( ! empty( $studio_tag_ids ) ) {
-                wp_set_post_terms( $post_id, $studio_tag_ids, 'post_tag', true );  // true = append，不覆蓋現有 tag
+            if ( ! empty( $studio_term_ids ) ) {
+                wp_set_object_terms( $post_id, $studio_term_ids, 'anime_studio_tax', false );
             }
         }
 
-    }  // ← save_taxonomies() 結尾 ← 這才是 save_taxonomies() 的結尾大括號
+    }  // ← save_taxonomies() 結尾
+
 
     // =========================================================================
     // PRIVATE – Tag helpers
