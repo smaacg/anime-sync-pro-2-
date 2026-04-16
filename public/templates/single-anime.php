@@ -467,16 +467,36 @@ while ( have_posts() ) :
 if ( ! empty( $qr ) ) {
     $site_rel_post = $qr[0];
 
+    $relation_labels = array(
+        'PREQUEL'     => '前傳',
+        'SEQUEL'      => '續集',
+        'PARENT'      => '正篇',
+        'SIDE_STORY'  => '番外篇',
+        'CHARACTER'   => '角色客串',
+        'SUMMARY'     => '總集篇',
+        'ALTERNATIVE' => '替代版本',
+        'SPIN_OFF'    => '衍生作品',
+        'OTHER'       => '其他',
+        'SOURCE'      => '原作',
+        'COMPILATION' => '合輯',
+        'CONTAINS'    => '收錄',
+        'ANIME'       => '動漫',
+    );
+
+    $raw_label = isset( $rel['relation_label'] ) ? $rel['relation_label'] : ( isset( $rel['type'] ) ? $rel['type'] : '' );
+
     $site_relations[] = array(
         'title_zh'       => get_post_meta( $site_rel_post->ID, 'anime_title_chinese', true )
                             ?: ( isset( $rel['title_zh'] ) ? $rel['title_zh'] : ( isset( $rel['title'] ) ? $rel['title'] : '' ) ),
         'title_native'   => isset( $rel['title_native'] ) ? $rel['title_native'] : ( isset( $rel['native'] ) ? $rel['native'] : '' ),
-        'relation_label' => isset( $rel['relation_label'] ) ? $rel['relation_label'] : ( isset( $rel['type'] ) ? $rel['type'] : '' ),
+        'relation_label' => isset( $relation_labels[ $raw_label ] ) ? $relation_labels[ $raw_label ] : $raw_label,
         'format'         => isset( $rel['format'] ) ? $rel['format'] : '',
-        'cover_image'    => get_post_meta( $site_rel_post->ID, 'anime_cover_image', true ) ? get_post_meta( $site_rel_post->ID, 'anime_cover_image', true ) : ( isset( $rel['cover_image'] ) ? $rel['cover_image'] : '' ),
+        'cover_image'    => get_post_meta( $site_rel_post->ID, 'anime_cover_image', true )
+                            ?: ( isset( $rel['cover_image'] ) ? $rel['cover_image'] : '' ),
         'url'            => get_permalink( $site_rel_post->ID ),
     );
 }
+
 
 
     /* Schema */
