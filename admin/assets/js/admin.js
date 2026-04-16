@@ -475,10 +475,9 @@
         };
 
         /* ═══════════════════════════════════════════════════════════
-           RESYNC BANGUMI（Meta Box 按鈕）
+           RESYNC BANGUMI（Meta Box 按鈕）← 移回閉包內，問題修正
         ══════════════════════════════════════════════════════════ */
 
-        // 監聽 ACF Bangumi ID 欄位，即時啟用／停用按鈕
         $( document ).on(
             'input change',
             '#acf-field_anime_bangumi_id, input[name="acf[field_anime_bangumi_id]"]',
@@ -492,12 +491,10 @@
             var $btn = $( this );
             var $msg = $( '#anime-resync-bangumi-msg' );
 
-            // post_ID：草稿頁從 hidden input 或 URL 參數取得
             var postId = $( '#post_ID' ).val()
                       || new URLSearchParams( window.location.search ).get( 'post' )
                       || '0';
 
-            // ACF number 欄位實際渲染的 selector
             var bangumiId = $( '#acf-field_anime_bangumi_id' ).val()
                          || $( 'input[name="acf[field_anime_bangumi_id]"]' ).val()
                          || '';
