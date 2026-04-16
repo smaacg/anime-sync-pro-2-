@@ -427,7 +427,7 @@ if ( ! $term ) {
             }
         }
 
-        // Tags
+                // Tags
         if ( ! empty( $data['anime_tags'] ) && is_array( $data['anime_tags'] ) ) {
             $tag_ids = [];
             foreach ( $data['anime_tags'] as $tag_name ) {
@@ -439,7 +439,22 @@ if ( ! $term ) {
             }
             if ( ! empty( $tag_ids ) ) wp_set_post_terms( $post_id, $tag_ids, 'post_tag' );
         }
-    }
+
+        // 製作公司 tag
+        $studios_raw = $data['studios'] ?? '';
+        if ( ! empty( $studios_raw ) ) {
+            $studio_names = array_filter( array_map( 'trim', explode( ',', $studios_raw ) ) );
+            $studio_tag_ids = [];
+            foreach ( $studio_names as $studio ) {
+                $tag_id = $this->find_or_create_tag( $studio );  // 複用現有方法，內部已處理建立邏輯
+                if ( $tag_id ) $studio_tag_ids[] = $tag_id;
+            }
+            if ( ! empty( $studio_tag_ids ) ) {
+                wp_set_post_terms( $post_id, $studio_tag_ids, 'post_tag', true );  // true = append，不覆蓋現有 tag
+            }
+        }
+
+    }  // ← save_taxonomies() 結尾 ← 這才是 save_taxonomies() 的結尾大括號
 
     // =========================================================================
     // PRIVATE – Tag helpers
