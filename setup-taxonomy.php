@@ -66,6 +66,7 @@ $categories = [
 
     // ── 動漫新聞子分類 ──
     ['新番情報',   'news-season',     'anime-news'],
+    ['動漫評論',   'news-review,      'anime-news'],
     ['聲優藝人',   'news-seiyuu',     'anime-news'],
     ['音樂情報',   'news-music',      'anime-news'],
     ['周邊商品',   'news-merch',      'anime-news'],
