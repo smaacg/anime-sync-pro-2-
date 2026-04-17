@@ -1,5 +1,5 @@
 /* =================================================================
-   Anime Sync Pro — anime-single.css  v14.1
+   Anime Sync Pro — anime-single.css  v14.2
    對應 single-anime.php v13.0
    海報尺寸：330 × 422.89 px
    深藍灰實色系 / Hero 三欄 / 內容區 7:3
@@ -137,7 +137,7 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   3. 根基樣式（硬編碼色碼確保蓋過 Elementor）
+   3. 根基樣式
    ================================================================ */
 .asd-wrap {
   position: relative !important;
@@ -264,6 +264,7 @@ article.asd-wrap,
   aspect-ratio: 330 / 422.89;
 }
 
+/* ▼▼▼ 修正 1：拿掉 display:flex !important，讓 PHP inline style="display:none" 能正常運作 ▼▼▼ */
 .asd-poster-fallback {
   width: var(--asd-poster-w) !important;
   height: var(--asd-poster-h) !important;
@@ -273,12 +274,16 @@ article.asd-wrap,
     rgba(99,168,255,.22),
     rgba(143,107,255,.18));
   border: 2px solid var(--asd-border);
-  display: flex !important;
+  /* display 不設定，由 PHP inline style 控制 */
   align-items: center;
   justify-content: center;
   font-size: 2.4rem;
   font-weight: 900;
   color: rgba(255,255,255,.75);
+}
+/* 只有在沒有圖片時（PHP 直接輸出 fallback，無 inline style）才顯示 flex */
+.asd-hero-poster > .asd-poster-fallback:only-child {
+  display: flex;
 }
 
 /* ── 主資訊欄（中） ── */
@@ -365,7 +370,7 @@ article.asd-wrap,
 .asd-hbadge--s-hia { background: var(--asd-bg-card); border-color: var(--asd-border); color: var(--asd-text-muted); }
 .asd-hbadge--genre { background: rgba(99,168,255,.10); border-color: rgba(99,168,255,.26); color: var(--asd-primary); }
 
-/* ── Score pills（圓形，對標截圖樣式）── */
+/* ── Score pills ── */
 .asd-hero-scores-new {
   display: flex;
   flex-wrap: wrap;
@@ -982,14 +987,17 @@ article.asd-wrap,
 
 /* ================================================================
    19. 右側欄 sidebar blocks（.asd-side）
+   ▼▼▼ 修正 2：補上 .asd-side-section，與 .asd-side-block 共用相同樣式 ▼▼▼
    ================================================================ */
-.asd-side-block {
+.asd-side-block,
+.asd-side-section {
   background: var(--asd-bg-card);
   border: 1px solid var(--asd-border);
   border-radius: var(--asd-radius-lg);
   padding: 14px 16px;
 }
-.asd-side-block-title {
+.asd-side-block-title,
+.asd-side-section-title {
   font-size: .72rem; font-weight: 800;
   text-transform: uppercase; letter-spacing: .08em;
   color: var(--asd-text-dim); margin-bottom: 10px;
@@ -1164,44 +1172,55 @@ article.asd-wrap,
   .asd-hero-sidebar {
     grid-column: 1 / -1;
     grid-row: 2;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0,1fr));
-    gap: 12px;
     padding-top: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
-  .asd-container--has-sidebar {
+  .asd-container.asd-container--has-sidebar {
     grid-template-columns: minmax(0,1fr);
   }
   .asd-side { position: static; }
+  .asd-cast-grid  { grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
 
 @media (max-width: 720px) {
   :root {
-    --asd-poster-w: 180px;
-    --asd-poster-h: calc(180px * 422.89 / 330);
+    --asd-poster-w: 160px;
+    --asd-poster-h: calc(160px * 422.89 / 330);
   }
-  .asd-hero-new { gap: 16px; padding: 0 16px 24px; }
+  .asd-hero-new {
+    grid-template-columns: var(--asd-poster-w) minmax(0,1fr);
+    gap: 14px;
+    margin-top: -60px;
+    padding: 0 14px 24px;
+  }
   .asd-hero-body { padding-top: 60px; }
-  .asd-container { padding: 0 16px 40px; }
-  .asd-tabs { margin: 16px auto 0; }
-  .asd-info-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .asd-info-row:nth-child(3n) { border-right: 1px solid var(--asd-border-light); }
-  .asd-info-row:nth-child(2n) { border-right: none; }
+  .asd-hero-sidebar { grid-template-columns: 1fr; }
   .asd-staff-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .asd-cast-grid  { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .asd-cast-grid  { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .asd-info-grid  { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .asd-info-row:nth-child(3n)  { border-right: 1px solid var(--asd-border-light); }
+  .asd-info-row:nth-child(2n)  { border-right: none; }
 }
 
 @media (max-width: 480px) {
   :root {
-    --asd-poster-w: 130px;
-    --asd-poster-h: calc(130px * 422.89 / 330);
+    --asd-poster-w: 120px;
+    --asd-poster-h: calc(120px * 422.89 / 330);
   }
-  .asd-hero-new { gap: 12px; padding: 0 12px 20px; }
-  .asd-hero-body { padding-top: 20px; }
-  .asd-hero-title { font-size: 1.3rem !important; }
-  .asd-hero-sidebar { grid-template-columns: 1fr; }
-  .asd-info-grid { grid-template-columns: 1fr; }
-  .asd-staff-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .asd-hero-new {
+    gap: 10px;
+    margin-top: -40px;
+    padding: 0 12px 20px;
+  }
+  .asd-hero-body  { padding-top: 40px; }
+  .asd-hero-title { font-size: 1.15rem !important; }
+  .asd-section    { padding: 14px 14px; }
   .asd-cast-grid  { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .asd-section { padding: 16px; }
+  .asd-staff-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .asd-info-grid  { grid-template-columns: 1fr; }
+  .asd-info-row   { border-right: none !important; }
+  .asd-tabs { padding: 0 2px; }
+  .asd-tab  { padding: 0 10px; font-size: .74rem; }
 }
