@@ -805,23 +805,23 @@ while ( have_posts() ) :
                 </div>
             <?php endif; ?>
 
-            <div class="asd-hero-actions">
-                <?php if ( $youtube_id ) : ?>
-                    <a href="#asd-sec-trailer" class="asd-action-btn asd-action-btn--primary">▶ 觀看預告</a>
-                <?php endif; ?>
+<div class="asd-hero-actions">
+    <?php if ( $youtube_id ) : ?>
+        <a href="#asd-sec-trailer" class="asd-action-btn asd-action-btn--primary">▶ 觀看預告</a>
+    <?php endif; ?>
 
-                <?php if ( ! empty( $tw_streaming_items ) || ! empty( $streaming_list ) ) : ?>
-                    <a href="#asd-sec-stream" class="asd-action-btn asd-action-btn--ghost">📡 合法平台</a>
-                <?php endif; ?>
+    <?php if ( ! empty( $tw_streaming_items ) || ! empty( $streaming_list ) ) : ?>
+        <a href="#asd-sec-stream" class="asd-action-btn asd-action-btn--ghost"
+           title="<?php echo esc_attr( $display_title ); ?> 線上觀看">📡 線上觀看</a>
+    <?php endif; ?>
 
-                <?php if ( ! empty( $cast_main ) ) : ?>
-                    <a href="#asd-sec-cast" class="asd-action-btn asd-action-btn--ghost">🎭 CAST</a>
-                <?php endif; ?>
+    <a href="https://forms.gle/你的表單ID" target="_blank" rel="noopener noreferrer" class="asd-action-btn asd-action-btn--ghost">⚠️ 錯誤回報</a>
 
-                <?php if ( $official_site ) : ?>
-                    <a href="<?php echo esc_url( $official_site ); ?>" target="_blank" rel="noopener noreferrer" class="asd-action-btn asd-action-btn--ghost">🔗 官網</a>
-                <?php endif; ?>
-            </div>
+    <?php if ( $official_site ) : ?>
+        <a href="<?php echo esc_url( $official_site ); ?>" target="_blank" rel="noopener noreferrer" class="asd-action-btn asd-action-btn--ghost">🔗 官網</a>
+    <?php endif; ?>
+</div>
+
         </div>
 
         <div class="asd-hero-sidebar">
