@@ -1,5 +1,5 @@
 /* =================================================================
-   Anime Sync Pro — anime-single.css  v14.0
+   Anime Sync Pro — anime-single.css  v14.1
    對應 single-anime.php v13.0
    海報尺寸：330 × 422.89 px
    深藍灰實色系 / Hero 三欄 / 內容區 7:3
@@ -7,7 +7,16 @@
    ================================================================= */
 
 /* ================================================================
-   0. 主題強制重置
+   0. Body 強制深色背景（蓋過 Elementor / Hello theme）
+   ================================================================ */
+body:has(.asd-wrap),
+html:has(.asd-wrap) {
+  background: #1E242B !important;
+  background-color: #1E242B !important;
+}
+
+/* ================================================================
+   1. 主題強制重置
    ================================================================ */
 .asd-wrap,
 .asd-wrap *,
@@ -74,83 +83,67 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   1. CSS 變數（:root 蓋過所有其他 CSS）
+   2. CSS 變數（:root 蓋過所有其他 CSS）
    ================================================================ */
 :root {
-  /* 主色 */
   --asd-primary:        #63A8FF;
   --asd-primary-dark:   #4a8ee0;
   --asd-primary-2:      #8F6BFF;
   --asd-accent:         #FF6BAE;
 
-  /* 背景 */
   --asd-bg:             #1E242B;
   --asd-bg-card:        #242C35;
   --asd-bg-card-hover:  #2A3340;
 
-  /* 邊框 */
   --asd-border:         #3E4A54;
-  --asd-border-light:   rgba(62,74,84,.60);
+  --asd-border-light:   rgba(62,74,84,.55);
 
-  /* 文字 */
   --asd-text:           #F5F7F6;
   --asd-text-soft:      rgba(245,247,246,.82);
   --asd-text-faint:     rgba(245,247,246,.55);
   --asd-text-muted:     #C3C6CE;
   --asd-text-dim:       #7A848E;
 
-  /* 狀態色 */
   --asd-success:        #65d6a3;
   --asd-warning:        #ffd166;
   --asd-danger:         #ff6b8a;
 
-  /* 評分色 */
   --asd-score-al:       #63A8FF;
   --asd-score-mal:      #8F6BFF;
   --asd-score-bgm:      #FF6BAE;
 
-  /* 陰影 */
   --asd-shadow:         0 8px 32px rgba(0,0,0,.45);
   --asd-shadow-soft:    0 4px 16px rgba(0,0,0,.28);
 
-  /* 圓角 */
   --asd-radius-xl:      12px;
   --asd-radius-lg:      10px;
   --asd-radius-md:      8px;
   --asd-radius-sm:      6px;
   --asd-radius-xs:      4px;
 
-  /* 佈局 */
   --asd-container:      1200px;
   --asd-sidebar-w:      300px;
   --asd-gap:            20px;
 
-  /* 海報尺寸 */
   --asd-poster-w:       330px;
   --asd-poster-h:       422.89px;
-
-  /* Hero 右欄 */
   --asd-hero-side-w:    220px;
 
-  /* glass（輕微保留作輔助用）*/
   --glass-bg:           rgba(245,247,246,.04);
   --glass-border:       rgba(245,247,246,.10);
 
-  /* 漸層 */
   --grad-hero:          linear-gradient(135deg,#63A8FF 0%,#8F6BFF 50%,#FF6BAE 100%);
-
-  /* 過渡 */
   --trans-smooth:       all .22s cubic-bezier(.4,0,.2,1);
 }
 
 /* ================================================================
-   2. 根基樣式
+   3. 根基樣式（硬編碼色碼確保蓋過 Elementor）
    ================================================================ */
 .asd-wrap {
-  position: relative;
-  min-height: 100vh;
-  background: var(--asd-bg) !important;
-  color: var(--asd-text) !important;
+  position: relative !important;
+  min-height: 100vh !important;
+  background: #1E242B !important;
+  color: #F5F7F6 !important;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
                'Noto Sans TC', 'Microsoft JhengHei', sans-serif !important;
   font-size: 15px !important;
@@ -159,8 +152,8 @@ article.asd-wrap,
   max-width: 100% !important;
   padding: 0 !important;
   margin: 0 !important;
-  overflow-x: hidden;
-  isolation: isolate;
+  overflow-x: hidden !important;
+  isolation: isolate !important;
 }
 
 .asd-wrap::before {
@@ -169,15 +162,15 @@ article.asd-wrap,
   inset: 0;
   background:
     radial-gradient(ellipse 80% 50% at 50% -20%,
-      rgba(99,168,255,.08) 0%, transparent 60%),
+      rgba(99,168,255,.07) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 80% 80%,
-      rgba(143,107,255,.05) 0%, transparent 50%);
+      rgba(143,107,255,.04) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
 
 /* ================================================================
-   3. Banner
+   4. Banner
    ================================================================ */
 .asd-banner {
   position: relative;
@@ -194,7 +187,7 @@ article.asd-wrap,
   background: linear-gradient(
     180deg,
     rgba(30,36,43,.10)  0%,
-    rgba(30,36,43,.60) 55%,
+    rgba(30,36,43,.65) 55%,
     rgba(30,36,43,1)   100%
   );
 }
@@ -205,7 +198,7 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   4. Breadcrumb
+   5. Breadcrumb
    ================================================================ */
 .asd-breadcrumb {
   position: relative;
@@ -237,7 +230,7 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   5. Hero — 三欄佈局 330px | 1fr | 220px
+   6. Hero — 三欄佈局 330px | 1fr | 220px
    ================================================================ */
 .asd-hero-new {
   position: relative;
@@ -251,7 +244,7 @@ article.asd-wrap,
   align-items: start;
 }
 
-/* ── 5a. 海報欄 ── */
+/* ── 海報欄 ── */
 .asd-hero-poster {
   grid-column: 1;
   grid-row: 1;
@@ -277,8 +270,8 @@ article.asd-wrap,
   max-width: none !important;
   border-radius: var(--asd-radius-lg);
   background: linear-gradient(135deg,
-    rgba(99,168,255,.25),
-    rgba(143,107,255,.20));
+    rgba(99,168,255,.22),
+    rgba(143,107,255,.18));
   border: 2px solid var(--asd-border);
   display: flex !important;
   align-items: center;
@@ -288,7 +281,7 @@ article.asd-wrap,
   color: rgba(255,255,255,.75);
 }
 
-/* ── 5b. 主資訊欄（中） ── */
+/* ── 主資訊欄（中） ── */
 .asd-hero-body {
   grid-column: 2;
   grid-row: 1;
@@ -325,7 +318,6 @@ article.asd-wrap,
 }
 .asd-hero-romaji { font-style: italic; }
 
-/* Series badge */
 .asd-series-entry-badge {
   display: inline-flex;
   align-items: center;
@@ -373,7 +365,7 @@ article.asd-wrap,
 .asd-hbadge--s-hia { background: var(--asd-bg-card); border-color: var(--asd-border); color: var(--asd-text-muted); }
 .asd-hbadge--genre { background: rgba(99,168,255,.10); border-color: rgba(99,168,255,.26); color: var(--asd-primary); }
 
-/* ── 5c. 評分 pills ── */
+/* ── Score pills（圓形，對標截圖樣式）── */
 .asd-hero-scores-new {
   display: flex;
   flex-wrap: wrap;
@@ -384,13 +376,13 @@ article.asd-wrap,
 .asd-score-pill {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 36px;
+  gap: 6px;
+  height: 32px;
   padding: 0 14px;
-  border-radius: var(--asd-radius-md);
+  border-radius: 999px;
   background: var(--asd-bg-card);
   border: 1px solid var(--asd-border);
-  min-width: 90px;
+  min-width: 80px;
   transition: var(--trans-smooth);
 }
 .asd-score-pill:hover {
@@ -400,33 +392,33 @@ article.asd-wrap,
 }
 
 .asd-sp-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 .asd-sp-val {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 900;
   line-height: 1;
 }
 .asd-sp-label {
-  font-size: .66rem;
-  color: var(--asd-text-faint);
-  letter-spacing: .04em;
+  font-size: .64rem;
+  color: var(--asd-text-dim);
+  letter-spacing: .03em;
 }
 
-.asd-score-pill--al  { border-color: rgba(99,168,255,.35); }
+.asd-score-pill--al  { border-color: rgba(99,168,255,.40); }
 .asd-score-pill--al  .asd-sp-dot { background: var(--asd-score-al); }
 .asd-score-pill--al  .asd-sp-val { color: var(--asd-score-al); }
-.asd-score-pill--mal { border-color: rgba(143,107,255,.35); }
+.asd-score-pill--mal { border-color: rgba(143,107,255,.40); }
 .asd-score-pill--mal .asd-sp-dot { background: var(--asd-score-mal); }
 .asd-score-pill--mal .asd-sp-val { color: var(--asd-score-mal); }
-.asd-score-pill--bgm { border-color: rgba(255,107,174,.35); }
+.asd-score-pill--bgm { border-color: rgba(255,107,174,.40); }
 .asd-score-pill--bgm .asd-sp-dot { background: var(--asd-score-bgm); }
 .asd-score-pill--bgm .asd-sp-val { color: var(--asd-score-bgm); }
 
-/* ── 5d. Action buttons ── */
+/* ── Action buttons ── */
 .asd-hero-actions {
   display: flex;
   flex-wrap: wrap;
@@ -440,7 +432,7 @@ article.asd-wrap,
   gap: 5px;
   height: 36px;
   padding: 0 18px;
-  border-radius: var(--asd-radius-md);
+  border-radius: 999px;
   font-size: .80rem;
   font-weight: 700;
   cursor: pointer;
@@ -474,7 +466,7 @@ article.asd-wrap,
   background: var(--asd-bg-card);
 }
 
-/* ── 5e. Hero 右側 sidebar ── */
+/* ── Hero 右側 sidebar ── */
 .asd-hero-sidebar {
   grid-column: 3;
   grid-row: 1;
@@ -551,7 +543,7 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   6. Tab Bar
+   7. Tab Bar
    ================================================================ */
 .asd-tabs {
   display: flex;
@@ -583,7 +575,6 @@ article.asd-wrap,
   cursor: pointer;
   transition: var(--trans-smooth);
   text-decoration: none !important;
-  border-radius: var(--asd-radius-xs);
 }
 .asd-tab:hover { color: var(--asd-text-soft) !important; }
 .asd-tab.is-active,
@@ -593,7 +584,7 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   7. 主體容器 — 7:3 分欄
+   8. 主體容器 — 7:3 分欄
    ================================================================ */
 .asd-container {
   max-width: var(--asd-container);
@@ -621,7 +612,7 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   8. Section 通用
+   9. Section 通用
    ================================================================ */
 .asd-section {
   background: var(--asd-bg-card);
@@ -643,7 +634,7 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   9. Info Grid
+   10. Info Grid
    ================================================================ */
 .asd-info-grid {
   display: grid;
@@ -675,7 +666,6 @@ article.asd-wrap,
   color: var(--asd-text-muted);
 }
 
-/* Streaming bar */
 .asd-tw-stream-bar {
   margin-top: 14px;
   padding-top: 14px;
@@ -709,7 +699,6 @@ article.asd-wrap,
   color: var(--asd-text) !important;
 }
 
-/* Airing countdown */
 .asd-airing-bar {
   margin-top: 14px;
   padding: 10px 14px;
@@ -723,13 +712,10 @@ article.asd-wrap,
   font-size: .80rem;
   color: var(--asd-success);
 }
-.asd-countdown {
-  font-weight: 900;
-  font-size: .86rem;
-}
+.asd-countdown { font-weight: 900; font-size: .86rem; }
 
 /* ================================================================
-   10. Synopsis
+   11. Synopsis
    ================================================================ */
 .asd-synopsis {
   font-size: .90rem;
@@ -739,7 +725,7 @@ article.asd-wrap,
 .asd-synopsis p { margin: 0 0 .8em; }
 
 /* ================================================================
-   11. Trailer
+   12. Trailer
    ================================================================ */
 .asd-trailer-wrap {
   position: relative;
@@ -758,13 +744,9 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   12. Episode List
+   13. Episode List
    ================================================================ */
-.asd-ep-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.asd-ep-list { display: flex; flex-direction: column; gap: 6px; }
 
 .asd-ep-row {
   display: grid;
@@ -782,25 +764,12 @@ article.asd-wrap,
   border-color: #5a6a78;
 }
 
-.asd-ep-num {
-  font-size: .78rem;
-  font-weight: 900;
-  color: var(--asd-primary);
-  text-align: center;
-}
-.asd-ep-title {
-  font-size: .84rem;
-  font-weight: 600;
-  color: var(--asd-text-soft);
-}
-.asd-ep-date {
-  font-size: .72rem;
-  color: var(--asd-text-dim);
-  text-align: right;
-}
+.asd-ep-num { font-size: .78rem; font-weight: 900; color: var(--asd-primary); text-align: center; }
+.asd-ep-title { font-size: .84rem; font-weight: 600; color: var(--asd-text-soft); }
+.asd-ep-date { font-size: .72rem; color: var(--asd-text-dim); text-align: right; }
 
 /* ================================================================
-   13. Staff Grid（4欄）
+   14. Staff Grid（4欄）
    ================================================================ */
 .asd-staff-grid {
   display: grid;
@@ -827,49 +796,32 @@ article.asd-wrap,
 }
 
 .asd-staff-avatar {
-  width: 62px;
-  height: 62px;
+  width: 62px; height: 62px;
   border-radius: 50%;
   overflow: hidden;
   background: var(--asd-bg-card-hover);
   border: 2px solid var(--asd-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 .asd-staff-avatar img {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: none !important;
-  object-fit: cover !important;
+  width: 100% !important; height: 100% !important;
+  max-width: none !important; object-fit: cover !important;
 }
 
-.asd-staff-initials {
-  font-size: 1.1rem;
-  font-weight: 900;
-  color: var(--asd-text-muted);
-}
-.asd-staff-name {
-  font-size: .80rem;
-  font-weight: 800;
-  color: var(--asd-text);
-  line-height: 1.2;
-}
+.asd-staff-initials { font-size: 1.1rem; font-weight: 900; color: var(--asd-text-muted); }
+.asd-staff-name { font-size: .80rem; font-weight: 800; color: var(--asd-text); line-height: 1.2; }
 .asd-staff-role-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: var(--asd-radius-xs);
-  font-size: .64rem;
-  font-weight: 700;
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: var(--asd-radius-xs);
+  font-size: .64rem; font-weight: 700;
   background: rgba(99,168,255,.12);
   border: 1px solid rgba(99,168,255,.28);
   color: var(--asd-primary);
 }
 
 /* ================================================================
-   14. Cast Grid（5欄）
+   15. Cast Grid（5欄）
    ================================================================ */
 .asd-cast-grid {
   display: grid;
@@ -878,23 +830,16 @@ article.asd-wrap,
 }
 
 .asd-cast-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px; text-align: center;
 }
 
 .asd-cast-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  overflow: hidden;
+  width: 80px; height: 80px;
+  border-radius: 50%; overflow: hidden;
   background: var(--asd-bg-card-hover);
   border: 3px solid var(--asd-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   transition: var(--trans-smooth);
 }
 .asd-cast-card:hover .asd-cast-avatar {
@@ -902,25 +847,14 @@ article.asd-wrap,
   transform: scale(1.06);
 }
 .asd-cast-avatar img {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: none !important;
-  object-fit: cover !important;
+  width: 100% !important; height: 100% !important;
+  max-width: none !important; object-fit: cover !important;
 }
 
-.asd-cast-char {
-  font-size: .80rem;
-  font-weight: 800;
-  color: var(--asd-text);
-  line-height: 1.2;
-}
-.asd-cast-cv {
-  font-size: .68rem;
-  color: var(--asd-text-dim);
-}
+.asd-cast-char { font-size: .80rem; font-weight: 800; color: var(--asd-text); line-height: 1.2; }
+.asd-cast-cv { font-size: .68rem; color: var(--asd-text-dim); }
 .asd-cast-role-tag {
-  font-size: .62rem;
-  padding: 1px 6px;
+  font-size: .62rem; padding: 1px 6px;
   border-radius: var(--asd-radius-xs);
   background: rgba(99,168,255,.12);
   border: 1px solid rgba(99,168,255,.28);
@@ -928,49 +862,32 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   15. Music（主題曲）
+   16. Music（主題曲）
    ================================================================ */
-.asd-themes-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
+.asd-themes-wrap { display: flex; flex-direction: column; gap: 18px; }
 .asd-themes-group-title {
-  font-size: .72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--asd-text-dim);
-  margin-bottom: 8px;
+  font-size: .72rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .08em;
+  color: var(--asd-text-dim); margin-bottom: 8px;
 }
-.asd-theme-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.asd-theme-list { display: flex; flex-direction: column; gap: 8px; }
+
 .asd-theme-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: flex; align-items: center; gap: 12px;
   padding: 12px 14px;
   border-radius: var(--asd-radius-md);
   background: var(--asd-bg);
   border: 1px solid var(--asd-border);
   transition: var(--trans-smooth);
 }
-.asd-theme-card:hover {
-  background: var(--asd-bg-card-hover);
-}
+.asd-theme-card:hover { background: var(--asd-bg-card-hover); }
+
 .asd-theme-type-badge {
-  width: 36px;
-  height: 36px;
+  width: 36px; height: 36px;
   border-radius: var(--asd-radius-sm);
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: .70rem;
-  font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .70rem; font-weight: 900;
 }
 .asd-theme-type-badge--op {
   background: rgba(99,168,255,.15);
@@ -984,27 +901,16 @@ article.asd-wrap,
 }
 .asd-theme-body { flex: 1; min-width: 0; }
 .asd-theme-title {
-  font-size: .86rem;
-  font-weight: 800;
-  color: var(--asd-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: .86rem; font-weight: 800; color: var(--asd-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.asd-theme-artist {
-  font-size: .74rem;
-  color: var(--asd-text-dim);
-  margin-top: 2px;
-}
+.asd-theme-artist { font-size: .74rem; color: var(--asd-text-dim); margin-top: 2px; }
 
 /* ================================================================
-   16. FAQ
+   17. FAQ
    ================================================================ */
-.asd-faq-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.asd-faq-list { display: flex; flex-direction: column; gap: 8px; }
+
 .asd-faq-item {
   border-radius: var(--asd-radius-md);
   background: var(--asd-bg);
@@ -1012,107 +918,70 @@ article.asd-wrap,
   overflow: hidden;
 }
 .asd-faq-q {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 13px 16px;
-  cursor: pointer;
-  font-size: .84rem;
-  font-weight: 700;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 13px 16px; cursor: pointer;
+  font-size: .84rem; font-weight: 700;
   color: var(--asd-text-soft);
-  transition: var(--trans-smooth);
-  user-select: none;
+  transition: var(--trans-smooth); user-select: none;
 }
 .asd-faq-q:hover { background: var(--asd-bg-card-hover); }
+
 .asd-faq-toggle {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+  width: 22px; height: 22px; border-radius: 50%;
   background: var(--asd-bg-card);
   border: 1px solid var(--asd-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: .80rem;
-  flex-shrink: 0;
-  margin-left: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .80rem; flex-shrink: 0; margin-left: 8px;
   transition: transform .2s;
 }
 .asd-faq-item.is-open .asd-faq-toggle { transform: rotate(45deg); }
+
 .asd-faq-a {
-  padding: 0 16px;
-  max-height: 0;
-  overflow: hidden;
-  font-size: .82rem;
-  line-height: 1.75;
-  color: var(--asd-text-dim);
+  padding: 0 16px; max-height: 0; overflow: hidden;
+  font-size: .82rem; line-height: 1.75; color: var(--asd-text-dim);
   transition: max-height .25s ease, padding .25s ease;
 }
-.asd-faq-item.is-open .asd-faq-a {
-  max-height: 600px;
-  padding-bottom: 14px;
-}
+.asd-faq-item.is-open .asd-faq-a { max-height: 600px; padding-bottom: 14px; }
 
 /* ================================================================
-   17. Tags / External Links
+   18. Tags / External Links
    ================================================================ */
-.asd-tags-section {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
+.asd-tags-section { display: flex; flex-direction: column; gap: 18px; }
 .asd-tag-group { display: flex; flex-direction: column; gap: 8px; }
 .asd-tag-group-label {
-  font-size: .68rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .08em;
+  font-size: .68rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .08em;
   color: var(--asd-text-dim);
 }
-.asd-tag-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+.asd-tag-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .asd-tag-pill {
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 12px;
-  border-radius: 20px;
-  font-size: .74rem;
-  font-weight: 600;
-  background: var(--asd-bg);
-  border: 1px solid var(--asd-border);
+  display: inline-flex; align-items: center;
+  height: 26px; padding: 0 12px; border-radius: 999px;
+  font-size: .74rem; font-weight: 600;
+  background: var(--asd-bg); border: 1px solid var(--asd-border);
   color: var(--asd-text-muted) !important;
-  text-decoration: none !important;
-  transition: var(--trans-smooth);
+  text-decoration: none !important; transition: var(--trans-smooth);
 }
 .asd-tag-pill:hover {
   background: var(--asd-bg-card-hover);
-  border-color: #5a6a78;
-  color: var(--asd-text) !important;
+  border-color: #5a6a78; color: var(--asd-text) !important;
 }
 .asd-tag-pill--format {
-  background: rgba(99,168,255,.10);
-  border-color: rgba(99,168,255,.26);
+  background: rgba(99,168,255,.10); border-color: rgba(99,168,255,.26);
   color: var(--asd-primary) !important;
 }
 .asd-tag-pill--season {
-  background: rgba(255,209,102,.08);
-  border-color: rgba(255,209,102,.22);
+  background: rgba(255,209,102,.08); border-color: rgba(255,209,102,.22);
   color: #ffd166 !important;
 }
 .asd-tag-pill--studio {
-  background: rgba(143,107,255,.10);
-  border-color: rgba(143,107,255,.26);
+  background: rgba(143,107,255,.10); border-color: rgba(143,107,255,.26);
   color: var(--asd-primary-2) !important;
 }
 
 /* ================================================================
-   18. 右側欄 sidebar blocks（.asd-side）
+   19. 右側欄 sidebar blocks（.asd-side）
    ================================================================ */
 .asd-side-block {
   background: var(--asd-bg-card);
@@ -1121,184 +990,119 @@ article.asd-wrap,
   padding: 14px 16px;
 }
 .asd-side-block-title {
-  font-size: .72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--asd-text-dim);
-  margin-bottom: 10px;
+  font-size: .72rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .08em;
+  color: var(--asd-text-dim); margin-bottom: 10px;
 }
 
-/* Relations */
 .asd-relation-list { display: flex; flex-direction: column; gap: 8px; }
 .asd-relation-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--asd-radius-sm);
-  background: var(--asd-bg);
-  border: 1px solid var(--asd-border);
-  text-decoration: none !important;
-  transition: var(--trans-smooth);
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--asd-radius-sm);
+  background: var(--asd-bg); border: 1px solid var(--asd-border);
+  text-decoration: none !important; transition: var(--trans-smooth);
 }
-.asd-relation-card:hover {
-  background: var(--asd-bg-card-hover);
-  border-color: #5a6a78;
-}
+.asd-relation-card:hover { background: var(--asd-bg-card-hover); border-color: #5a6a78; }
+
 .asd-relation-thumb {
-  width: 38px;
-  height: 50px;
+  width: 38px; height: 50px;
   border-radius: var(--asd-radius-xs);
-  overflow: hidden;
-  flex-shrink: 0;
+  overflow: hidden; flex-shrink: 0;
   background: var(--asd-bg-card-hover);
 }
 .asd-relation-thumb img {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: none !important;
-  object-fit: cover !important;
+  width: 100% !important; height: 100% !important;
+  max-width: none !important; object-fit: cover !important;
 }
 .asd-relation-info { flex: 1; min-width: 0; }
 .asd-relation-type {
-  font-size: .60rem;
-  font-weight: 700;
-  color: var(--asd-text-dim);
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  margin-bottom: 2px;
+  font-size: .60rem; font-weight: 700; color: var(--asd-text-dim);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px;
 }
 .asd-relation-title {
-  font-size: .78rem;
-  font-weight: 700;
-  color: var(--asd-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: .78rem; font-weight: 700; color: var(--asd-text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* News links */
 .asd-news-list { display: flex; flex-direction: column; gap: 6px; }
 .asd-news-item {
-  display: block;
-  font-size: .76rem;
+  display: block; font-size: .76rem;
   color: var(--asd-text-muted) !important;
-  padding: 6px 10px;
-  border-radius: var(--asd-radius-sm);
+  padding: 6px 10px; border-radius: var(--asd-radius-sm);
   border: 1px solid var(--asd-border);
   background: var(--asd-bg);
-  text-decoration: none !important;
-  transition: var(--trans-smooth);
-  line-height: 1.4;
+  text-decoration: none !important; transition: var(--trans-smooth); line-height: 1.4;
 }
-.asd-news-item:hover {
-  background: var(--asd-bg-card-hover);
-  color: var(--asd-text) !important;
-}
+.asd-news-item:hover { background: var(--asd-bg-card-hover); color: var(--asd-text) !important; }
 
-/* External link buttons */
 .asd-ext-links { display: flex; flex-wrap: wrap; gap: 5px; }
 .asd-ext {
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 10px;
+  display: inline-flex; align-items: center;
+  height: 26px; padding: 0 10px;
   border-radius: var(--asd-radius-xs);
-  font-size: .70rem;
-  font-weight: 700;
-  background: var(--asd-bg);
-  border: 1px solid var(--asd-border);
+  font-size: .70rem; font-weight: 700;
+  background: var(--asd-bg); border: 1px solid var(--asd-border);
   color: var(--asd-text-muted) !important;
-  text-decoration: none !important;
-  transition: var(--trans-smooth);
+  text-decoration: none !important; transition: var(--trans-smooth);
 }
 .asd-ext:hover { background: var(--asd-bg-card-hover); color: var(--asd-text) !important; }
-.asd-ext--al  { border-color: rgba(99,168,255,.35);  color: var(--asd-score-al)  !important; }
-.asd-ext--mal { border-color: rgba(143,107,255,.35); color: var(--asd-score-mal) !important; }
-.asd-ext--bgm { border-color: rgba(255,107,174,.35); color: var(--asd-score-bgm) !important; }
-.asd-ext--wiki{ border-color: var(--asd-border);     color: var(--asd-text-muted) !important; }
-.asd-ext--tw  { border-color: rgba(29,161,242,.30);  color: #4da3e0 !important; }
-.asd-ext--tt  { border-color: rgba(254,44,85,.30);   color: #fe2c55 !important; }
+.asd-ext--al  { border-color: rgba(99,168,255,.38);  color: var(--asd-score-al)  !important; }
+.asd-ext--mal { border-color: rgba(143,107,255,.38); color: var(--asd-score-mal) !important; }
+.asd-ext--bgm { border-color: rgba(255,107,174,.38); color: var(--asd-score-bgm) !important; }
+.asd-ext--wiki{ border-color: var(--asd-border); color: var(--asd-text-muted) !important; }
+.asd-ext--tw  { border-color: rgba(29,161,242,.30); color: #4da3e0 !important; }
+.asd-ext--tt  { border-color: rgba(254,44,85,.30);  color: #fe2c55 !important; }
 
-/* Affiliate */
 .asd-affiliate { margin-top: 6px; }
 .asd-affiliate a { display: block; transition: opacity .18s; }
 .asd-affiliate a:hover { opacity: .85; }
-.asd-affiliate img {
-  width: 100% !important;
-  max-width: none !important;
-  border-radius: var(--asd-radius-sm);
-}
+.asd-affiliate img { width: 100% !important; max-width: none !important; border-radius: var(--asd-radius-sm); }
 
-/* Side tags */
 .asd-side-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .asd-side-tag {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 20px;
-  font-size: .70rem;
-  font-weight: 600;
-  background: var(--asd-bg);
-  border: 1px solid var(--asd-border);
+  display: inline-flex; align-items: center;
+  height: 24px; padding: 0 10px; border-radius: 999px;
+  font-size: .70rem; font-weight: 600;
+  background: var(--asd-bg); border: 1px solid var(--asd-border);
   color: var(--asd-text-muted) !important;
-  text-decoration: none !important;
-  transition: var(--trans-smooth);
+  text-decoration: none !important; transition: var(--trans-smooth);
 }
 .asd-side-tag:hover {
-  background: var(--asd-bg-card-hover);
-  border-color: #5a6a78;
+  background: var(--asd-bg-card-hover); border-color: #5a6a78;
   color: var(--asd-text) !important;
 }
 
 /* ================================================================
-   19. Comments
+   20. Comments
    ================================================================ */
 .asd-comments-wrap {
   background: var(--asd-bg-card);
   border: 1px solid var(--asd-border);
   border-radius: var(--asd-radius-lg);
-  padding: 22px 24px;
-  margin-bottom: 16px;
+  padding: 22px 24px; margin-bottom: 16px;
 }
-
 .asd-comments-wrap .comment-list,
-.asd-comments-wrap .children {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.asd-comments-wrap .comment {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--asd-border-light);
-}
+.asd-comments-wrap .children { list-style: none; padding: 0; margin: 0; }
+.asd-comments-wrap .comment { padding: 12px 0; border-bottom: 1px solid var(--asd-border-light); }
 .asd-comments-wrap .comment:last-child { border-bottom: none; }
 .asd-comments-wrap .comment-author .fn { font-weight: 700; color: var(--asd-text); font-size: .84rem; }
 .asd-comments-wrap .comment-meta { font-size: .70rem; color: var(--asd-text-dim); }
 .asd-comments-wrap .comment-content p { font-size: .84rem; color: var(--asd-text-soft); margin: 6px 0 0; }
 
 .asd-comments-wrap .comment-form label {
-  font-size: .80rem;
-  color: var(--asd-text-dim);
-  display: block;
-  margin-bottom: 4px;
+  font-size: .80rem; color: var(--asd-text-dim);
+  display: block; margin-bottom: 4px;
 }
 .asd-comments-wrap .comment-form input[type="text"],
 .asd-comments-wrap .comment-form input[type="email"],
 .asd-comments-wrap .comment-form input[type="url"],
 .asd-comments-wrap .comment-form textarea {
   width: 100%;
-  background: var(--asd-bg);
-  border: 1px solid var(--asd-border);
+  background: var(--asd-bg); border: 1px solid var(--asd-border);
   border-radius: var(--asd-radius-sm);
-  color: var(--asd-text);
-  padding: 8px 10px;
-  font-size: .84rem;
-  outline: none;
-  transition: border-color .18s;
-  font-family: inherit;
+  color: var(--asd-text); padding: 8px 10px;
+  font-size: .84rem; outline: none;
+  transition: border-color .18s; font-family: inherit;
 }
 .asd-comments-wrap .comment-form input:focus,
 .asd-comments-wrap .comment-form textarea:focus {
@@ -1306,14 +1110,10 @@ article.asd-wrap,
 }
 .asd-comments-wrap .comment-form .submit,
 .asd-comments-wrap .form-submit input {
-  background: var(--asd-primary);
-  border: none;
-  border-radius: var(--asd-radius-sm);
-  color: #fff;
-  padding: 8px 20px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: var(--trans-smooth);
+  background: var(--asd-primary); border: none;
+  border-radius: 999px; color: #fff;
+  padding: 8px 20px; font-weight: 700;
+  cursor: pointer; transition: var(--trans-smooth);
 }
 .asd-comments-wrap .comment-form .submit:hover,
 .asd-comments-wrap .form-submit input:hover {
@@ -1321,35 +1121,25 @@ article.asd-wrap,
 }
 
 /* ================================================================
-   20. Streaming Grid
+   21. Streaming Grid
    ================================================================ */
-.asd-stream-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+.asd-stream-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .asd-stream-card {
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 14px;
-  border-radius: var(--asd-radius-sm);
-  font-size: .78rem;
-  font-weight: 700;
-  background: var(--asd-bg);
-  border: 1px solid var(--asd-border);
+  display: inline-flex; align-items: center;
+  height: 32px; padding: 0 14px;
+  border-radius: 999px;
+  font-size: .78rem; font-weight: 700;
+  background: var(--asd-bg); border: 1px solid var(--asd-border);
   color: var(--asd-text-muted) !important;
-  text-decoration: none !important;
-  transition: var(--trans-smooth);
+  text-decoration: none !important; transition: var(--trans-smooth);
 }
 .asd-stream-card:hover {
-  background: var(--asd-bg-card-hover);
-  border-color: #5a6a78;
+  background: var(--asd-bg-card-hover); border-color: #5a6a78;
   color: var(--asd-text) !important;
 }
 
 /* ================================================================
-   21. Responsive
+   22. Responsive
    ================================================================ */
 @media (max-width: 1100px) {
   :root {
@@ -1365,8 +1155,8 @@ article.asd-wrap,
 
 @media (max-width: 960px) {
   :root {
-    --asd-poster-w:    280px;
-    --asd-poster-h:    calc(280px * 422.89 / 330);
+    --asd-poster-w: 260px;
+    --asd-poster-h: calc(260px * 422.89 / 330);
   }
   .asd-hero-new {
     grid-template-columns: var(--asd-poster-w) minmax(0,1fr);
@@ -1382,20 +1172,15 @@ article.asd-wrap,
   .asd-container--has-sidebar {
     grid-template-columns: minmax(0,1fr);
   }
-  .asd-side {
-    position: static;
-  }
+  .asd-side { position: static; }
 }
 
 @media (max-width: 720px) {
   :root {
-    --asd-poster-w:    200px;
-    --asd-poster-h:    calc(200px * 422.89 / 330);
+    --asd-poster-w: 180px;
+    --asd-poster-h: calc(180px * 422.89 / 330);
   }
-  .asd-hero-new {
-    gap: 16px;
-    padding: 0 16px 24px;
-  }
+  .asd-hero-new { gap: 16px; padding: 0 16px 24px; }
   .asd-hero-body { padding-top: 60px; }
   .asd-container { padding: 0 16px 40px; }
   .asd-tabs { margin: 16px auto 0; }
@@ -1408,18 +1193,13 @@ article.asd-wrap,
 
 @media (max-width: 480px) {
   :root {
-    --asd-poster-w:    140px;
-    --asd-poster-h:    calc(140px * 422.89 / 330);
+    --asd-poster-w: 130px;
+    --asd-poster-h: calc(130px * 422.89 / 330);
   }
-  .asd-hero-new {
-    gap: 12px;
-    padding: 0 12px 20px;
-  }
+  .asd-hero-new { gap: 12px; padding: 0 12px 20px; }
   .asd-hero-body { padding-top: 20px; }
   .asd-hero-title { font-size: 1.3rem !important; }
-  .asd-hero-sidebar {
-    grid-template-columns: 1fr;
-  }
+  .asd-hero-sidebar { grid-template-columns: 1fr; }
   .asd-info-grid { grid-template-columns: 1fr; }
   .asd-staff-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .asd-cast-grid  { grid-template-columns: repeat(2, minmax(0,1fr)); }
