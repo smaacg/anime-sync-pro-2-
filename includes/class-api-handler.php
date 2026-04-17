@@ -1216,7 +1216,7 @@ private function get_bgm_staff( int $bangumi_id ): array {
         if ( in_array( $role, $allowed_roles, true ) ) {
             $staff[] = [
                 'id'     => $p['id']             ?? 0,
-                'name'   => $p['name']            ?? '',
+                'name'   => Anime_Sync_CN_Converter::static_convert( $p['name'] ?? '' ),
                 'role'   => $role,
                 'image'  => $p['images']['large'] ?? $p['images']['medium'] ?? '',
                 'source' => 'bangumi',
@@ -1256,13 +1256,13 @@ private function get_bgm_staff( int $bangumi_id ): array {
             foreach ( $c['actors'] ?? [] as $a ) {
                 $va[] = [
                     'id'    => $a['id']             ?? 0,
-                    'name'  => $a['name']            ?? '',
+                    'name' => Anime_Sync_CN_Converter::static_convert( $a['name'] ?? '' ),
                     'image' => $a['images']['large'] ?? '',
                 ];
             }
             $chars[] = [
                 'id'           => $c['id']             ?? 0,
-                'name'         => $c['name']            ?? '',
+                'name' => Anime_Sync_CN_Converter::static_convert( $c['name'] ?? '' ),
                 'role'         => $c['relation']        ?? '',
                 'image'        => $c['images']['large'] ?? $c['images']['medium'] ?? '',
                 'voice_actors' => $va,
