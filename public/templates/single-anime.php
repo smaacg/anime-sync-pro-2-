@@ -552,7 +552,12 @@ while ( have_posts() ) :
             'ratingCount' => max( 1, $popularity ),
         );
     }
-
+if ( ! empty( $tw_streaming_items ) || ! empty( $streaming_list ) ) {
+    $schema['potentialAction'] = array(
+        '@type'  => 'WatchAction',
+        'target' => get_permalink( $post_id ) . '#asd-sec-stream',
+    );
+}
     $breadcrumb_schema = array(
         '@context' => 'https://schema.org',
         '@type'    => 'BreadcrumbList',
