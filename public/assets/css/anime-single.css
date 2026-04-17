@@ -1,245 +1,1427 @@
-/* ============================================================
-   Anime Sync Pro — anime-single.css v13.2 SAFE
-   Hero poster only fix (330×422.89)
-   ============================================================ */
+/* =================================================================
+   Anime Sync Pro — anime-single.css  v13.3
+   對應 single-anime.php v13.0
+   海報尺寸：330 × 422.89 px
+   Hello Elementor / Astra 完整防護
+   2026-04-17
+   ================================================================= */
 
-/* ─────────────────────────────
-   Hello Elementor / Astra 防護
-───────────────────────────── */
+/* ================================================================
+   0. Hello Elementor / Astra / Elementor 強制重置
+   ================================================================ */
 .asd-wrap,
 .asd-wrap *,
 .asd-wrap *::before,
 .asd-wrap *::after {
-    box-sizing: border-box !important;
+  box-sizing: border-box !important;
 }
 
-.asd-wrap .entry-content,
-.asd-wrap .entry-header,
-.asd-wrap .entry-footer,
-.asd-wrap article {
-    padding: 0 !important;
-    margin: 0 !important;
-    max-width: none !important;
-    width: 100% !important;
-    background: none !important;
-    border: none !important;
-    box-shadow: none !important;
+/* 取消主題對 .entry-content 的 padding / max-width */
+.asd-wrap.entry-content,
+.elementor .asd-wrap,
+.hentry .asd-wrap,
+.site-content .asd-wrap,
+body .asd-wrap {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
+  background: none !important;
+  float: none !important;
+  overflow: visible !important;
 }
 
+/* 主題 h1-h4 干擾重置 */
 .asd-wrap h1,
 .asd-wrap h2,
-.asd-wrap h3 {
-    border: none !important;
-    background: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    font-family: inherit !important;
+.asd-wrap h3,
+.asd-wrap h4 {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+  color: inherit !important;
+  border: none !important;
+  background: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
 }
 
+/* Hello Elementor img 覆蓋 */
+.asd-wrap img {
+  max-width: none !important;
+  height: auto !important;
+  display: block !important;
+  vertical-align: top !important;
+}
+
+/* 取消主題 a 底線 */
 .asd-wrap a {
-    text-decoration: none !important;
-    box-shadow: none !important;
+  text-decoration: none !important;
+  color: inherit !important;
+  transition: color 0.2s, opacity 0.2s !important;
 }
 
-.hentry .asd-wrap,
-.elementor .asd-wrap,
-.site-content .asd-wrap {
-    max-width: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
+/* 取消 Elementor section padding */
+.elementor-section .asd-wrap,
+.elementor-widget-container .asd-wrap,
+.wp-site-blocks .asd-wrap {
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
-/* ─────────────────────────────
-   CSS Variables
-───────────────────────────── */
+/* 取消主題 article, .post margin */
+article.asd-wrap,
+.post.asd-wrap,
+.page.asd-wrap {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* ================================================================
+   1. CSS 變數
+   ================================================================ */
 .asd-wrap {
-    --asd-primary: #63A8FF;
-    --asd-bg: #1E242B;
-    --asd-text: #F5F7F6;
-    --asd-text-muted: #C3C6CE;
-    --asd-text-dim: #7A848E;
-
-    --asd-radius: 8px;
-    --asd-radius-sm: 4px;
-
-    --glass-bg: rgba(245, 247, 246, 0.05);
-    --glass-bg-mid: rgba(245, 247, 246, 0.09);
-    --glass-border: rgba(245, 247, 246, 0.12);
-    --glass-border-h: rgba(245, 247, 246, 0.24);
-
-    --asd-max-width: 1200px;
-    --trans-smooth: all 0.25s ease;
-
-    max-width: var(--asd-max-width);
-    margin: 0 auto;
-    padding: 0 16px 48px;
-    background: var(--asd-bg);
-    color: var(--asd-text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+  --asd-primary:      #7c5cff;
+  --asd-primary-2:    #4cc9f0;
+  --asd-accent:       #ff78c8;
+  --asd-bg:           #0d1117;
+  --asd-surface:      rgba(255,255,255,.055);
+  --asd-border:       rgba(255,255,255,.10);
+  --asd-text:         #e8eaf0;
+  --asd-text-soft:    rgba(232,234,240,.80);
+  --asd-text-faint:   rgba(232,234,240,.50);
+  --asd-text-muted:   rgba(232,234,240,.35);
+  --asd-success:      #65d6a3;
+  --asd-warning:      #ffd166;
+  --asd-danger:       #ff6b8a;
+  --asd-shadow:       0 20px 60px rgba(0,0,0,.45);
+  --asd-shadow-soft:  0 4px 20px rgba(0,0,0,.22);
+  --asd-radius-xl:    16px;
+  --asd-radius-lg:    12px;
+  --asd-radius-md:    10px;
+  --asd-radius-sm:    8px;
+  --asd-container:    1200px;
+  --asd-sidebar-w:    220px;
+  --asd-gap:          18px;
+  --asd-poster-w:     330px;
+  --asd-poster-h:     422.89px;
+  --asd-score-al:     #6cf0c2;
+  --asd-score-mal:    #8ac7ff;
+  --asd-score-bgm:    #ff9ed8;
+  /* glass */
+  --glass-bg:         rgba(255,255,255,.04);
+  --glass-bg-mid:     rgba(255,255,255,.08);
+  --glass-border:     rgba(255,255,255,.09);
+  --glass-border-h:   rgba(255,255,255,.20);
 }
 
-/* ─────────────────────────────
-   Banner
-───────────────────────────── */
+/* ================================================================
+   2. 根基樣式
+   ================================================================ */
+.asd-wrap {
+  position: relative;
+  min-height: 100vh;
+  background: var(--asd-bg);
+  color: var(--asd-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+               'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow-x: hidden;
+  isolation: isolate;
+}
+
+/* ================================================================
+   3. Banner
+   ================================================================ */
 .asd-banner {
-    width: calc(100% + 32px);
-    margin-left: -16px;
-    height: 260px;
-    background-size: cover;
-    background-position: center;
-    position: relative;
+  position: relative;
+  width: 100%;
+  height: 240px;
+  background-size: cover;
+  background-position: center 20%;
+  overflow: hidden;
 }
 
 .asd-banner-fade {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg,
-        rgba(30,36,43,0.2),
-        rgba(30,36,43,0.7),
-        rgba(30,36,43,1));
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(13,17,23,.15)  0%,
+    rgba(13,17,23,.55) 55%,
+    rgba(13,17,23,1)  100%
+  );
 }
 
-/* ─────────────────────────────
-   HERO GRID
-───────────────────────────── */
+.asd-banner--fallback {
+  height: 200px;
+  background: linear-gradient(135deg, #12192e 0%, #1a2540 100%);
+}
+
+/* ================================================================
+   4. Breadcrumb
+   ================================================================ */
+.asd-breadcrumb {
+  position: relative;
+  z-index: 3;
+  max-width: var(--asd-container);
+  margin: 0 auto;
+  padding: 10px 20px 0;
+}
+
+.asd-breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: .76rem;
+  color: var(--asd-text-faint);
+}
+
+.asd-breadcrumb li + li::before {
+  content: "›";
+  margin-right: 4px;
+  opacity: .4;
+}
+
+.asd-breadcrumb a:hover {
+  color: #fff !important;
+}
+
+/* ================================================================
+   5. Hero — 三欄佈局（對應 PHP .asd-hero-new）
+   ================================================================ */
 .asd-hero-new {
-    display: grid;
-    grid-template-columns: 330px minmax(0, 1fr) 220px;
-    gap: 24px;
-    margin-top: -80px;
-    align-items: start;
+  position: relative;
+  z-index: 2;
+  max-width: var(--asd-container);
+  margin: -80px auto 0;
+  padding: 0 20px 32px;
+  display: grid;
+  grid-template-columns: var(--asd-poster-w) minmax(0,1fr) var(--asd-sidebar-w);
+  gap: 24px;
+  align-items: start;
 }
 
-/* ─────────────────────────────
-   ⭐ HERO POSTER (ONLY FIXED AREA)
-───────────────────────────── */
+/* ── 5a. 海報欄（左） ── */
 .asd-hero-poster {
-    grid-column: 1;
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+  z-index: 4;
 }
 
-/* ONLY THIS IS 330 × 422.89 */
+/* ★ 海報核心尺寸：330 × 422.89 px ★ */
 .asd-poster-img {
-    width: 330px;
-    aspect-ratio: 330 / 422.89;
-    object-fit: cover;
-    border-radius: var(--asd-radius);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
-    border: 2px solid var(--glass-border);
-    display: block;
+  width: var(--asd-poster-w) !important;
+  height: var(--asd-poster-h) !important;
+  max-width: none !important;
+  object-fit: cover !important;
+  border-radius: var(--asd-radius-lg) !important;
+  display: block !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,.65) !important;
+  border: 2px solid rgba(255,255,255,.12) !important;
+  aspect-ratio: 330 / 422.89;
 }
 
 .asd-poster-fallback {
-    width: 330px;
-    aspect-ratio: 330 / 422.89;
-    border-radius: var(--asd-radius);
-    background: var(--glass-bg);
-    border: 2px solid var(--glass-border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 900;
-    color: var(--asd-text-dim);
+  width: var(--asd-poster-w) !important;
+  height: var(--asd-poster-h) !important;
+  max-width: none !important;
+  border-radius: var(--asd-radius-lg);
+  background: linear-gradient(135deg,
+    rgba(124,92,255,.38),
+    rgba(76,201,240,.28));
+  border: 2px solid rgba(255,255,255,.10);
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.4rem;
+  font-weight: 900;
+  color: rgba(255,255,255,.75);
 }
 
-/* ─────────────────────────────
-   HERO BODY
-───────────────────────────── */
+/* ── 5b. 主資訊欄（中） ── */
 .asd-hero-body {
-    padding-top: 80px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  padding-top: 90px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
+/* mini breadcrumb */
+.asd-hero-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .72rem;
+  color: var(--asd-text-faint);
+}
+
+.asd-hbc-sep { opacity: .4; }
+
+/* 主標題 */
 .asd-hero-title {
-    font-size: 2rem;
-    font-weight: 900;
-    color: #fff;
+  font-size: clamp(1.45rem, 2.4vw, 2.1rem) !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -.02em !important;
+  color: #fff !important;
+  margin: 0 0 3px !important;
 }
 
-/* ─────────────────────────────
-   SIDEBAR
-───────────────────────────── */
+/* 日文 / Romaji 副標 */
+.asd-hero-native {
+  font-size: .80rem;
+  color: var(--asd-text-faint);
+  margin: 0 0 2px;
+}
+.asd-hero-romaji { font-style: italic; }
+
+/* Series badge */
+.asd-series-entry-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 20px;
+  font-size: .72rem;
+  font-weight: 700;
+  background: rgba(124,92,255,.16);
+  border: 1px solid rgba(124,92,255,.35);
+  color: #c4b5fd !important;
+  text-decoration: none !important;
+  transition: background .18s;
+  align-self: flex-start;
+}
+.asd-series-entry-badge:hover {
+  background: rgba(124,92,255,.28);
+}
+
+/* Status / Format badges */
+.asd-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.asd-hbadge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 4px;
+  font-size: .73rem;
+  font-weight: 700;
+  background: rgba(255,255,255,.09);
+  border: 1px solid rgba(255,255,255,.13);
+  color: var(--asd-text-soft);
+}
+
+.asd-hbadge--s-fin { background:rgba(255,255,255,.08);  border-color:rgba(255,255,255,.15);    color:var(--asd-text-soft); }
+.asd-hbadge--s-rel { background:rgba(101,214,163,.14); border-color:rgba(101,214,163,.30);    color:#65d6a3; }
+.asd-hbadge--s-pre { background:rgba(255,209,102,.13); border-color:rgba(255,209,102,.30);    color:#ffd166; }
+.asd-hbadge--s-can { background:rgba(255,107,138,.13); border-color:rgba(255,107,138,.30);    color:#ff6b8a; }
+.asd-hbadge--s-hia { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.15);    color:var(--asd-text-muted); }
+.asd-hbadge--genre { background:rgba(76,201,240,.12);  border-color:rgba(76,201,240,.28);     color:#4cc9f0; }
+
+/* ── 5c. 評分 pills（水平） ── */
+.asd-hero-scores-new {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.asd-score-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.065);
+  border: 1px solid rgba(255,255,255,.12);
+  min-width: 90px;
+  transition: transform .18s, box-shadow .18s;
+}
+.asd-score-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+
+.asd-sp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.asd-sp-val {
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.asd-sp-label {
+  font-size: .66rem;
+  color: var(--asd-text-faint);
+  letter-spacing: .04em;
+}
+
+/* AniList */
+.asd-score-pill--al  { border-color: rgba(108,240,194,.22); }
+.asd-score-pill--al  .asd-sp-dot { background: var(--asd-score-al); }
+.asd-score-pill--al  .asd-sp-val { color: var(--asd-score-al); }
+/* MAL */
+.asd-score-pill--mal { border-color: rgba(138,199,255,.22); }
+.asd-score-pill--mal .asd-sp-dot { background: var(--asd-score-mal); }
+.asd-score-pill--mal .asd-sp-val { color: var(--asd-score-mal); }
+/* Bangumi */
+.asd-score-pill--bgm { border-color: rgba(255,158,216,.22); }
+.asd-score-pill--bgm .asd-sp-dot { background: var(--asd-score-bgm); }
+.asd-score-pill--bgm .asd-sp-val { color: var(--asd-score-bgm); }
+
+/* ── 5d. Action buttons ── */
+.asd-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.asd-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 6px;
+  font-size: .80rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .18s, transform .18s, box-shadow .18s;
+  text-decoration: none !important;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(255,255,255,.08);
+  color: #fff !important;
+}
+.asd-action-btn:hover {
+  background: rgba(255,255,255,.14);
+  transform: translateY(-1px);
+}
+.asd-action-btn--primary {
+  background: linear-gradient(135deg, var(--asd-primary), #9d6bff);
+  border-color: transparent;
+  box-shadow: 0 4px 16px rgba(124,92,255,.35);
+}
+.asd-action-btn--primary:hover {
+  box-shadow: 0 6px 22px rgba(124,92,255,.50);
+}
+.asd-action-btn--ghost {
+  background: rgba(255,255,255,.055);
+}
+
+/* ── 5e. Hero 右側 sidebar ── */
 .asd-hero-sidebar {
-    padding-top: 80px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  padding-top: 90px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-/* ─────────────────────────────
-   CARDS / GLASS UI
-───────────────────────────── */
-.asd-section,
-.asd-hside-block,
-.asd-side-section {
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--asd-radius);
-    padding: 16px;
+/* sidebar block 共用 */
+.asd-hside-block {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--asd-radius-md);
+  padding: 12px 14px;
 }
 
-/* ─────────────────────────────
-   TABS
-───────────────────────────── */
+.asd-hside-title {
+  font-size: .66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .10em;
+  color: var(--asd-text-faint);
+  margin-bottom: 8px;
+}
+
+/* 評分列 */
+.asd-hside-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.asd-hside-row:last-child { border-bottom: none; }
+
+.asd-hside-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.asd-hside-key {
+  flex: 1;
+  font-size: .75rem;
+  color: var(--asd-text-faint);
+}
+.asd-hside-val {
+  font-size: .90rem;
+  font-weight: 900;
+  color: #fff;
+}
+
+/* 基本 meta 列 */
+.asd-hside-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.asd-hside-info-row:last-child { border-bottom: none; }
+
+.asd-hside-info-key {
+  font-size: .70rem;
+  color: var(--asd-text-faint);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.asd-hside-info-val {
+  font-size: .74rem;
+  font-weight: 700;
+  color: var(--asd-text-soft);
+  text-align: right;
+}
+
+/* ================================================================
+   6. Tab Bar
+   ================================================================ */
 .asd-tabs {
-    display: flex;
-    overflow-x: auto;
-    background: var(--glass-bg);
-    border-radius: var(--asd-radius);
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  max-width: var(--asd-container);
+  margin: 20px auto 0;
+  padding: 0 20px;
+  gap: 0;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px;
+}
+.asd-tabs::-webkit-scrollbar { display: none; }
+
+.asd-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  height: 44px;
+  padding: 0 14px;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--asd-text-faint);
+  font-size: .80rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color .18s, border-color .18s;
+  text-decoration: none !important;
+}
+.asd-tab:hover { color: var(--asd-text-soft) !important; }
+.asd-tab.is-active,
+.asd-tab[data-active],
+.asd-tab:target {
+  color: #fff !important;
+  border-bottom-color: var(--asd-primary);
 }
 
-/* ─────────────────────────────
-   CAST / STAFF / EPISODES
-───────────────────────────── */
-.asd-cast-grid-v2 {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0,1fr));
-    gap: 12px;
+/* ================================================================
+   7. 主體容器（2欄：main + side）
+   ================================================================ */
+.asd-container {
+  max-width: var(--asd-container);
+  margin: 20px auto 0;
+  padding: 0 20px 60px;
+  display: grid;
+  grid-template-columns: minmax(0,1fr);
+  gap: var(--asd-gap);
+  align-items: start;
 }
 
-.asd-staff-grid-v2 {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0,1fr));
-    gap: 12px;
+.asd-container.asd-container--has-sidebar {
+  grid-template-columns: minmax(0,1fr) var(--asd-sidebar-w);
 }
 
-/* ─────────────────────────────
-   RESPONSIVE (IMPORTANT)
-───────────────────────────── */
+.asd-main { min-width: 0; }
+
+.asd-side {
+  min-width: 0;
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ================================================================
+   8. Section 通用
+   ================================================================ */
+.asd-section {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--asd-radius-xl);
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.asd-section-title {
+  margin: 0 0 16px !important;
+  font-size: .92rem !important;
+  font-weight: 800 !important;
+  color: #fff !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ================================================================
+   9. Info Grid（基本資訊）
+   ================================================================ */
+.asd-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 0;
+}
+
+.asd-info-row {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  border-right: 1px solid rgba(255,255,255,.05);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.asd-info-row:nth-child(3n) { border-right: none; }
+.asd-info-row:last-child,
+.asd-info-row:nth-last-child(-n+3) { border-bottom: none; }
+
+.asd-info-label {
+  font-size: .68rem;
+  color: var(--asd-text-faint);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.asd-info-val {
+  font-size: .84rem;
+  font-weight: 700;
+  color: var(--asd-text-soft);
+}
+
+/* ── Streaming bar（在 info section 下方） ── */
+.asd-tw-stream-bar {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.asd-tw-stream-label {
+  font-size: .72rem;
+  color: var(--asd-text-faint);
+  margin-right: 4px;
+}
+.asd-tw-stream-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: .74rem;
+  font-weight: 700;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  color: var(--asd-text-soft) !important;
+  transition: all .15s;
+  text-decoration: none !important;
+}
+.asd-tw-stream-btn:hover {
+  background: rgba(255,255,255,.13);
+  color: #fff !important;
+}
+
+/* ── Airing countdown ── */
+.asd-airing-bar {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: var(--asd-radius-sm);
+  background: rgba(101,214,163,.10);
+  border: 1px solid rgba(101,214,163,.22);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: .80rem;
+  color: var(--asd-success);
+}
+.asd-countdown {
+  font-weight: 900;
+  font-size: .86rem;
+}
+
+/* ================================================================
+   10. Synopsis
+   ================================================================ */
+.asd-synopsis {
+  font-size: .90rem;
+  line-height: 1.80;
+  color: var(--asd-text-soft);
+}
+.asd-synopsis p {
+  margin: 0 0 .8em;
+}
+
+/* ================================================================
+   11. Trailer
+   ================================================================ */
+.asd-trailer-wrap {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  border-radius: var(--asd-radius-lg);
+  overflow: hidden;
+  background: #000;
+}
+.asd-trailer-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* ================================================================
+   12. Episode List
+   ================================================================ */
+.asd-ep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.asd-ep-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0,1fr) 96px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--asd-radius-sm);
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  transition: background .15s, border-color .15s;
+}
+.asd-ep-row:hover {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.12);
+}
+
+.asd-ep-num {
+  font-size: .78rem;
+  font-weight: 900;
+  color: var(--asd-primary);
+  text-align: center;
+}
+.asd-ep-title {
+  font-size: .84rem;
+  font-weight: 600;
+  color: var(--asd-text-soft);
+}
+.asd-ep-date {
+  font-size: .72rem;
+  color: var(--asd-text-faint);
+  text-align: right;
+}
+
+/* ================================================================
+   13. Staff Grid（4欄）
+   ================================================================ */
+.asd-staff-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 12px;
+}
+
+.asd-staff-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 10px;
+  border-radius: var(--asd-radius-md);
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  text-align: center;
+  transition: transform .2s, border-color .2s;
+}
+.asd-staff-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255,255,255,.14);
+}
+
+.asd-staff-avatar {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255,255,255,.08);
+  border: 2px solid rgba(255,255,255,.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.asd-staff-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: cover !important;
+}
+
+.asd-staff-initials {
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: rgba(255,255,255,.75);
+}
+.asd-staff-name {
+  font-size: .80rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+}
+.asd-staff-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: .64rem;
+  font-weight: 700;
+}
+.asd-staff-card:nth-child(3n+1) .asd-staff-role-badge {
+  background: rgba(124,92,255,.15);
+  border: 1px solid rgba(124,92,255,.30);
+  color: #c4b5fd;
+}
+.asd-staff-card:nth-child(3n+2) .asd-staff-role-badge {
+  background: rgba(76,201,240,.15);
+  border: 1px solid rgba(76,201,240,.30);
+  color: #4cc9f0;
+}
+.asd-staff-card:nth-child(3n+0) .asd-staff-role-badge {
+  background: rgba(255,120,200,.12);
+  border: 1px solid rgba(255,120,200,.28);
+  color: #ff78c8;
+}
+
+/* ================================================================
+   14. Cast Grid（5欄）
+   ================================================================ */
+.asd-cast-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0,1fr));
+  gap: 14px;
+}
+
+.asd-cast-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.asd-cast-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255,255,255,.08);
+  border: 3px solid rgba(255,255,255,.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .2s, transform .2s;
+}
+.asd-cast-card:hover .asd-cast-avatar {
+  border-color: var(--asd-primary);
+  transform: scale(1.06);
+}
+.asd-cast-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: cover !important;
+}
+
+.asd-cast-char {
+  font-size: .80rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+}
+.asd-cast-cv {
+  font-size: .68rem;
+  color: var(--asd-text-faint);
+}
+.asd-cast-role-tag {
+  font-size: .62rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(124,92,255,.15);
+  border: 1px solid rgba(124,92,255,.28);
+  color: #c4b5fd;
+}
+
+/* ================================================================
+   15. Music（主題曲）
+   ================================================================ */
+.asd-themes-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.asd-themes-group-title {
+  font-size: .72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--asd-text-faint);
+  margin-bottom: 8px;
+}
+.asd-theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.asd-theme-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--asd-radius-md);
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+}
+.asd-theme-type-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .70rem;
+  font-weight: 900;
+}
+.asd-theme-type-badge--op {
+  background: rgba(124,92,255,.22);
+  color: #c4b5fd;
+}
+.asd-theme-type-badge--ed {
+  background: rgba(76,201,240,.18);
+  color: #4cc9f0;
+}
+.asd-theme-body { flex: 1; min-width: 0; }
+.asd-theme-title {
+  font-size: .86rem;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.asd-theme-artist {
+  font-size: .74rem;
+  color: var(--asd-text-faint);
+  margin-top: 2px;
+}
+
+/* ================================================================
+   16. FAQ
+   ================================================================ */
+.asd-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.asd-faq-item {
+  border-radius: var(--asd-radius-md);
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  overflow: hidden;
+}
+.asd-faq-q {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 16px;
+  cursor: pointer;
+  font-size: .84rem;
+  font-weight: 700;
+  color: var(--asd-text-soft);
+  transition: background .15s;
+  user-select: none;
+}
+.asd-faq-q:hover { background: rgba(255,255,255,.05); }
+.asd-faq-toggle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .80rem;
+  flex-shrink: 0;
+  margin-left: 8px;
+  transition: transform .2s;
+}
+.asd-faq-item.is-open .asd-faq-toggle {
+  transform: rotate(45deg);
+}
+.asd-faq-a {
+  padding: 0 16px;
+  max-height: 0;
+  overflow: hidden;
+  font-size: .82rem;
+  line-height: 1.75;
+  color: var(--asd-text-faint);
+  transition: max-height .25s ease, padding .25s ease;
+}
+.asd-faq-item.is-open .asd-faq-a {
+  max-height: 600px;
+  padding-bottom: 14px;
+}
+
+/* ================================================================
+   17. External Links（作品標籤 asd-sec-links）
+   ================================================================ */
+.asd-tags-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Tag group */
+.asd-tag-group { display: flex; flex-direction: column; gap: 8px; }
+.asd-tag-group-label {
+  font-size: .68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--asd-text-faint);
+}
+.asd-tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.asd-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 20px;
+  font-size: .74rem;
+  font-weight: 600;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.10);
+  color: var(--asd-text-soft) !important;
+  text-decoration: none !important;
+  transition: all .15s;
+}
+.asd-tag-pill:hover {
+  background: rgba(124,92,255,.22);
+  border-color: rgba(124,92,255,.42);
+  color: #c4b5fd !important;
+}
+/* 分類色系 */
+.asd-tag-pill--format {
+  background: rgba(124,92,255,.12);
+  border-color: rgba(124,92,255,.28);
+  color: #c4b5fd !important;
+}
+.asd-tag-pill--season {
+  background: rgba(255,209,102,.10);
+  border-color: rgba(255,209,102,.25);
+  color: #ffd166 !important;
+}
+.asd-tag-pill--studio {
+  background: rgba(76,201,240,.10);
+  border-color: rgba(76,201,240,.25);
+  color: #4cc9f0 !important;
+}
+
+/* ================================================================
+   18. 右側欄（.asd-side）sidebar blocks
+   ================================================================ */
+.asd-side-block {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--asd-radius-lg);
+  padding: 14px 16px;
+}
+.asd-side-block-title {
+  font-size: .72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--asd-text-faint);
+  margin-bottom: 10px;
+}
+
+/* Relations */
+.asd-relation-list { display: flex; flex-direction: column; gap: 8px; }
+.asd-relation-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--asd-radius-sm);
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  text-decoration: none !important;
+  transition: all .15s;
+}
+.asd-relation-card:hover {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.12);
+}
+.asd-relation-thumb {
+  width: 38px;
+  height: 50px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255,255,255,.08);
+}
+.asd-relation-thumb img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: cover !important;
+}
+.asd-relation-info { flex: 1; min-width: 0; }
+.asd-relation-type {
+  font-size: .60rem;
+  font-weight: 700;
+  color: var(--asd-text-faint);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 2px;
+}
+.asd-relation-title {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--asd-text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* News links */
+.asd-news-list { display: flex; flex-direction: column; gap: 6px; }
+.asd-news-item {
+  display: block;
+  font-size: .76rem;
+  color: var(--asd-text-soft) !important;
+  padding: 5px 8px;
+  border-radius: var(--asd-radius-sm);
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.03);
+  text-decoration: none !important;
+  transition: all .15s;
+  line-height: 1.4;
+}
+.asd-news-item:hover {
+  background: rgba(255,255,255,.07);
+  color: #fff !important;
+}
+
+/* External link buttons */
+.asd-ext-links { display: flex; flex-wrap: wrap; gap: 5px; }
+.asd-ext {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 4px;
+  font-size: .70rem;
+  font-weight: 700;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  color: var(--asd-text-soft) !important;
+  text-decoration: none !important;
+  transition: all .15s;
+}
+.asd-ext:hover { background: rgba(255,255,255,.13); color: #fff !important; }
+.asd-ext--al  { background:rgba(108,240,194,.10); border-color:rgba(108,240,194,.28); color:var(--asd-score-al)  !important; }
+.asd-ext--mal { background:rgba(46,81,162,.18);   border-color:rgba(46,81,162,.42);   color:var(--asd-score-mal) !important; }
+.asd-ext--bgm { background:rgba(255,120,200,.10); border-color:rgba(255,120,200,.28); color:var(--asd-score-bgm) !important; }
+.asd-ext--wiki{ background:rgba(200,200,200,.07); border-color:rgba(200,200,200,.18); color:#ccc !important; }
+.asd-ext--tw  { background:rgba(29,161,242,.10);  border-color:rgba(29,161,242,.28);  color:#4da3e0 !important; }
+.asd-ext--tt  { background:rgba(254,44,85,.10);   border-color:rgba(254,44,85,.28);   color:#fe2c55 !important; }
+
+/* Affiliate */
+.asd-affiliate { margin-top: 6px; }
+.asd-affiliate a {
+  display: block;
+  transition: opacity .18s;
+}
+.asd-affiliate a:hover { opacity: .85; }
+.asd-affiliate img {
+  width: 100% !important;
+  max-width: none !important;
+  border-radius: var(--asd-radius-sm);
+}
+
+/* Tags （side） */
+.asd-side-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.asd-side-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 20px;
+  font-size: .70rem;
+  font-weight: 600;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.10);
+  color: var(--asd-text-soft) !important;
+  text-decoration: none !important;
+  transition: all .15s;
+}
+.asd-side-tag:hover {
+  background: rgba(124,92,255,.20);
+  border-color: rgba(124,92,255,.40);
+  color: #c4b5fd !important;
+}
+
+/* ================================================================
+   19. Comments
+   ================================================================ */
+.asd-comments-wrap {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--asd-radius-xl);
+  padding: 22px 24px;
+  margin-bottom: 16px;
+}
+
+.asd-comments-wrap .comment-list,
+.asd-comments-wrap .children {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.asd-comments-wrap .comment {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.asd-comments-wrap .comment:last-child { border-bottom: none; }
+.asd-comments-wrap .comment-author .fn { font-weight: 700; color: #fff; font-size: .84rem; }
+.asd-comments-wrap .comment-meta { font-size: .70rem; color: var(--asd-text-faint); }
+.asd-comments-wrap .comment-content p { font-size: .84rem; color: var(--asd-text-soft); margin: 6px 0 0; }
+
+.asd-comments-wrap .comment-form label { font-size: .80rem; color: var(--asd-text-faint); display: block; margin-bottom: 4px; }
+.asd-comments-wrap .comment-form input[type="text"],
+.asd-comments-wrap .comment-form input[type="email"],
+.asd-comments-wrap .comment-form input[type="url"],
+.asd-comments-wrap .comment-form textarea {
+  width: 100%;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 6px;
+  color: var(--asd-text);
+  padding: 8px 10px;
+  font-size: .84rem;
+  outline: none;
+  transition: border-color .18s;
+  font-family: inherit;
+}
+.asd-comments-wrap .comment-form input:focus,
+.asd-comments-wrap .comment-form textarea:focus {
+  border-color: rgba(124,92,255,.50);
+}
+.asd-comments-wrap .comment-form .submit,
+.asd-comments-wrap .form-submit input {
+  background: linear-gradient(135deg, var(--asd-primary), #9d6bff);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: .84rem;
+  font-weight: 700;
+  padding: 9px 22px;
+  cursor: pointer;
+  transition: box-shadow .18s, transform .18s;
+}
+.asd-comments-wrap .form-submit input:hover {
+  box-shadow: 0 4px 16px rgba(124,92,255,.45);
+  transform: translateY(-1px);
+}
+
+/* ================================================================
+   20. Streaming（如有獨立 section）
+   ================================================================ */
+.asd-stream-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 8px;
+}
+.asd-stream-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 10px;
+  border-radius: var(--asd-radius-md);
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.09);
+  text-decoration: none !important;
+  transition: all .18s;
+}
+.asd-stream-card:hover {
+  background: rgba(255,255,255,.10);
+  transform: translateY(-2px);
+}
+.asd-stream-flag { font-size: 1.4rem; }
+.asd-stream-name { font-size: .74rem; font-weight: 700; color: var(--asd-text-soft); }
+
+/* ================================================================
+   21. Responsive
+   ================================================================ */
+
+/* 1100px */
+@media (max-width: 1100px) {
+  :root { }
+  .asd-hero-new {
+    grid-template-columns: 280px minmax(0,1fr) 200px;
+  }
+  .asd-poster-img,
+  .asd-poster-fallback {
+    width: 280px !important;
+    height: calc(280px * 422.89 / 330) !important;
+  }
+  .asd-cast-grid { grid-template-columns: repeat(4, minmax(0,1fr)); }
+}
+
+/* 960px */
 @media (max-width: 960px) {
-    .asd-hero-new {
-        grid-template-columns: 220px 1fr;
-    }
-
-    .asd-poster-img,
-    .asd-poster-fallback {
-        width: 220px;
-    }
+  .asd-hero-new {
+    grid-template-columns: 220px minmax(0,1fr);
+    grid-template-rows: auto auto;
+    gap: 16px;
+  }
+  .asd-hero-poster {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .asd-hero-body {
+    grid-column: 2;
+    grid-row: 1;
+    padding-top: 60px;
+  }
+  .asd-hero-sidebar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-top: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .asd-hero-sidebar .asd-hside-block {
+    flex: 1 1 200px;
+  }
+  .asd-poster-img,
+  .asd-poster-fallback {
+    width: 220px !important;
+    height: calc(220px * 422.89 / 330) !important;
+  }
+  .asd-container.asd-container--has-sidebar {
+    grid-template-columns: 1fr;
+  }
+  .asd-side { position: static; top: auto; }
+  .asd-staff-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .asd-cast-grid  { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .asd-stream-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .asd-info-grid  { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 
+/* 720px */
 @media (max-width: 720px) {
-    .asd-hero-new {
-        grid-template-columns: 160px 1fr;
-    }
-
-    .asd-poster-img,
-    .asd-poster-fallback {
-        width: 160px;
-    }
+  .asd-hero-new {
+    padding: 0 12px 20px;
+    gap: 12px;
+    grid-template-columns: 160px minmax(0,1fr);
+  }
+  .asd-hero-body { padding-top: 40px; }
+  .asd-poster-img,
+  .asd-poster-fallback {
+    width: 160px !important;
+    height: calc(160px * 422.89 / 330) !important;
+  }
+  .asd-hero-title {
+    font-size: 1.3rem !important;
+  }
+  .asd-tabs { margin: 14px auto 0; }
+  .asd-container { padding: 0 12px 40px; }
+  .asd-banner { height: 180px; }
+  .asd-staff-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .asd-cast-grid  { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .asd-hero-sidebar { flex-direction: column; }
 }
 
+/* 480px */
 @media (max-width: 480px) {
-    .asd-hero-new {
-        grid-template-columns: 130px 1fr;
-    }
-
-    .asd-poster-img,
-    .asd-poster-fallback {
-        width: 130px;
-    }
+  .asd-hero-new {
+    grid-template-columns: 120px minmax(0,1fr);
+    gap: 10px;
+    margin-top: -50px;
+  }
+  .asd-hero-body { padding-top: 28px; }
+  .asd-poster-img,
+  .asd-poster-fallback {
+    width: 120px !important;
+    height: calc(120px * 422.89 / 330) !important;
+  }
+  .asd-hero-title {
+    font-size: 1.05rem !important;
+  }
+  .asd-staff-grid  { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .asd-cast-grid   { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .asd-stream-grid { grid-template-columns: 1fr; }
+  .asd-info-grid   { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .asd-banner      { height: 150px; }
 }
-
-/* ============================================================
-   END
-   ============================================================ */
