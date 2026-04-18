@@ -1285,3 +1285,35 @@ div.asd-tag {
   .asd-tabs { padding: 0 2px; }
   .asd-tab  { padding: 0 10px; font-size: 12px; }
 }
+/* ================================================================
+   v14.5 補丁：標題裝飾線 + seo-links 分隔線
+   ================================================================ */
+
+/* H2 標題底部藍色裝飾線 */
+.asd-section .asd-section-title {
+  border-bottom: 2px solid rgba(99,168,255,.30) !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 16px !important;
+}
+
+/* H3 標題底部細線 */
+.asd-section h3 {
+  border-bottom: 1px solid rgba(99,168,255,.18) !important;
+  padding-bottom: 8px !important;
+  margin-bottom: 10px !important;
+}
+
+/* H4 標題底部極細線 */
+.asd-section h4 {
+  border-bottom: 1px solid rgba(99,168,255,.12) !important;
+  padding-bottom: 6px !important;
+  margin-bottom: 8px !important;
+}
+
+/* asd-seo-links 分隔線 */
+div.asd-seo-links {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(99,168,255,.20);
+  height: 1px;
+}
