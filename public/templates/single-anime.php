@@ -625,6 +625,7 @@ while ( have_posts() ) :
             <?php /* ── 基本資訊 ── */ ?>
             <section class="asd-section" id="asd-sec-info">
                 <h2 class="asd-section-title">📋 基本資訊</h2>
+                <div class="asd-glass-divider"></div>
                 <div class="asd-info-grid">
                     <?php
                     $info_rows = array(
@@ -661,6 +662,7 @@ while ( have_posts() ) :
             <?php if ( $synopsis ) : ?>
                 <section class="asd-section" id="asd-sec-synopsis">
                     <h2 class="asd-section-title">📝 劇情簡介</h2>
+                                    <div class="asd-glass-divider"></div>
                     <div class="asd-synopsis"><?php echo wp_kses_post( wpautop( $synopsis ) ); ?></div>
                 </section>
             <?php endif; ?>
@@ -669,6 +671,7 @@ while ( have_posts() ) :
             <?php if ( $youtube_id ) : ?>
                 <section class="asd-section" id="asd-sec-trailer">
                     <h2 class="asd-section-title">🎞 預告片</h2>
+                                    <div class="asd-glass-divider"></div>
                     <div class="asd-trailer-wrap">
                         <iframe
                             src="https://www.youtube.com/embed/<?php echo esc_attr( $youtube_id ); ?>?rel=0&modestbranding=1"
@@ -685,6 +688,7 @@ while ( have_posts() ) :
             <?php if ( ! empty( $episodes_list ) ) : ?>
                 <section class="asd-section" id="asd-sec-episodes">
                     <h2 class="asd-section-title">📺 集數列表</h2>
+                                    <div class="asd-glass-divider"></div>
                     <div class="asd-ep-list" id="asd-ep-list">
                         <?php foreach ( $episodes_list as $i => $ep ) :
                             $ep_num     = isset( $ep['ep'] ) ? (int) $ep['ep'] : 0;
@@ -722,6 +726,7 @@ while ( have_posts() ) :
             <?php if ( ! empty( $staff_list ) ) : ?>
                 <section class="asd-section" id="asd-sec-staff">
                     <h2 class="asd-section-title">🎬 STAFF</h2>
+                                    <div class="asd-glass-divider"></div>
                     <div class="asd-staff-grid-v2">
                         <?php foreach ( $staff_list as $si => $s ) :
                             $s_name = trim( isset( $s['name'] ) ? $s['name'] : ( isset( $s['name_native'] ) ? $s['name_native'] : '' ) );
@@ -750,6 +755,7 @@ while ( have_posts() ) :
             <?php if ( ! empty( $cast_main ) ) : ?>
                 <section class="asd-section" id="asd-sec-cast">
                     <h2 class="asd-section-title">🎭 CAST</h2>
+                                    <div class="asd-glass-divider"></div>
                     <div class="asd-cast-grid-v2">
                         <?php foreach ( $cast_main as $ci => $c ) :
                             $c_char = trim( isset( $c['character_name'] ) ? $c['character_name'] : ( isset( $c['character'] ) ? $c['character'] : '' ) );
@@ -790,6 +796,7 @@ while ( have_posts() ) :
             <?php if ( ! empty( $openings ) || ! empty( $endings ) ) : ?>
                 <section class="asd-section" id="asd-sec-music">
                     <h2 class="asd-section-title">🎵 主題曲</h2>
+                                    <div class="asd-glass-divider"></div>
                     <?php if ( ! empty( $openings ) ) : ?>
                         <div class="asd-music-group">
                             <h3 class="asd-music-group-title">片頭曲 OP</h3>
@@ -859,6 +866,7 @@ while ( have_posts() ) :
             <?php if ( ! empty( $tw_streaming_items ) || ! empty( $streaming_list ) ) : ?>
                 <section class="asd-section" id="asd-sec-stream">
                     <h2 class="asd-section-title">📡 串流平台</h2>
+                                    <div class="asd-glass-divider"></div>
                     <?php if ( ! empty( $tw_streaming_items ) ) : ?>
                         <div class="asd-stream-region asd-stream-region--tw">台灣</div>
                         <div class="asd-stream-list">
@@ -898,6 +906,7 @@ while ( have_posts() ) :
             <?php if ( ! empty( $faq_items ) ) : ?>
                 <section class="asd-section" id="asd-sec-faq">
                     <h2 class="asd-section-title">❓ 常見問題</h2>
+                                    <div class="asd-glass-divider"></div>
                     <div class="asd-faq-list">
                         <?php foreach ( $faq_items as $f ) :
                             if ( empty( $f['q'] ) || empty( $f['a'] ) ) continue;
@@ -918,6 +927,7 @@ while ( have_posts() ) :
             <?php if ( $official_site || $twitter_url || $wikipedia_url || $tiktok_url || $anilist_id || $mal_id || $bangumi_id ) : ?>
                 <section class="asd-section" id="asd-sec-links">
                     <h2 class="asd-section-title">🔗 外部連結</h2>
+                                    <div class="asd-glass-divider"></div>
                     <div class="asd-ext-links-grid">
                         <?php if ( $anilist_id ) : ?>
                             <a href="https://anilist.co/anime/<?php echo esc_attr( $anilist_id ); ?>/" target="_blank" rel="noopener" class="asd-ext-link-card asd-ext--al">
