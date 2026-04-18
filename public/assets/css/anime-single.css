@@ -1286,7 +1286,7 @@ div.asd-tag {
   .asd-tab  { padding: 0 10px; font-size: 12px; }
 }
 /* ================================================================
-   v14.5 補丁：標題裝飾線 + seo-links 分隔線
+   v14.5 補丁：Tab active + 標題裝飾線
    ================================================================ */
 
 /* H2 標題底部藍色裝飾線 */
@@ -1297,23 +1297,28 @@ div.asd-tag {
 }
 
 /* H3 標題底部細線 */
-.asd-section h3 {
+.asd-wrap .asd-section h3 {
   border-bottom: 1px solid rgba(99,168,255,.18) !important;
   padding-bottom: 8px !important;
   margin-bottom: 10px !important;
 }
 
 /* H4 標題底部極細線 */
-.asd-section h4 {
+.asd-wrap .asd-section h4 {
   border-bottom: 1px solid rgba(99,168,255,.12) !important;
   padding-bottom: 6px !important;
   margin-bottom: 8px !important;
 }
 
-/* asd-seo-links 分隔線 */
-div.asd-seo-links {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(99,168,255,.20);
-  height: 1px;
+/* Tab active：藍色圓角背景塊 */
+.asd-tab.is-active {
+  background: rgba(99,168,255,.15) !important;
+  color: #fff !important;
+  border-radius: 6px;
+  border-bottom-color: transparent !important;
+}
+
+.asd-tab:hover:not(.is-active) {
+  background: rgba(255,255,255,.05);
+  border-radius: 6px;
 }
