@@ -714,13 +714,15 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <?php if ( count( $episodes_list ) > 3 ) : ?>
-                        <button class="asd-ep-toggle" id="asd-ep-toggle" type="button">
-                            顯示全部 <?php echo count( $episodes_list ); ?> 集 ▼
-                        </button>
-                    <?php endif; ?>
-                </section>
-            <?php endif; ?>
+<?php if ( count( $episodes_list ) > 3 ) : ?>
+    <div style="display:flex;justify-content:center;margin-top:12px;">
+        <button class="asd-ep-toggle" id="asd-ep-toggle" type="button">
+            顯示全部 <?php echo count( $episodes_list ); ?> 集 ▼
+        </button>
+    </div>
+<?php endif; ?>
+</section>
+<?php endif; ?>
 
             <?php /* ── STAFF — v14.5：純文字卡片，隱藏頭像 ── */ ?>
             <?php if ( ! empty( $staff_list ) ) : ?>
@@ -743,13 +745,16 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                             </div>
                         <?php endforeach; ?>
                     </div>
- <?php if ( count( $staff_list ) > 16 ) : ?>
-                        <button class="asd-staff-toggle" id="asd-staff-toggle" type="button">
-                            顯示全部 <?php echo count( $staff_list ); ?> 位人員 ▼
-                        </button>
-                    <?php endif; ?>
+<?php if ( count( $staff_list ) > 16 ) : ?>
+    <div style="display:flex;justify-content:center;margin-top:12px;">
+        <button class="asd-staff-toggle" id="asd-staff-toggle" type="button">
+            顯示全部 <?php echo count( $staff_list ); ?> 位人員 ▼
+        </button>
+    </div>
+<?php endif; ?>
                 </section>
             <?php endif; ?>
+
 
             <?php /* ── CAST ── */ ?>
             <?php if ( ! empty( $cast_main ) ) : ?>
@@ -788,13 +793,16 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                             </div>
                         <?php endforeach; ?>
                     </div>
- <?php if ( count( $cast_main ) > 8 ) : ?>
-                        <button class="asd-cast-toggle" id="asd-cast-toggle" type="button">
-                            顯示全部聲優 ▼
-                        </button>
-                    <?php endif; ?>
+<?php if ( count( $cast_main ) > 8 ) : ?>
+    <div style="display:flex;justify-content:center;margin-top:12px;">
+        <button class="asd-cast-toggle" id="asd-cast-toggle" type="button">
+            顯示全部聲優 ▼
+        </button>
+    </div>
+<?php endif; ?>
                 </section>
             <?php endif; ?>
+
 
             <?php /* ── 主題曲 ── */ ?>
             <?php if ( ! empty( $openings ) || ! empty( $endings ) ) : ?>
