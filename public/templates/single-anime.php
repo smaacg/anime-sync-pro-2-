@@ -1052,6 +1052,27 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                         </div>
                     </div>
                 <?php endif; ?>
+<?php if ( ! empty( $genre_terms ) ) : ?>
+    <div class="asd-tags-row">
+        <span class="asd-tags-row-label">類型</span>
+        <div class="asd-tags-list">
+            <?php foreach ( $genre_terms as $gterm ) : ?>
+                <a href="<?php echo esc_url( get_term_link( $gterm ) ); ?>" class="asd-tag-item asd-tag-item--genre">
+                    <?php echo esc_html( $gterm->name ); ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+<?php endif; ?>
+
+<?php if ( $studio ) : ?>
+    <div class="asd-tags-row">
+        <span class="asd-tags-row-label">製作公司</span>
+        <div class="asd-tags-list">
+            <span class="asd-tag-item"><?php echo esc_html( $studio ); ?></span>
+        </div>
+    </div>
+<?php endif; ?>
 
                 <?php if ( ! empty( $news_items ) ) : ?>
                     <div class="asd-side-section">
