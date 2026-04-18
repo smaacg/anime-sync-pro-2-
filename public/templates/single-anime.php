@@ -979,7 +979,10 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                     </div>
                 </section>
             <?php endif; ?>
-
+<!-- 最後更新 -->
+<div class="asd-last-updated">
+    <span>最後更新：<?php echo get_the_modified_date('Y-m-d'); ?></span>
+</div>
             <?php /* ── 留言 ── */ ?>
             <section class="asd-section asd-comments" id="comments">
                 <h2 class="asd-section-title">💬 留言</h2>
