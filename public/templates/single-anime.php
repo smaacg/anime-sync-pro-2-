@@ -756,12 +756,10 @@ while ( have_posts() ) :
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <?php if ( count( $staff_list ) > 16 ) : ?>
-                        <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-                            <button class="asd-staff-toggle" id="asd-staff-toggle" type="button">
-                                顯示全部 <?php echo count( $staff_list ); ?> 位人員 ▼
-                            </button>
-                        </div>
+ <?php if ( count( $staff_list ) > 16 ) : ?>
+                        <button class="asd-staff-toggle" id="asd-staff-toggle" type="button">
+                            顯示全部 <?php echo count( $staff_list ); ?> 位人員 ▼
+                        </button>
                     <?php endif; ?>
                 </section>
             <?php endif; ?>
@@ -798,9 +796,9 @@ while ( have_posts() ) :
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <?php if ( count( $cast_main ) > 8 ) : ?>
+ <?php if ( count( $cast_main ) > 8 ) : ?>
                         <button class="asd-cast-toggle" id="asd-cast-toggle" type="button">
-                            顯示全部配音員 ▼
+                            顯示全部聲優 ▼
                         </button>
                     <?php endif; ?>
                 </section>
