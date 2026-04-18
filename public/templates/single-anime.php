@@ -411,12 +411,12 @@ while ( have_posts() ) :
     }
 
     /* ── Cast ── */
-    $cast_main = array();
-    foreach ( $cast_list as $c ) {
-        $role = isset( $c['role'] ) ? strtoupper( $c['role'] ) : '';
-        if ( $role === 'MAIN' ) $cast_main[] = $c;
-    }
-    if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
+$cast_main = array();
+foreach ( $cast_list as $c ) {
+    $role = isset( $c['role'] ) ? trim( $c['role'] ) : '';
+    if ( $role === '主角' || strtoupper( $role ) === 'MAIN' ) $cast_main[] = $c;
+}
+if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
 
     $poster_fallback     = $fallback_text( $display_title, 2 );
     $has_sidebar_content = ! empty( $news_items ) || ! empty( $site_relations ) || $affiliate_html || $official_site || $twitter_url || $wikipedia_url || $tiktok_url;
@@ -757,12 +757,16 @@ while ( have_posts() ) :
                     <h2 class="asd-section-title">🎭 CAST</h2>
                                     <div class="asd-glass-divider"></div>
                     <div class="asd-cast-grid-v2">
-                        <?php foreach ( $cast_main as $ci => $c ) :
-                            $c_char = trim( isset( $c['character_name'] ) ? $c['character_name'] : ( isset( $c['character'] ) ? $c['character'] : '' ) );
-                            $c_va   = trim( isset( $c['voice_actor'] ) ? $c['voice_actor'] : ( isset( $c['va_name'] ) ? $c['va_name'] : ( isset( $c['name'] ) ? $c['name'] : '' ) ) );
-                            $c_img  = isset( $c['image'] ) ? $c['image'] : ( isset( $c['character_image'] ) ? $c['character_image'] : '' );
-                            $c_fb   = $fallback_text( $c_char, 1 );
-                        ?>
+                     <?php foreach ( $cast_main as $ci => $c ) :
+    $c_char = trim( isset( $c['name'] ) ? $c['name'] : '' );
+    $c_va = '';
+    if ( ! empty( $c['voice_actors'] ) && is_array( $c['voice_actors'] ) ) {
+        $c_va = trim( isset( $c['voice_actors'][0]['name'] ) ? $c['voice_actors'][0]['name'] : '' );
+    }
+    $c_img = isset( $c['image'] ) ? $c['image'] : '';
+    $c_fb  = $fallback_text( $c_char, 1 );
+?>
+
                             <div class="asd-cast-card-v2<?php echo $ci >= 8 ? ' asd-cast-hidden' : ''; ?>">
                                 <div class="asd-cast-avatar">
                                     <?php if ( $c_img ) : ?>
