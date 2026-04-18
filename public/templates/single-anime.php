@@ -438,24 +438,6 @@ while ( have_posts() ) :
         <div class="asd-banner asd-banner--fallback"></div>
     <?php endif; ?>
 
-    <?php /* ── Breadcrumb ── */ ?>
-    <nav class="asd-breadcrumb" aria-label="麵包屑導航">
-        <ol itemscope itemtype="https://schema.org/BreadcrumbList">
-            <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-                <a href="<?php echo esc_url( home_url( '/' ) ); ?>" itemprop="item"><span itemprop="name">首頁</span></a>
-                <meta itemprop="position" content="1">
-            </li>
-            <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-                <a href="<?php echo esc_url( home_url( '/anime/' ) ); ?>" itemprop="item"><span itemprop="name">動畫</span></a>
-                <meta itemprop="position" content="2">
-            </li>
-            <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-                <span itemprop="name"><?php echo esc_html( $display_title ); ?></span>
-                <meta itemprop="position" content="3">
-            </li>
-        </ol>
-    </nav>
-
     <?php /* ── Hero ── */ ?>
     <div class="asd-hero-new">
 
