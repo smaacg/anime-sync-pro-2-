@@ -16,7 +16,7 @@ wp_enqueue_style(
     'anime-sync-single',
     plugin_dir_url( dirname( __FILE__ ) ) . 'assets/css/anime-single.css',
     array(),
-    '14.3'
+    '14.4'
 );
 
 get_header();
@@ -1213,8 +1213,39 @@ while ( have_posts() ) :
         update();
         setInterval(update, 1000);
     });
+
+    /* ── Tab active on scroll ── */
+    var tabs = document.querySelectorAll('.asd-tab[href^="#"]');
+    var sections = [];
+    tabs.forEach(function (tab) {
+        var id = tab.getAttribute('href').replace('#', '');
+        var sec = document.getElementById(id);
+        if (sec) sections.push({ tab: tab, sec: sec });
+    });
+
+    function setActive() {
+        var scrollY = window.scrollY + 120;
+        var current = sections[0];
+        sections.forEach(function (item) {
+            if (item.sec.offsetTop <= scrollY) current = item;
+        });
+        tabs.forEach(function (t) { t.classList.remove('is-active'); });
+        if (current) current.tab.classList.add('is-active');
+    }
+
+    tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            tabs.forEach(function (t) { t.classList.remove('is-active'); });
+            tab.classList.add('is-active');
+        });
+    });
+
+    window.addEventListener('scroll', setActive, { passive: true });
+    setActive();
+
 })();
 </script>
+
 
 <?php
 endwhile;
