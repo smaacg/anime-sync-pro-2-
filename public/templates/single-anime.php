@@ -602,7 +602,8 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
 
     </div><!-- /.asd-hero-new -->
 
-    <?php /* ── Tabs ── */ ?>
+<?php /* ── Tabs ── */ ?>
+<div class="asd-tabs-wrap">
     <nav class="asd-tabs" id="asd-tabs" aria-label="頁面導航">
         <a class="asd-tab" href="#asd-sec-info">📋 基本資訊</a>
         <?php if ( $synopsis ) : ?><a class="asd-tab" href="#asd-sec-synopsis">📝 劇情簡介</a><?php endif; ?>
@@ -617,6 +618,8 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
         <?php endif; ?>
         <a class="asd-tab" href="#comments">💬 留言</a>
     </nav>
+</div>
+
 
     <div class="asd-container<?php echo $has_sidebar_content ? ' asd-container--has-sidebar' : ''; ?>">
 
