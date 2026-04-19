@@ -1046,19 +1046,19 @@ foreach ( $cast_list as $c ) {
                         <?php endif; ?>
                         <?php if ( $anilist_id ) : ?>
                             <a href="https://anilist.co/anime/<?php echo esc_attr( $anilist_id ); ?>/" target="_blank" rel="noopener noreferrer" class="asd-ext-link-card asd-ext--al">
-                                <span class="asd-ext-site">AniList</span>
+                                <span class="asd-ext-site">🔵AniList</span>
                                 <span class="asd-ext-arrow">→</span>
                             </a>
                         <?php endif; ?>
                         <?php if ( $mal_id ) : ?>
                             <a href="https://myanimelist.net/anime/<?php echo esc_attr( $mal_id ); ?>/" target="_blank" rel="noopener noreferrer" class="asd-ext-link-card asd-ext--mal">
-                                <span class="asd-ext-site">MyAnimeList</span>
+                                <span class="asd-ext-site">🔵MyAnimeList</span>
                                 <span class="asd-ext-arrow">→</span>
                             </a>
                         <?php endif; ?>
                         <?php if ( $bangumi_id ) : ?>
                             <a href="https://bgm.tv/subject/<?php echo esc_attr( $bangumi_id ); ?>/" target="_blank" rel="noopener noreferrer" class="asd-ext-link-card asd-ext--bgm">
-                                <span class="asd-ext-site">Bangumi</span>
+                                <span class="asd-ext-site">🍡Bangumi</span>
                                 <span class="asd-ext-arrow">→</span>
                             </a>
                         <?php endif; ?>
