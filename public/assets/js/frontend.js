@@ -6,14 +6,20 @@
 
 'use strict';
 
-document.addEventListener('DOMContentLoaded', function () {
+function asdInit() {
     initLazyLoad();
     initStickyTabs();
     initActiveTab();
     initToggleExpand();
     initMusicPlayer();
     initCountdown();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', asdInit);
+} else {
+    asdInit();
+}
 
 // ========================================
 // 圖片 Lazy Load
