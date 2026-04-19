@@ -687,7 +687,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
 <?php if ( ! empty( $episodes_list ) ) : ?>
     <section class="asd-section" id="asd-sec-episodes">
         <h2 class="asd-section-title">📺 集數列表</h2>
-        <div class="asd-glass-divider"></div>
         <div class="asd-ep-list" id="asd-ep-list">
             <?php foreach ( $episodes_list as $i => $ep ) :
                 $ep_num     = isset( $ep['ep'] )      ? (int) $ep['ep']      : 0;
@@ -731,7 +730,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
 <?php if ( ! empty( $staff_list ) ) : ?>
     <section class="asd-section" id="asd-sec-staff">
         <h2 class="asd-section-title">🎬 STAFF</h2>
-        <div class="asd-glass-divider"></div>
         <div class="asd-staff-grid-v2" id="asd-staff-grid">
             <?php foreach ( $staff_list as $i => $s ) :
                 $s_name   = isset( $s['name'] )   ? trim( $s['name'] )   : '';
@@ -763,7 +761,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
 <?php if ( ! empty( $cast_main ) ) : ?>
     <section class="asd-section" id="asd-sec-cast">
         <h2 class="asd-section-title">🎭 CAST</h2>
-        <div class="asd-glass-divider"></div>
         <div class="asd-cast-grid" id="asd-cast-grid">
             <?php foreach ( $cast_main as $i => $c ) :
                 $c_char_name   = isset( $c['name'] )   ? trim( $c['name'] )   : '';
@@ -922,7 +919,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
 <?php if ( ! empty( $faq_items ) ) : ?>
     <section class="asd-section" id="asd-sec-faq">
         <h2 class="asd-section-title">❓ 常見問題</h2>
-        <div class="asd-glass-divider"></div>
         <div class="asd-faq-list">
             <?php foreach ( $faq_items as $f ) :
                 if ( empty( $f['q'] ) || empty( $f['a'] ) ) continue;
