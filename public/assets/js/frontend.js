@@ -7,9 +7,11 @@
 'use strict';
 
 function asdInit() {
+    if (window.__asdFrontendInited) return;
+    window.__asdFrontendInited = true;
+
     initLazyLoad();
-    initStickyTabs();
-    initActiveTab();
+    initTabs();
     initToggleExpand();
     initMusicPlayer();
     initCountdown();
@@ -26,226 +28,362 @@ if (document.readyState === 'loading') {
 // ========================================
 function initLazyLoad() {
     if (!('IntersectionObserver' in window)) return;
+
     var observer = new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {
-            if (entry.isIntersecting) {
-                var img = entry.target;
-                if (img.dataset.src) {
-                    img.src = img.dataset.src;
-                    img.removeAttribute('data-src');
-                    observer.unobserve(img);
-                }
+            if (!entry.isIntersecting) return;
+
+            var img = entry.target;
+            if (img.dataset.src) {
+                img.src = img.dataset.src;
+                img.removeAttribute('data-src');
             }
+            observer.unobserve(img);
         });
     }, { rootMargin: '100px' });
+
     document.querySelectorAll('img[data-src]').forEach(function (img) {
         observer.observe(img);
     });
 }
 
 // ========================================
-// Sticky Tab
+// Tabs：高亮 + smooth scroll
 // ========================================
-function initStickyTabs() {
-    var nav = document.querySelector('.asd-tabs');
-    if (!nav) return;
-    var navTop = nav.getBoundingClientRect().top + window.scrollY;
-    window.addEventListener('scroll', function () {
-        if (window.scrollY > navTop) {
-            nav.classList.add('sticky');
-        } else {
-            nav.classList.remove('sticky');
-        }
-    }, { passive: true });
-}
+function initTabs() {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.asd-tab'));
+    var sections = Array.prototype.slice.call(document.querySelectorAll('.asd-section[id]'));
+    if (!tabs.length || !sections.length) return;
 
-// ========================================
-// Tab 高亮
-// ========================================
-function initActiveTab() {
-    var tabs = document.querySelectorAll('.asd-tab');
-    if (tabs.length === 0) return;
-
-    tabs.forEach(function (tab) {
-        tab.addEventListener('click', function () {
-            tabs.forEach(function (t) { t.classList.remove('is-active'); });
-            tab.classList.add('is-active');
-        });
-    });
-
-    window.addEventListener('scroll', function () {
-        var scrollTop = window.scrollY + 100;
-        var current = '';
+    function setActiveTabById(id) {
         tabs.forEach(function (tab) {
             var href = tab.getAttribute('href');
-            if (!href || href.charAt(0) !== '#') return;
-            var section = document.querySelector(href);
-            if (section && section.offsetTop <= scrollTop) {
-                current = href;
-            }
+            tab.classList.toggle('is-active', href === '#' + id);
         });
-        if (current) {
-            tabs.forEach(function (t) { t.classList.remove('is-active'); });
-            var activeTab = document.querySelector('.asd-tab[href="' + current + '"]');
-            if (activeTab) activeTab.classList.add('is-active');
+    }
+
+    function getScrollOffset() {
+        var nav = document.querySelector('.asd-tabs');
+        var navHeight = nav ? nav.offsetHeight : 0;
+        return navHeight + 16;
+    }
+
+    tabs.forEach(function (tab) {
+        tab.addEventListener('click', function (e) {
+            var href = tab.getAttribute('href');
+            if (!href || href.charAt(0) !== '#') return;
+
+            var target = document.querySelector(href);
+            if (!target) return;
+
+            e.preventDefault();
+
+            var offset = getScrollOffset();
+            var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+
+            window.scrollTo({
+                top: top,
+                behavior: 'smooth'
+            });
+
+            setActiveTabById(target.id);
+        });
+    });
+
+    if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function (entries) {
+            var visibleEntries = entries
+                .filter(function (entry) { return entry.isIntersecting; })
+                .sort(function (a, b) { return a.boundingClientRect.top - b.boundingClientRect.top; });
+
+            if (visibleEntries.length) {
+                setActiveTabById(visibleEntries[0].target.id);
+            }
+        }, {
+            rootMargin: '-25% 0px -55% 0px',
+            threshold: 0
+        });
+
+        sections.forEach(function (section) {
+            observer.observe(section);
+        });
+    } else {
+        function onScroll() {
+            var currentId = '';
+            var trigger = getScrollOffset() + 20;
+
+            sections.forEach(function (section) {
+                var rect = section.getBoundingClientRect();
+                if (rect.top <= trigger) {
+                    currentId = section.id;
+                }
+            });
+
+            if (currentId) setActiveTabById(currentId);
         }
-    }, { passive: true });
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        onScroll();
+    }
 }
 
 // ========================================
-// 集數 / Staff / Cast 展開
+// 集數 / Staff / Cast 展開收合
 // ========================================
 function initToggleExpand() {
-
-    // ── 集數展開 ──
-    var epBtns = document.querySelectorAll('.asd-ep-toggle');
-    epBtns.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var section = btn.closest('section');
-            if (!section) return;
-            section.querySelectorAll('.asd-ep-hidden').forEach(function(el) {
-                el.classList.remove('asd-ep-hidden');
-            });
-            var wrap = btn.closest('div');
-            if (wrap) wrap.style.display = 'none';
-        });
+    bindToggleButton({
+        buttonSelector: '.asd-ep-toggle',
+        hiddenSelector: '.asd-ep-hidden',
+        collapsedText: function (count) { return '顯示全部 ' + count + ' 集 ▼'; },
+        expandedText: '收起 ▲'
     });
 
-    // ── Staff 展開 ──
-    var staffBtns = document.querySelectorAll('.asd-staff-toggle');
-    staffBtns.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var section = btn.closest('section');
-            if (!section) return;
-            section.querySelectorAll('.asd-staff-hidden').forEach(function(el) {
-                el.classList.remove('asd-staff-hidden');
-            });
-            var wrap = btn.closest('div');
-            if (wrap) wrap.style.display = 'none';
-        });
+    bindToggleButton({
+        buttonSelector: '.asd-staff-toggle',
+        hiddenSelector: '.asd-staff-hidden',
+        collapsedText: function (count) { return '顯示全部 ' + count + ' 人 ▼'; },
+        expandedText: '收起 ▲'
     });
 
-    // ── Cast 展開 ──
-    var castBtns = document.querySelectorAll('.asd-cast-toggle');
-    castBtns.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var section = btn.closest('section');
-            if (!section) return;
-            section.querySelectorAll('.asd-cast-hidden').forEach(function(el) {
-                el.classList.remove('asd-cast-hidden');
-            });
-            var wrap = btn.closest('div');
-            if (wrap) wrap.style.display = 'none';
-        });
+    bindToggleButton({
+        buttonSelector: '.asd-cast-toggle',
+        hiddenSelector: '.asd-cast-hidden',
+        collapsedText: function (count) { return '顯示全部 ' + count + ' 人 ▼'; },
+        expandedText: '收起 ▲'
     });
+
+    function bindToggleButton(config) {
+        var btn = document.querySelector(config.buttonSelector);
+        if (!btn) return;
+
+        var section = btn.closest('section');
+        if (!section) return;
+
+        var hiddenItems = Array.prototype.slice.call(section.querySelectorAll(config.hiddenSelector));
+        if (!hiddenItems.length) return;
+
+        var totalCount = hiddenItems.length;
+        var initialText = typeof config.collapsedText === 'function'
+            ? config.collapsedText(totalCount + getVisibleCount(section, config.hiddenSelector))
+            : config.collapsedText;
+
+        if (!btn.dataset.originalText) {
+            btn.dataset.originalText = initialText;
+            btn.textContent = initialText;
+        }
+
+        btn.addEventListener('click', function () {
+            var expanded = btn.classList.contains('is-expanded');
+
+            if (expanded) {
+                hiddenItems.forEach(function (item) {
+                    item.style.display = 'none';
+                });
+                btn.classList.remove('is-expanded');
+                btn.textContent = btn.dataset.originalText;
+
+                var top = section.getBoundingClientRect().top + window.pageYOffset - getStickyOffset();
+                window.scrollTo({
+                    top: top,
+                    behavior: 'smooth'
+                });
+            } else {
+                hiddenItems.forEach(function (item) {
+                    item.style.display = '';
+                });
+                btn.classList.add('is-expanded');
+                btn.textContent = config.expandedText;
+            }
+        });
+    }
+
+    function getVisibleCount(section, hiddenSelector) {
+        var allItems;
+        if (hiddenSelector === '.asd-ep-hidden') {
+            allItems = section.querySelectorAll('.asd-ep-row');
+        } else if (hiddenSelector === '.asd-staff-hidden') {
+            allItems = section.querySelectorAll('.asd-staff-card-v2');
+        } else if (hiddenSelector === '.asd-cast-hidden') {
+            allItems = section.querySelectorAll('.asd-cast-card');
+        } else {
+            allItems = [];
+        }
+
+        var hiddenItems = section.querySelectorAll(hiddenSelector);
+        return allItems.length - hiddenItems.length;
+    }
+
+    function getStickyOffset() {
+        var nav = document.querySelector('.asd-tabs');
+        return (nav ? nav.offsetHeight : 0) + 16;
+    }
 }
 
 // ========================================
 // 音樂播放器
 // ========================================
 function initMusicPlayer() {
+    if (document.body.dataset.asdMusicInited === '1') return;
+    document.body.dataset.asdMusicInited = '1';
+
     var currentAudio = null;
-    var currentBtn   = null;
-    var rafId        = null;
+    var currentBtn = null;
+    var currentBar = null;
+    var currentTime = null;
+    var rafId = null;
+    var playToken = 0;
+
+    function cancelProgress() {
+        if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+    }
+
+    function resetUI(btn, bar, time) {
+        if (btn) btn.classList.remove('is-playing');
+        if (bar) bar.style.width = '0%';
+        if (time) time.textContent = '0:00';
+    }
+
+    function formatTime(sec) {
+        sec = isFinite(sec) ? sec : 0;
+        var m = Math.floor(sec / 60);
+        var s = Math.floor(sec % 60);
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function updateProgress(audio, bar, time) {
+        cancelProgress();
+
+        function loop() {
+            if (!audio.paused && !audio.ended) {
+                if (audio.duration) {
+                    var pct = (audio.currentTime / audio.duration) * 100;
+                    if (bar) bar.style.width = pct + '%';
+                    if (time) time.textContent = formatTime(audio.currentTime);
+                }
+                rafId = requestAnimationFrame(loop);
+            }
+        }
+
+        rafId = requestAnimationFrame(loop);
+    }
 
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('.asd-music-play-btn');
         if (!btn) return;
 
-        var card  = btn.closest('.asd-music-card-v2');
-        var wrap  = card ? card.querySelector('.asd-music-player-wrap') : null;
+        var card = btn.closest('.asd-music-card-v2');
+        var wrap = card ? card.querySelector('.asd-music-player-wrap') : null;
         var audio = wrap ? wrap.querySelector('.asd-music-audio') : null;
-        var bar   = wrap ? wrap.querySelector('.asd-music-progress-bar') : null;
-        var time  = wrap ? wrap.querySelector('.asd-music-time') : null;
+        var bar = wrap ? wrap.querySelector('.asd-music-progress-bar') : null;
+        var time = wrap ? wrap.querySelector('.asd-music-time') : null;
 
         if (!audio) return;
 
-        // 暫停其他播放中的音樂
         if (currentAudio && currentAudio !== audio) {
             currentAudio.pause();
-            if (currentBtn) currentBtn.classList.remove('is-playing');
-            if (rafId) cancelAnimationFrame(rafId);
+            resetUI(currentBtn, currentBar, currentTime);
+            cancelProgress();
         }
 
-        if (audio.paused) {
-            audio.play().then(function () {
-                btn.classList.add('is-playing');
-                currentAudio = audio;
-                currentBtn   = btn;
-                updateProgress(bar, time, audio);
-            }).catch(function (err) {
-                console.warn('播放失敗:', err);
-            });
-        } else {
+        if (!audio.paused) {
             audio.pause();
-            btn.classList.remove('is-playing');
-            if (rafId) cancelAnimationFrame(rafId);
-        }
+            resetUI(btn, bar, time);
 
-        // 播放結束重置
-        audio.onended = function () {
-            btn.classList.remove('is-playing');
-            if (bar) bar.style.width = '0%';
-            if (time) time.textContent = '0:00';
-            if (rafId) cancelAnimationFrame(rafId);
-        };
-
-        // 點擊進度條跳轉
-        if (wrap) {
-            var progressWrap = wrap.querySelector('.asd-music-progress-wrap');
-            if (progressWrap) {
-                progressWrap.onclick = function (ev) {
-                    if (!audio.duration) return;
-                    var rect  = progressWrap.getBoundingClientRect();
-                    var ratio = (ev.clientX - rect.left) / rect.width;
-                    audio.currentTime = ratio * audio.duration;
-                };
+            if (currentAudio === audio) {
+                currentAudio = null;
+                currentBtn = null;
+                currentBar = null;
+                currentTime = null;
             }
+
+            cancelProgress();
+            return;
         }
+
+        playToken++;
+        var token = playToken;
+
+        audio.play().then(function () {
+            if (token !== playToken) return;
+
+            currentAudio = audio;
+            currentBtn = btn;
+            currentBar = bar;
+            currentTime = time;
+
+            btn.classList.add('is-playing');
+            updateProgress(audio, bar, time);
+        }).catch(function (err) {
+            console.warn('播放失敗:', err);
+        });
+
+        audio.onended = function () {
+            resetUI(btn, bar, time);
+
+            if (currentAudio === audio) {
+                currentAudio = null;
+                currentBtn = null;
+                currentBar = null;
+                currentTime = null;
+            }
+
+            cancelProgress();
+        };
     });
 
-    function updateProgress(bar, time, audio) {
-        rafId = requestAnimationFrame(function () {
-            if (audio.duration) {
-                var pct = (audio.currentTime / audio.duration) * 100;
-                if (bar) bar.style.width = pct + '%';
-                if (time) time.textContent = formatTime(audio.currentTime);
-            }
-            if (!audio.paused) updateProgress(bar, time, audio);
-        });
-    }
+    document.querySelectorAll('.asd-music-progress-wrap').forEach(function (progressWrap) {
+        progressWrap.addEventListener('click', function (ev) {
+            var wrap = progressWrap.closest('.asd-music-player-wrap');
+            var audio = wrap ? wrap.querySelector('.asd-music-audio') : null;
+            if (!audio || !audio.duration) return;
 
-    function formatTime(sec) {
-        var m = Math.floor(sec / 60);
-        var s = Math.floor(sec % 60);
-        return m + ':' + (s < 10 ? '0' : '') + s;
-    }
+            var rect = progressWrap.getBoundingClientRect();
+            var ratio = (ev.clientX - rect.left) / rect.width;
+            ratio = Math.max(0, Math.min(1, ratio));
+            audio.currentTime = ratio * audio.duration;
+        });
+    });
 }
 
 // ========================================
 // 播出倒數計時
+// 顯示風格：1天 3時 12分 5秒
 // ========================================
 function initCountdown() {
-    var cd = document.querySelector('.asd-countdown[data-ts]');
-    if (!cd) return;
+    var countdowns = document.querySelectorAll('.asd-countdown[data-ts]');
+    if (!countdowns.length) return;
 
-    var ts = parseInt(cd.getAttribute('data-ts'), 10) * 1000;
+    function updateCountdowns() {
+        var now = Math.floor(Date.now() / 1000);
 
-    function pad(n) { return n < 10 ? '0' + n : String(n); }
+        countdowns.forEach(function (el) {
+            var ts = parseInt(el.getAttribute('data-ts'), 10);
+            if (isNaN(ts)) return;
 
-    function tick() {
-        var diff = ts - Date.now();
-        if (diff <= 0) { cd.textContent = '即將播出'; return; }
-        var d = Math.floor(diff / 86400000);
-        var h = Math.floor((diff % 86400000) / 3600000);
-        var m = Math.floor((diff % 3600000)  / 60000);
-        var s = Math.floor((diff % 60000)    / 1000);
-        var str = '';
-        if (d > 0) str += d + ' 天 ';
-        str += pad(h) + ':' + pad(m) + ':' + pad(s);
-        cd.textContent = str;
+            var diff = ts - now;
+
+            if (diff <= 0) {
+                el.textContent = '已播出';
+                return;
+            }
+
+            var d = Math.floor(diff / 86400);
+            var h = Math.floor((diff % 86400) / 3600);
+            var m = Math.floor((diff % 3600) / 60);
+            var s = diff % 60;
+
+            el.textContent =
+                (d > 0 ? d + '天 ' : '') +
+                h + '時 ' +
+                m + '分 ' +
+                s + '秒';
+        });
     }
 
-    tick();
-    setInterval(tick, 1000);
+    updateCountdowns();
+    setInterval(updateCountdowns, 1000);
 }
