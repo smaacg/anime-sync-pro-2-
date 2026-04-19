@@ -628,7 +628,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
             <?php /* ── 基本資訊 ── */ ?>
             <section class="asd-section" id="asd-sec-info">
                 <h2 class="asd-section-title">📋 基本資訊</h2>
-                <div class="asd-glass-divider"></div>
                 <div class="asd-info-grid">
                     <?php
                     $info_rows = array(
@@ -665,7 +664,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
             <?php if ( $synopsis ) : ?>
                 <section class="asd-section" id="asd-sec-synopsis">
                     <h2 class="asd-section-title">📝 劇情簡介</h2>
-                                    <div class="asd-glass-divider"></div>
                     <div class="asd-synopsis"><?php echo wp_kses_post( wpautop( $synopsis ) ); ?></div>
                 </section>
             <?php endif; ?>
@@ -673,7 +671,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
             <?php if ( $youtube_id ) : ?>
                 <section class="asd-section" id="asd-sec-trailer">
                     <h2 class="asd-section-title">🎞 預告片</h2>
-                    <div class="asd-glass-divider"></div>
                     <div class="asd-trailer-wrap">
                         <iframe
                             src="https://www.youtube.com/embed/<?php echo esc_attr( $youtube_id ); ?>?rel=0&modestbranding=1"
@@ -690,7 +687,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
             <?php if ( ! empty( $episodes_list ) ) : ?>
                 <section class="asd-section" id="asd-sec-episodes">
                     <h2 class="asd-section-title">📺 集數列表</h2>
-                    <div class="asd-glass-divider"></div>
                     <div class="asd-ep-list" id="asd-ep-list">
                         <?php foreach ( $episodes_list as $i => $ep ) :
                             $ep_num     = isset( $ep['ep'] )      ? (int) $ep['ep']      : 0;
@@ -828,7 +824,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
             <?php if ( ! empty( $openings ) || ! empty( $endings ) ) : ?>
                 <section class="asd-section" id="asd-sec-music">
                     <h2 class="asd-section-title">🎵 主題曲</h2>
-                    <div class="asd-glass-divider"></div>
                     <?php foreach ( array( 'OP' => $openings, 'ED' => $endings ) as $music_type => $music_list ) : ?>
                         <?php if ( empty( $music_list ) ) continue; ?>
                         <div class="asd-music-group">
@@ -874,8 +869,7 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
             <?php /* ── 串流平台 ── */ ?>
             <?php if ( ! empty( $tw_streaming_items ) || ! empty( $streaming_list ) ) : ?>
                 <section class="asd-section" id="asd-sec-stream">
-                    <h2 class="asd-section-title">📺 線上觀看</h2>
-                    <div class="asd-glass-divider"></div>
+                    <h2 class="asd-section-title">📺 串流平台</h2>
 
                     <?php if ( ! empty( $tw_streaming_items ) ) : ?>
                         <div class="asd-stream-region asd-stream-region--tw">
@@ -956,7 +950,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
             <?php if ( $official_site || $twitter_url || $wikipedia_url || $tiktok_url || $anilist_id || $mal_id || $bangumi_id ) : ?>
                 <section class="asd-section" id="asd-sec-links">
                     <h2 class="asd-section-title">🔗 外部連結</h2>
-                    <div class="asd-glass-divider"></div>
                     <div class="asd-ext-links-grid">
                         <?php if ( $official_site ) : ?>
                             <a href="<?php echo esc_url( $official_site ); ?>" target="_blank" rel="noopener noreferrer" class="asd-ext-link-card">
@@ -1007,7 +1000,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
             <?php /* ── 留言 ── */ ?>
             <section class="asd-section asd-comments" id="comments">
                 <h2 class="asd-section-title">💬 留言</h2>
-                <div class="asd-glass-divider"></div>
                 <?php comments_template(); ?>
             </section>
 
