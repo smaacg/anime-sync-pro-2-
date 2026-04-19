@@ -411,12 +411,37 @@ while ( have_posts() ) :
     }
 
     /* ── Cast ── */
-$cast_main = array();
+$cast_to_display = array();
+$cast_seen = array();
+
+/* 主角排前面 */
 foreach ( $cast_list as $c ) {
     $role = isset( $c['role'] ) ? trim( $c['role'] ) : '';
-    if ( $role === '主角' || strtoupper( $role ) === 'MAIN' ) $cast_main[] = $c;
+    $name = isset( $c['name'] ) ? trim( $c['name'] ) : '';
+    $key  = md5( wp_json_encode( $c ) );
+
+    if ( $name === '' || isset( $cast_seen[ $key ] ) ) {
+        continue;
+    }
+
+    if ( $role === '主角' || strtoupper( $role ) === 'MAIN' ) {
+        $cast_to_display[] = $c;
+        $cast_seen[ $key ] = true;
+    }
 }
-if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
+
+/* 其餘角色接在後面 */
+foreach ( $cast_list as $c ) {
+    $name = isset( $c['name'] ) ? trim( $c['name'] ) : '';
+    $key  = md5( wp_json_encode( $c ) );
+
+    if ( $name === '' || isset( $cast_seen[ $key ] ) ) {
+        continue;
+    }
+
+    $cast_to_display[] = $c;
+    $cast_seen[ $key ] = true;
+}
 
     $poster_fallback     = $fallback_text( $display_title, 2 );
     $has_sidebar_content = ! empty( $news_items ) || ! empty( $site_relations ) || $affiliate_html || $official_site || $twitter_url || $wikipedia_url || $tiktok_url;
