@@ -53,38 +53,46 @@ class Anime_Sync_Frontend {
             return;
         }
 
+        $public_css_path  = ANIME_SYNC_PRO_DIR . 'public/assets/css/public.css';
+        $style_css_path   = ANIME_SYNC_PRO_DIR . 'public/assets/css/style.css';
+        $single_css_path  = ANIME_SYNC_PRO_DIR . 'public/assets/css/anime-single.css';
+        $frontend_js_path = ANIME_SYNC_PRO_DIR . 'public/assets/js/frontend.js';
+
         wp_enqueue_style(
             'anime-sync-public',
             ANIME_SYNC_PRO_URL . 'public/assets/css/public.css',
             [],
-            ANIME_SYNC_PRO_VERSION
+            file_exists( $public_css_path ) ? (string) filemtime( $public_css_path ) : ANIME_SYNC_PRO_VERSION
         );
 
         wp_enqueue_style(
             'anime-sync-style',
             ANIME_SYNC_PRO_URL . 'public/assets/css/style.css',
             [ 'anime-sync-public' ],
-            ANIME_SYNC_PRO_VERSION
+            file_exists( $style_css_path ) ? (string) filemtime( $style_css_path ) : ANIME_SYNC_PRO_VERSION
         );
 
         wp_enqueue_style(
             'anime-sync-single',
             ANIME_SYNC_PRO_URL . 'public/assets/css/anime-single.css',
             [ 'anime-sync-public' ],
-            ANIME_SYNC_PRO_VERSION
+            file_exists( $single_css_path ) ? (string) filemtime( $single_css_path ) : ANIME_SYNC_PRO_VERSION
         );
 
         wp_enqueue_script(
             'anime-sync-frontend',
             ANIME_SYNC_PRO_URL . 'public/assets/js/frontend.js',
             [],
-            ANIME_SYNC_PRO_VERSION,
+            file_exists( $frontend_js_path ) ? (string) filemtime( $frontend_js_path ) : ANIME_SYNC_PRO_VERSION,
             true
         );
+
+        wp_script_add_data( 'anime-sync-frontend', 'defer', true );
 
         wp_localize_script( 'anime-sync-frontend', 'animeSyncData', [
             'restUrl' => esc_url_raw( rest_url( 'anime-sync/v1/' ) ),
             'nonce'   => wp_create_nonce( 'wp_rest' ),
+            'debug'   => defined( 'WP_DEBUG' ) && WP_DEBUG,
         ] );
     }
 
