@@ -280,7 +280,7 @@ function initMusicPlayer() {
     if (document.body.dataset.asdMusicInited === '1') return;
     document.body.dataset.asdMusicInited = '1';
 
-    var currentAudio = null;
+    var currentMedia = null;
     var currentBtn = null;
     var currentBar = null;
     var currentTime = null;
@@ -307,15 +307,15 @@ function initMusicPlayer() {
         return m + ':' + (s < 10 ? '0' : '') + s;
     }
 
-    function updateProgress(audio, bar, time) {
+    function updateProgress(media, bar, time) {
         cancelProgress();
 
         function loop() {
-            if (!audio.paused && !audio.ended) {
-                if (audio.duration) {
-                    var pct = (audio.currentTime / audio.duration) * 100;
+            if (media && !media.paused && !media.ended) {
+                if (media.duration) {
+                    var pct = (media.currentTime / media.duration) * 100;
                     if (bar) bar.style.width = pct + '%';
-                    if (time) time.textContent = formatTime(audio.currentTime);
+                    if (time) time.textContent = formatTime(media.currentTime);
                 }
                 rafId = requestAnimationFrame(loop);
             }
@@ -324,118 +324,211 @@ function initMusicPlayer() {
         rafId = requestAnimationFrame(loop);
     }
 
-    function setSource(audio, src) {
-        if (!src) return false;
-        if (audio.getAttribute('src') !== src) {
-            audio.setAttribute('src', src);
-            audio.load();
+    function stopMedia(media) {
+        if (!media) return;
+        try {
+            media.pause();
+            media.currentTime = 0;
+        } catch (e) {}
+    }
+
+    function setSource(media, src) {
+        if (!media || !src) return false;
+
+        if (media.getAttribute('src') !== src) {
+            media.setAttribute('src', src);
+            media.load();
         }
         return true;
     }
 
-    function playWithFallback(audio, primarySrc, fallbackSrc) {
-        var triedFallback = false;
+    function getExt(src) {
+        if (!src) return '';
+        var clean = src.split('?')[0].split('#')[0];
+        var parts = clean.split('.');
+        return parts.length > 1 ? parts.pop().toLowerCase() : '';
+    }
 
-        function tryPlay(src) {
-            if (!setSource(audio, src)) {
-                return Promise.reject(new Error('empty media src'));
-            }
-            return audio.play().catch(function (err) {
-                if (!triedFallback && fallbackSrc && fallbackSrc !== src) {
-                    triedFallback = true;
-                    console.warn('[Anime Sync Pro] primary audio failed, fallback to video src:', err);
-                    return tryPlay(fallbackSrc);
-                }
-                throw err;
+    function canPlayAudioSrc(src) {
+        var audio = document.createElement('audio');
+        var ext = getExt(src);
+
+        if (ext === 'ogg' || ext === 'oga') {
+            return !!(audio.canPlayType('audio/ogg; codecs="vorbis"') || audio.canPlayType('audio/ogg'));
+        }
+        if (ext === 'mp3') {
+            return !!audio.canPlayType('audio/mpeg');
+        }
+        if (ext === 'm4a' || ext === 'aac') {
+            return !!(audio.canPlayType('audio/mp4') || audio.canPlayType('audio/aac'));
+        }
+
+        return true;
+    }
+
+    function canPlayVideoSrc(src) {
+        var video = document.createElement('video');
+        var ext = getExt(src);
+
+        if (ext === 'webm') {
+            return !!(video.canPlayType('video/webm; codecs="vp8, vorbis"') || video.canPlayType('video/webm'));
+        }
+        if (ext === 'mp4' || ext === 'm4v') {
+            return !!video.canPlayType('video/mp4');
+        }
+
+        return true;
+    }
+
+    function buildCandidates(wrap) {
+        var candidates = [];
+        var audio = wrap.querySelector('.asd-music-audio');
+        var video = wrap.querySelector('.asd-music-video');
+        var audioSrc = (wrap.dataset.audioSrc || '').trim();
+        var videoSrc = (wrap.dataset.videoSrc || '').trim();
+
+        if (audio && audioSrc) {
+            candidates.push({
+                el: audio,
+                src: audioSrc,
+                kind: 'audio',
+                supported: canPlayAudioSrc(audioSrc)
             });
         }
 
-        return tryPlay(primarySrc || fallbackSrc);
+        if (video && videoSrc) {
+            video.muted = false;
+            video.playsInline = true;
+
+            candidates.push({
+                el: video,
+                src: videoSrc,
+                kind: 'video',
+                supported: canPlayVideoSrc(videoSrc)
+            });
+        }
+
+        candidates.sort(function (a, b) {
+            if (a.supported === b.supported) return 0;
+            return a.supported ? -1 : 1;
+        });
+
+        return candidates;
+    }
+
+    function playOne(candidate) {
+        if (!candidate || !candidate.el || !candidate.src) {
+            return Promise.reject(new Error('empty candidate'));
+        }
+
+        if (!setSource(candidate.el, candidate.src)) {
+            return Promise.reject(new Error('set source failed'));
+        }
+
+        return candidate.el.play().then(function () {
+            return candidate.el;
+        });
+    }
+
+    function playCandidates(candidates, index) {
+        if (!candidates.length || index >= candidates.length) {
+            return Promise.reject(new Error('no playable source'));
+        }
+
+        var candidate = candidates[index];
+
+        return playOne(candidate).catch(function (err) {
+            console.warn('[Anime Sync Pro] source failed:', candidate.kind, candidate.src, err);
+            return playCandidates(candidates, index + 1);
+        });
     }
 
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('.asd-music-play-btn');
         if (!btn) return;
 
-        var card = btn.closest('.asd-music-card-v2');
-        var wrap = card ? card.querySelector('.asd-music-player-wrap') : null;
-        var audio = wrap ? wrap.querySelector('.asd-music-audio') : null;
-        var bar = wrap ? wrap.querySelector('.asd-music-progress-bar') : null;
-        var time = wrap ? wrap.querySelector('.asd-music-time') : null;
+        var wrap = btn.closest('.asd-music-player-wrap');
+        if (!wrap) return;
 
-        if (!audio || !wrap) return;
+        var bar = wrap.querySelector('.asd-music-progress-bar');
+        var time = wrap.querySelector('.asd-music-time');
+        var openLink = wrap.querySelector('.asd-music-open-link');
 
-        var primarySrc = wrap.dataset.audioSrc || audio.getAttribute('src') || '';
-        var fallbackSrc = wrap.dataset.videoSrc || '';
-
-        if (currentAudio && currentAudio !== audio) {
-            currentAudio.pause();
-            resetUI(currentBtn, currentBar, currentTime);
-            cancelProgress();
+        var candidates = buildCandidates(wrap);
+        if (!candidates.length) {
+            if (openLink && openLink.href) {
+                window.open(openLink.href, '_blank', 'noopener');
+                return;
+            }
+            alert('此主題曲沒有可播放來源');
+            return;
         }
 
-        if (!audio.paused) {
-            audio.pause();
+        var isSameWrapPlaying = currentMedia && wrap.contains(currentMedia) && !currentMedia.paused;
+        if (isSameWrapPlaying) {
+            currentMedia.pause();
             resetUI(btn, bar, time);
-
-            if (currentAudio === audio) {
-                currentAudio = null;
-                currentBtn = null;
-                currentBar = null;
-                currentTime = null;
-            }
-
             cancelProgress();
             return;
+        }
+
+        if (currentMedia && currentMedia !== candidates[0].el) {
+            stopMedia(currentMedia);
+            resetUI(currentBtn, currentBar, currentTime);
+            cancelProgress();
         }
 
         playToken++;
         var token = playToken;
 
-        playWithFallback(audio, primarySrc, fallbackSrc).then(function () {
-            if (token !== playToken) return;
+        playCandidates(candidates, 0).then(function (media) {
+            if (token !== playToken) {
+                stopMedia(media);
+                return;
+            }
 
-            currentAudio = audio;
+            currentMedia = media;
             currentBtn = btn;
             currentBar = bar;
             currentTime = time;
 
             btn.classList.add('is-playing');
-            updateProgress(audio, bar, time);
-        }).catch(function (err) {
-            console.warn('播放失敗:', err);
+            updateProgress(media, bar, time);
 
-            var message = '目前瀏覽器可能不支援此音訊格式';
-            if (fallbackSrc) {
-                message += '（已嘗試備援來源）';
-            }
-            alert(message);
-        });
-
-        audio.onended = function () {
+            media.onended = function () {
+                resetUI(btn, bar, time);
+                if (currentMedia === media) {
+                    currentMedia = null;
+                    currentBtn = null;
+                    currentBar = null;
+                    currentTime = null;
+                }
+                cancelProgress();
+            };
+        }).catch(function () {
             resetUI(btn, bar, time);
-
-            if (currentAudio === audio) {
-                currentAudio = null;
-                currentBtn = null;
-                currentBar = null;
-                currentTime = null;
-            }
-
             cancelProgress();
-        };
+
+            if (openLink && openLink.href) {
+                alert('目前瀏覽器不支援 AnimeThemes 的 OGG / WebM 播放，請改用「開啟原檔」。');
+            } else {
+                alert('目前瀏覽器不支援此音訊格式。');
+            }
+        });
     });
 
     document.querySelectorAll('.asd-music-progress-wrap').forEach(function (progressWrap) {
         progressWrap.addEventListener('click', function (ev) {
             var wrap = progressWrap.closest('.asd-music-player-wrap');
-            var audio = wrap ? wrap.querySelector('.asd-music-audio') : null;
-            if (!audio || !audio.duration) return;
+            if (!wrap) return;
+
+            var media = currentMedia && wrap.contains(currentMedia) ? currentMedia : null;
+            if (!media || !media.duration) return;
 
             var rect = progressWrap.getBoundingClientRect();
             var ratio = (ev.clientX - rect.left) / rect.width;
             ratio = Math.max(0, Math.min(1, ratio));
-            audio.currentTime = ratio * audio.duration;
+            media.currentTime = ratio * media.duration;
         });
     });
 }
