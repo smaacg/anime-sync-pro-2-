@@ -900,10 +900,7 @@ foreach ( $cast_list as $c ) {
         data-audio-src="<?php echo esc_url( $t_audio_url ); ?>"
         data-video-src="<?php echo esc_url( $t_video_url ); ?>"
     >
-        <audio
-            class="asd-music-audio"
-            preload="none"
-        ></audio>
+        <audio class="asd-music-audio" preload="none"></audio>
 
         <video
             class="asd-music-video"
@@ -932,7 +929,6 @@ foreach ( $cast_list as $c ) {
         <?php endif; ?>
     </div>
 <?php endif; ?>
-
                     </div>
                 <?php endforeach; ?>
             </div>
