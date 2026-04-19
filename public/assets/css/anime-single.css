@@ -1,5 +1,5 @@
 /* =================================================================
-   Anime Sync Pro — anime-single.css  v17.0
+   Anime Sync Pro — anime-single.css  v18
    對應 single-anime.php v14.0
    深藍灰毛玻璃主題 / Hero 三欄 / 內容區 7:3
    2026-04-19
@@ -114,30 +114,43 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
   font-family: 'Noto Sans TC', sans-serif;
   font-size: .95rem;
   color: var(--asd-text);
-  background: linear-gradient(180deg, #1A2030 0%, #1E242B 40%, #181E25 100%) !important;
+  background: transparent !important;
 }
 
 /* ================================================================
-   4. Banner
+   4. Banner — 真全寬 + 底部漸層
    ================================================================ */
 .asd-banner {
-  width: calc(100% + var(--asd-gap) * 2) !important;
-  height: 220px;
-  background-size: cover;
-  background-position: center;
+  position: relative !important;
+  left: 50% !important;
+  right: 50% !important;
+  margin-left: -50vw !important;
+  margin-right: -50vw !important;
+  width: 100vw !important;
+  height: 320px !important;
+  background-size: cover !important;
+  background-position: center top !important;
+  background-attachment: local !important;
   border-radius: 0 !important;
-  margin-left: calc(-1 * var(--asd-gap)) !important;
-  margin-right: calc(-1 * var(--asd-gap)) !important;
-  margin-bottom: var(--asd-gap);
+  margin-bottom: var(--asd-gap) !important;
   box-shadow: none !important;
-  position: relative;
-  overflow: hidden;
+  overflow: hidden !important;
 }
-.asd-banner--fallback { background: var(--asd-bg-card); display: none; }
+.asd-banner--fallback {
+  background: linear-gradient(135deg, #1a2535, #1E242B) !important;
+  display: block !important;
+}
 .asd-banner-fade {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent 40%, rgba(30,36,43,.80));
+  position: absolute !important;
+  inset: 0 !important;
+  background: linear-gradient(
+    to bottom,
+    rgba(30,36,43,0)    0%,
+    rgba(30,36,43,0)   35%,
+    rgba(30,36,43,.55) 65%,
+    rgba(30,36,43,.88) 85%,
+    rgba(30,36,43,1)  100%
+  ) !important;
 }
 
 /* ================================================================
@@ -149,12 +162,12 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
   gap: var(--asd-gap) !important;
   align-items: start !important;
   margin: 0 0 var(--asd-gap) 0 !important;
-  padding: var(--asd-gap) !important;
-  border-radius: var(--asd-radius-lg) !important;
-  border: 1px solid var(--glass-border) !important;
-  background: linear-gradient(135deg, rgba(13,26,48,.82), rgba(17,31,58,.58)) !important;
-  box-shadow: var(--asd-shadow-md) !important;
-  overflow: hidden !important;
+  padding: var(--asd-gap) 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
 }
 
 /* ── 海報 ── */
@@ -429,7 +442,7 @@ nav.asd-tabs a.asd-tab {
   border-radius: var(--asd-radius-sm) !important;
   font-size: .78rem !important;
   font-weight: 600 !important;
-  color: var(--asd-text-muted) !important;
+  color: rgba(208,215,224,.75) !important;  
   background: transparent !important;
   border: none !important;
   text-decoration: none !important;
@@ -1217,3 +1230,175 @@ nav.asd-tabs a.asd-tab.is-active::after {
 #comments {
   scroll-margin-top: 72px;
 }
+/* ================================================================
+   Anime Sync Pro — compatibility patch
+   不改設計語言，優先修 Firefox / 滾動定位 / 版面穩定性
+   ================================================================ */
+
+/* 1) Anchor 捲動定位更穩，避免標題被導覽列蓋住 */
+.asd-section,
+#comments {
+  scroll-margin-top: 72px;
+}
+
+/* 2) Grid / Flex 子元素避免在 Firefox 或窄版被撐爆 */
+.asd-hero-body,
+.asd-main,
+.asd-sidebar,
+.asd-staff-card-v2,
+.asd-cast-card,
+.asd-music-card-v2,
+.asd-mini-card,
+.asd-mini-card__body,
+.asd-info-row,
+.asd-ext-link-card {
+  min-width: 0;
+}
+
+/* 3) 長文字避免撐爆卡片 */
+.asd-hero-title,
+.asd-hero-native,
+.asd-hero-romaji,
+.asd-info-val,
+.asd-hside-info-val,
+.asd-staff-name,
+.asd-staff-native,
+.asd-cast-char,
+.asd-cast-char-native,
+.asd-cast-va-name,
+.asd-cast-va-native,
+.asd-music-title,
+.asd-music-native,
+.asd-music-artist,
+.asd-news-card__title,
+.asd-mini-card__title,
+.asd-mini-card__native,
+.asd-ext-site {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 4) Tabs 容器避免某些瀏覽器陰影/內容被裁切 */
+.asd-tabs-wrap {
+  overflow: visible !important;
+}
+
+/* 5) Hero 區塊避免 Firefox 對 overflow + grid 裁切過度 */
+.asd-wrap .asd-hero-new {
+  min-width: 0;
+}
+
+/* 6) 讓海報、角色圖、縮圖在 Firefox 更穩 */
+.asd-poster-img,
+.asd-cast-avatar-wrap img,
+.asd-mini-card__thumb img {
+  image-rendering: auto;
+}
+
+/* 7) 按鈕/連結字體與行高一致，避免 Firefox 原生樣式差異 */
+.asd-action-btn,
+.asd-ep-toggle,
+.asd-staff-toggle,
+.asd-cast-toggle,
+.asd-music-play-btn,
+.asd-stream-btn,
+.asd-ext-link-card,
+nav.asd-tabs a.asd-tab {
+  line-height: 1.2;
+}
+
+/* 8) 音樂播放器在不同瀏覽器避免內容擠壓 */
+.asd-music-player-wrap {
+  min-width: 0;
+}
+.asd-music-progress-wrap {
+  min-width: 0;
+}
+
+/* 9) 留言表單在 Firefox 避免被 reset 後高度怪異 */
+.asd-wrap .comment-form input,
+.asd-wrap .comment-form textarea,
+.asd-wrap .submit,
+.asd-music-play-btn,
+.asd-ep-toggle,
+.asd-staff-toggle,
+.asd-cast-toggle {
+  font: inherit;
+}
+
+/* 10) Firefox 專用降級：保留玻璃感，但避免 backdrop-filter 造成跑版 */
+@-moz-document url-prefix() {
+  .asd-section,
+  .asd-side-section,
+  .asd-info-row,
+  .asd-staff-card-v2,
+  .asd-cast-card,
+  .asd-music-card-v2,
+  .asd-stream-region,
+  .asd-faq-item,
+  .asd-ext-link-card,
+  nav.asd-tabs,
+  .asd-wrap .asd-hero-new,
+  .asd-hside-block {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* 用更接近原風格的實色半透明背景取代 */
+  .asd-section,
+  .asd-side-section,
+  .asd-info-row,
+  .asd-staff-card-v2,
+  .asd-cast-card,
+  .asd-music-card-v2,
+  .asd-stream-region,
+  .asd-faq-item,
+  .asd-ext-link-card,
+  nav.asd-tabs,
+  .asd-hside-block {
+    background: rgba(36, 44, 53, 0.92) !important;
+  }
+
+  .asd-wrap .asd-hero-new {
+    background: linear-gradient(135deg, rgba(13,26,48,.96), rgba(17,31,58,.90)) !important;
+  }
+
+  /* 避免 Firefox 對 overflow 的裁切異常 */
+  .asd-tabs-wrap,
+  .asd-wrap .asd-hero-new {
+    overflow: visible !important;
+  }
+
+  /* 某些 Firefox 版本對 grid 內容寬度計算較嚴格 */
+  .asd-hero-body,
+  .asd-main,
+  .asd-sidebar,
+  .asd-cast-info,
+  .asd-staff-info,
+  .asd-mini-card__body {
+    min-width: 0 !important;
+  }
+}
+
+/* 11) 窄螢幕下 tabs 間距再柔和一點，避免換行過度擠壓 */
+@media (max-width: 768px) {
+  nav.asd-tabs {
+    row-gap: 6px !important;
+  }
+}
+
+/* 12) 超窄螢幕下外部連結與資訊卡更穩 */
+@media (max-width: 480px) {
+  .asd-ext-links-grid,
+  .asd-info-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .asd-stream-list,
+  .asd-hero-actions,
+  .asd-hero-badges,
+  .asd-hero-scores-new {
+    gap: 8px;
+  }
+}
+
