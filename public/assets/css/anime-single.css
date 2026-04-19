@@ -48,7 +48,7 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
 .asd-wrap img { max-width: 100% !important; }
 .asd-poster-img { max-width: none !important; }
 .asd-wrap h2::after { display: none !important; }
-.asd-wrap h2.asd-section-title::after { display: block !important; }
+.asd-wrap h2.asd-section-title::after { display: none !important; }
 
 /* ================================================================
    1. CSS 變數
@@ -978,9 +978,10 @@ nav.asd-tabs a.asd-tab.is-active::after {
   font-size: .90rem !important;
   font-weight: 700 !important;
   color: var(--asd-text) !important;
-  margin: 0 !important;
-  padding: 0 !important;
+  margin: 0 0 12px 0 !important;
+  padding: 0 0 10px 0 !important;
   border: none !important;
+  border-bottom: 1px solid rgba(255,255,255,.15) !important;
 }
 .asd-side-empty {
   font-size: .80rem;
