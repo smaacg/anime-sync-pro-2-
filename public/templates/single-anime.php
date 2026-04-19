@@ -800,23 +800,14 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                             <span class="asd-cast-role"><?php echo esc_html( $c_role ); ?></span>
                         <?php endif; ?>
                         <?php if ( $c_va_name ) : ?>
-                            <div class="asd-cast-va">
-                                <?php if ( $c_va_image ) : ?>
-                                    <img src="<?php echo esc_url( $c_va_image ); ?>"
-                                         alt="<?php echo esc_attr( $c_va_name ); ?>"
-                                         loading="lazy"
-                                         onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
-                                    <div class="asd-cast-va-fb" style="display:none"><span><?php echo esc_html( $c_va_fb ); ?></span></div>
-                                <?php else : ?>
-                                    <div class="asd-cast-va-fb"><span><?php echo esc_html( $c_va_fb ); ?></span></div>
-                                <?php endif; ?>
-                                <div class="asd-cast-va-info">
-                                    <span class="asd-cast-va-name"><?php echo esc_html( $c_va_name ); ?></span>
-                                    <?php if ( $c_va_native && $c_va_native !== $c_va_name ) : ?>
-                                        <span class="asd-cast-va-native"><?php echo esc_html( $c_va_native ); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
+                           <div class="asd-cast-va">
+    <div class="asd-cast-va-info">
+        <span class="asd-cast-va-name"><?php echo esc_html( $c_va_name ); ?></span>
+        <?php if ( $c_va_native && $c_va_native !== $c_va_name ) : ?>
+            <span class="asd-cast-va-native"><?php echo esc_html( $c_va_native ); ?></span>
+        <?php endif; ?>
+    </div>
+</div>
                         <?php endif; ?>
                     </div>
                 </div>
