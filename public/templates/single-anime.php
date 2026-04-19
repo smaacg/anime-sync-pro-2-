@@ -846,15 +846,16 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                                         <?php endif; ?>
                                     </div>
                                  <?php if ( $t_url ) : ?>
-    <div class="asd-music-player-wrap">
-        <audio class="asd-music-audio" preload="none" src="<?php echo esc_url( $t_url ); ?>"></audio>
-        <button class="asd-music-play-btn" type="button" aria-label="播放"></button>
-        <div class="asd-music-progress-wrap">
-            <div class="asd-music-progress-bar"></div>
-        </div>
-        <span class="asd-music-time">0:00</span>
+<div class="asd-music-player-wrap">
+    <audio class="asd-music-audio" preload="none" crossorigin="anonymous" src="<?php echo esc_url( $t_url ); ?>"></audio>
+    <button class="asd-music-play-btn" type="button" aria-label="播放"></button>
+    <div class="asd-music-progress-wrap">
+        <div class="asd-music-progress-bar"></div>
     </div>
+    <span class="asd-music-time">0:00</span>
+</div>
 <?php endif; ?>
+
                                 </div>
                             <?php endforeach; ?>
                         </div>
