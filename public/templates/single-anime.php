@@ -797,7 +797,7 @@ foreach ( $cast_list as $c ) {
                 $c_va_native   = isset( $va['native'] ) ? trim( $va['native'] ) : '';
                 $c_fb          = function_exists( 'mb_substr' ) ? mb_substr( $c_char_name, 0, 2 ) : substr( $c_char_name, 0, 2 );
             ?>
-                <div class="asd-cast-card<?php echo $i >= 4 ? ' asd-cast-hidden' : ''; ?>">
+                <div class="asd-cast-card<?php echo $i >= 6 ? ' asd-cast-hidden' : ''; ?>">
                     <div class="asd-cast-avatar-wrap">
                         <?php if ( $c_char_image ) : ?>
                             <img src="<?php echo esc_url( $c_char_image ); ?>"
