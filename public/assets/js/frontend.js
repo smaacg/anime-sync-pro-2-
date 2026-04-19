@@ -98,14 +98,15 @@
 // ========================================
 function initToggleExpand() {
 
-    // ── 集數展開 ──
-    $(document).on('click', '.asd-ep-toggle', function () {
-        var $btn = $(this);
-        // 用 class selector，避免 ID 對不上
-        $('.asd-ep-list .asd-ep-hidden').removeClass('asd-ep-hidden');
-        // 只 fadeOut 按鈕本身，不影響 list 容器
-        $btn.fadeOut(200);
-    });
+// ── 集數展開 ──
+$(document).on('click', '.asd-ep-toggle', function () {
+    var $btn     = $(this);
+    var $section = $btn.closest('section');
+    var $list    = $section.find('.asd-ep-list');
+    $list.find('.asd-ep-hidden').removeClass('asd-ep-hidden');
+    $btn.closest('div').fadeOut(200);
+});
+
 
     // ── Staff 展開（改用 class selector）──
     $(document).on('click', '.asd-staff-toggle', function () {
