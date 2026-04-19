@@ -924,7 +924,7 @@ foreach ( $cast_list as $c ) {
                 target="_blank"
                 rel="noopener noreferrer"
             >
-                開啟原檔
+                看片
             </a>
         <?php endif; ?>
     </div>
