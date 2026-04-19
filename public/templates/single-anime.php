@@ -825,69 +825,83 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                     <?php echo $music_type === 'OP' ? '片頭曲 OP' : '片尾曲 ED'; ?>
                 </h3>
 
-                <?php foreach ( $music_list as $t ) : ?>
-                    <?php
-                    $t_type      = strtoupper( trim( isset( $t['type'] ) ? $t['type'] : '' ) );
-                    $t_title     = trim( isset( $t['song_title'] ) ? $t['song_title'] : '' );
-                    $t_native    = '';
-                    $t_artist    = trim( isset( $t['artist'] ) ? $t['artist'] : '' );
+             <?php foreach ( $music_list as $t ) : ?>
+    <?php
+    $t_type      = strtoupper( trim( isset( $t['type'] ) ? $t['type'] : '' ) );
+    $t_title     = trim( isset( $t['song_title'] ) ? $t['song_title'] : '' );
+    $t_native    = trim( isset( $t['native'] ) ? $t['native'] : '' );
+    $t_artist    = trim( isset( $t['artist'] ) ? $t['artist'] : '' );
+    $t_audio_url = trim( isset( $t['audio_url'] ) ? $t['audio_url'] : '' );
+    $t_video_url = trim( isset( $t['video_url'] ) ? $t['video_url'] : '' );
+    $open_url    = $t_video_url ?: $t_audio_url;
 
-                    $t_audio_url = trim( isset( $t['audio_url'] ) ? $t['audio_url'] : '' );
-                    $t_video_url = trim( isset( $t['video_url'] ) ? $t['video_url'] : '' );
-                    $t_url       = $t_audio_url !== '' ? $t_audio_url : $t_video_url;
+    $badge_class = ( strpos( $t_type, 'OP' ) === 0 )
+        ? 'asd-music-type-badge--op'
+        : 'asd-music-type-badge--ed';
+    ?>
+    <div class="asd-music-card-v2">
+        <span class="asd-music-type-badge <?php echo esc_attr( $badge_class ); ?>">
+            <?php echo esc_html( $t_type ); ?>
+        </span>
 
-                    $badge_class = ( strpos( $t_type, 'OP' ) === 0 )
-                        ? 'asd-music-type-badge--op'
-                        : 'asd-music-type-badge--ed';
-                    ?>
+        <div class="asd-music-body">
+            <?php if ( $t_title ) : ?>
+                <span class="asd-music-title"><?php echo esc_html( $t_title ); ?></span>
+            <?php endif; ?>
 
-                    <div class="asd-music-card-v2">
-                        <span class="asd-music-type-badge <?php echo esc_attr( $badge_class ); ?>">
-                            <?php echo esc_html( $t_type ); ?>
-                        </span>
+            <?php if ( $t_native && $t_native !== $t_title ) : ?>
+                <span class="asd-music-native"><?php echo esc_html( $t_native ); ?></span>
+            <?php endif; ?>
 
-                        <div class="asd-music-body">
-                            <?php if ( $t_title ) : ?>
-                                <span class="asd-music-title"><?php echo esc_html( $t_title ); ?></span>
-                            <?php endif; ?>
+            <?php if ( $t_artist ) : ?>
+                <span class="asd-music-artist">by <?php echo esc_html( $t_artist ); ?></span>
+            <?php endif; ?>
+        </div>
 
-                            <?php if ( $t_native && $t_native !== $t_title ) : ?>
-                                <span class="asd-music-native"><?php echo esc_html( $t_native ); ?></span>
-                            <?php endif; ?>
+        <?php if ( $t_audio_url || $t_video_url ) : ?>
+            <div
+                class="asd-music-player-wrap"
+                data-audio-src="<?php echo esc_url( $t_audio_url ); ?>"
+                data-video-src="<?php echo esc_url( $t_video_url ); ?>"
+            >
+                <?php if ( $t_audio_url ) : ?>
+                    <audio
+                        class="asd-music-audio"
+                        preload="none"
+                        crossorigin="anonymous"
+                    ></audio>
+                <?php endif; ?>
 
-                            <?php if ( $t_artist ) : ?>
-                                <span class="asd-music-artist">by <?php echo esc_html( $t_artist ); ?></span>
-                            <?php endif; ?>
-                        </div>
+                <?php if ( $t_video_url ) : ?>
+                    <video
+                        class="asd-music-video"
+                        preload="none"
+                        playsinline
+                        crossorigin="anonymous"
+                        style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;"
+                    ></video>
+                <?php endif; ?>
 
-                        <?php if ( $t_url ) : ?>
-                            <div
-                                class="asd-music-player-wrap"
-                                data-audio-src="<?php echo esc_url( $t_audio_url ); ?>"
-                                data-video-src="<?php echo esc_url( $t_video_url ); ?>"
-                            >
-                                <audio
-                                    class="asd-music-audio"
-                                    preload="none"
-                                    crossorigin="anonymous"
-                                    src="<?php echo esc_url( $t_url ); ?>"
-                                ></audio>
+                <button class="asd-music-play-btn" type="button" aria-label="播放"></button>
+                <div class="asd-music-progress-wrap">
+                    <div class="asd-music-progress-bar"></div>
+                </div>
+                <span class="asd-music-time">0:00</span>
 
-                                <button class="asd-music-play-btn" type="button" aria-label="播放"></button>
-
-                                <div class="asd-music-progress-wrap">
-                                    <div class="asd-music-progress-bar"></div>
-                                </div>
-
-                                <span class="asd-music-time">0:00</span>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                <?php endforeach; ?>
+                <?php if ( $open_url ) : ?>
+                    <a
+                        class="asd-music-open-link"
+                        href="<?php echo esc_url( $open_url ); ?>"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        開啟原檔
+                    </a>
+                <?php endif; ?>
             </div>
-        <?php endforeach; ?>
-    </section>
-<?php endif; ?>
+        <?php endif; ?>
+    </div>
+<?php endforeach; ?>
 
             <?php /* ── 串流平台 ── */ ?>
             <?php if ( ! empty( $tw_streaming_items ) || ! empty( $streaming_list ) ) : ?>
