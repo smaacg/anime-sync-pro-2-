@@ -155,87 +155,96 @@ function initTabs() {
 // ========================================
 // 集數 / Staff / Cast 展開收合
 // ========================================
+// ========================================
+// 集數 / Staff / Cast 展開收合
+// ========================================
 function initToggleExpand() {
-    bindToggleButton({
+    bindToggleButtons({
         buttonSelector: '.asd-ep-toggle',
         hiddenSelector: '.asd-ep-hidden',
+        hiddenClass: 'asd-ep-hidden',
+        allSelector: '.asd-ep-row',
         collapsedText: function (count) { return '顯示全部 ' + count + ' 集 ▼'; },
         expandedText: '收起 ▲'
     });
 
-    bindToggleButton({
+    bindToggleButtons({
         buttonSelector: '.asd-staff-toggle',
         hiddenSelector: '.asd-staff-hidden',
+        hiddenClass: 'asd-staff-hidden',
+        allSelector: '.asd-staff-card-v2',
         collapsedText: function (count) { return '顯示全部 ' + count + ' 人 ▼'; },
         expandedText: '收起 ▲'
     });
 
-    bindToggleButton({
+    bindToggleButtons({
         buttonSelector: '.asd-cast-toggle',
         hiddenSelector: '.asd-cast-hidden',
+        hiddenClass: 'asd-cast-hidden',
+        allSelector: '.asd-cast-card',
         collapsedText: function (count) { return '顯示全部 ' + count + ' 人 ▼'; },
         expandedText: '收起 ▲'
     });
 
-    function bindToggleButton(config) {
-        var btn = document.querySelector(config.buttonSelector);
-        if (!btn) return;
+    function bindToggleButtons(config) {
+        var buttons = Array.prototype.slice.call(document.querySelectorAll(config.buttonSelector));
+        if (!buttons.length) return;
 
-        var section = btn.closest('section');
-        if (!section) return;
+        buttons.forEach(function (btn) {
+            var section = btn.closest('section');
+            if (!section) return;
 
-        var hiddenItems = Array.prototype.slice.call(section.querySelectorAll(config.hiddenSelector));
-        if (!hiddenItems.length) return;
+            var hiddenItems = Array.prototype.slice.call(section.querySelectorAll(config.hiddenSelector));
+            var allItems = Array.prototype.slice.call(section.querySelectorAll(config.allSelector));
+            if (!hiddenItems.length) return;
 
-        var totalCount = hiddenItems.length;
-        var initialText = typeof config.collapsedText === 'function'
-            ? config.collapsedText(totalCount + getVisibleCount(section, config.hiddenSelector))
-            : config.collapsedText;
+            var totalCount = allItems.length;
+            var initialText = typeof config.collapsedText === 'function'
+                ? config.collapsedText(totalCount)
+                : config.collapsedText;
 
-        if (!btn.dataset.originalText) {
-            btn.dataset.originalText = initialText;
-            btn.textContent = initialText;
-        }
-
-        btn.addEventListener('click', function () {
-            var expanded = btn.classList.contains('is-expanded');
-
-            if (expanded) {
-                hiddenItems.forEach(function (item) {
-                    item.style.display = 'none';
-                });
-                btn.classList.remove('is-expanded');
-                btn.textContent = btn.dataset.originalText;
-
-                var top = section.getBoundingClientRect().top + window.pageYOffset - getStickyOffset();
-                window.scrollTo({
-                    top: top,
-                    behavior: 'smooth'
-                });
-            } else {
-                hiddenItems.forEach(function (item) {
-                    item.style.display = '';
-                });
-                btn.classList.add('is-expanded');
-                btn.textContent = config.expandedText;
+            if (!btn.dataset.originalText) {
+                btn.dataset.originalText = initialText;
+                btn.textContent = initialText;
             }
+
+            btn.addEventListener('click', function () {
+                var expanded = btn.classList.contains('is-expanded');
+                var items = Array.prototype.slice.call(section.querySelectorAll('.' + config.hiddenClass));
+
+                if (expanded) {
+                    allItems.forEach(function (item, index) {
+                        var keepVisible = false;
+
+                        if (config.hiddenClass === 'asd-ep-hidden') {
+                            keepVisible = index < 3;
+                        } else {
+                            keepVisible = index < 6;
+                        }
+
+                        if (!keepVisible) {
+                            item.classList.add(config.hiddenClass);
+                        }
+                    });
+
+                    btn.classList.remove('is-expanded');
+                    btn.textContent = btn.dataset.originalText;
+
+                    var top = section.getBoundingClientRect().top + window.pageYOffset - getStickyOffset();
+                    window.scrollTo({
+                        top: top,
+                        behavior: 'smooth'
+                    });
+                } else {
+                    items.forEach(function (item) {
+                        item.classList.remove(config.hiddenClass);
+                    });
+
+                    btn.classList.add('is-expanded');
+                    btn.textContent = config.expandedText;
+                }
+            });
         });
-    }
-
-    function getVisibleCount(section, hiddenSelector) {
-        var allItems;
-        if (hiddenSelector === '.asd-ep-hidden') {
-            allItems = section.querySelectorAll('.asd-ep-row');
-        } else if (hiddenSelector === '.asd-staff-hidden') {
-            allItems = section.querySelectorAll('.asd-staff-card-v2');
-        } else if (hiddenSelector === '.asd-cast-hidden') {
-            allItems = section.querySelectorAll('.asd-cast-card');
-        } else {
-            allItems = [];
-        }
-
-        var hiddenItems = section.querySelectorAll(hiddenSelector);
-        return allItems.length - hiddenItems.length;
     }
 
     function getStickyOffset() {
@@ -244,6 +253,10 @@ function initToggleExpand() {
     }
 }
 
+
+// ========================================
+// 音樂播放器
+// ========================================
 // ========================================
 // 音樂播放器
 // ========================================
@@ -295,6 +308,35 @@ function initMusicPlayer() {
         rafId = requestAnimationFrame(loop);
     }
 
+    function setSource(audio, src) {
+        if (!src) return false;
+        if (audio.getAttribute('src') !== src) {
+            audio.setAttribute('src', src);
+            audio.load();
+        }
+        return true;
+    }
+
+    function playWithFallback(audio, primarySrc, fallbackSrc) {
+        var triedFallback = false;
+
+        function tryPlay(src) {
+            if (!setSource(audio, src)) {
+                return Promise.reject(new Error('empty media src'));
+            }
+            return audio.play().catch(function (err) {
+                if (!triedFallback && fallbackSrc && fallbackSrc !== src) {
+                    triedFallback = true;
+                    console.warn('[Anime Sync Pro] primary audio failed, fallback to video src:', err);
+                    return tryPlay(fallbackSrc);
+                }
+                throw err;
+            });
+        }
+
+        return tryPlay(primarySrc || fallbackSrc);
+    }
+
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('.asd-music-play-btn');
         if (!btn) return;
@@ -305,7 +347,10 @@ function initMusicPlayer() {
         var bar = wrap ? wrap.querySelector('.asd-music-progress-bar') : null;
         var time = wrap ? wrap.querySelector('.asd-music-time') : null;
 
-        if (!audio) return;
+        if (!audio || !wrap) return;
+
+        var primarySrc = wrap.dataset.audioSrc || audio.getAttribute('src') || '';
+        var fallbackSrc = wrap.dataset.videoSrc || '';
 
         if (currentAudio && currentAudio !== audio) {
             currentAudio.pause();
@@ -331,7 +376,7 @@ function initMusicPlayer() {
         playToken++;
         var token = playToken;
 
-        audio.play().then(function () {
+        playWithFallback(audio, primarySrc, fallbackSrc).then(function () {
             if (token !== playToken) return;
 
             currentAudio = audio;
@@ -343,6 +388,12 @@ function initMusicPlayer() {
             updateProgress(audio, bar, time);
         }).catch(function (err) {
             console.warn('播放失敗:', err);
+
+            var message = '目前瀏覽器可能不支援此音訊格式';
+            if (fallbackSrc) {
+                message += '（已嘗試備援來源）';
+            }
+            alert(message);
         });
 
         audio.onended = function () {
