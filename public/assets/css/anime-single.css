@@ -991,7 +991,14 @@ nav.asd-tabs a.asd-tab.is-active::after {
 }
 
 /* ── 作品標籤 ── */
-.asd-tags-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.asd-tags-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: calc(2 * 28px + 6px);
+  overflow: hidden;
+}
+
 .asd-tag-item {
   padding: 3px 10px;
   border-radius: var(--asd-radius-pill);
