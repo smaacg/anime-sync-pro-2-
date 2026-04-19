@@ -728,50 +728,38 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                 </section>
             <?php endif; ?>
 
-            <?php /* ── Staff ── */ ?>
-            <?php if ( ! empty( $staff_list ) ) : ?>
-                <section class="asd-section" id="asd-sec-staff">
-                    <h2 class="asd-section-title">🎬 STAFF</h2>
-                    <div class="asd-glass-divider"></div>
-                    <div class="asd-staff-grid-v2" id="asd-staff-grid">
-                        <?php foreach ( $staff_list as $i => $s ) :
-                            $s_name   = isset( $s['name'] )     ? trim( $s['name'] )     : '';
-                            $s_native = isset( $s['native'] )   ? trim( $s['native'] )   : '';
-                            $s_role   = isset( $s['role'] )     ? trim( $s['role'] )     : '';
-                            $s_image  = isset( $s['image'] )    ? trim( $s['image'] )    : '';
-                            $s_fb     = function_exists( 'mb_substr' ) ? mb_substr( $s_name, 0, 2 ) : substr( $s_name, 0, 2 );
-                        ?>
-                            <div class="asd-staff-card-v2<?php echo $i >= 6 ? ' asd-staff-hidden' : ''; ?>">
-                                <div class="asd-staff-avatar">
-                                    <?php if ( $s_image ) : ?>
-                                        <img src="<?php echo esc_url( $s_image ); ?>" alt="<?php echo esc_attr( $s_name ); ?>" loading="lazy"
-                                             onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
-                                        <div class="asd-staff-avatar-fb" style="display:none"><span><?php echo esc_html( $s_fb ); ?></span></div>
-                                    <?php else : ?>
-                                        <div class="asd-staff-avatar-fb"><span><?php echo esc_html( $s_fb ); ?></span></div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="asd-staff-info">
-                                    <span class="asd-staff-name"><?php echo esc_html( $s_name ); ?></span>
-                                    <?php if ( $s_native && $s_native !== $s_name ) : ?>
-                                        <span class="asd-staff-native"><?php echo esc_html( $s_native ); ?></span>
-                                    <?php endif; ?>
-                                    <?php if ( $s_role ) : ?>
-                                        <span class="asd-staff-role"><?php echo esc_html( $s_role ); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
+<?php /* ── Staff ── */ ?>
+<?php if ( ! empty( $staff_list ) ) : ?>
+    <section class="asd-section" id="asd-sec-staff">
+        <h2 class="asd-section-title">🎬 STAFF</h2>
+        <div class="asd-glass-divider"></div>
+        <div class="asd-staff-grid-v2" id="asd-staff-grid">
+            <?php foreach ( $staff_list as $i => $s ) :
+                $s_name   = isset( $s['name'] )   ? trim( $s['name'] )   : '';
+                $s_native = isset( $s['native'] ) ? trim( $s['native'] ) : '';
+                $s_role   = isset( $s['role'] )   ? trim( $s['role'] )   : '';
+            ?>
+                <div class="asd-staff-card-v2<?php echo $i >= 6 ? ' asd-staff-hidden' : ''; ?>">
+                    <div class="asd-staff-info">
+                        <span class="asd-staff-role"><?php echo esc_html( $s_role ); ?></span>
+                        <span class="asd-staff-name"><?php echo esc_html( $s_name ); ?></span>
+                        <?php if ( $s_native && $s_native !== $s_name ) : ?>
+                            <span class="asd-staff-native"><?php echo esc_html( $s_native ); ?></span>
+                        <?php endif; ?>
                     </div>
-                    <?php if ( count( $staff_list ) > 6 ) : ?>
-                        <div style="display:flex;justify-content:center;margin-top:12px;">
-                            <button class="asd-staff-toggle" id="asd-staff-toggle" type="button">
-                                顯示全部 <?php echo count( $staff_list ); ?> 人 ▼
-                            </button>
-                        </div>
-                    <?php endif; ?>
-                </section>
-            <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php if ( count( $staff_list ) > 6 ) : ?>
+            <div style="display:flex;justify-content:center;margin-top:12px;">
+                <button class="asd-staff-toggle" id="asd-staff-toggle" type="button">
+                    顯示全部 <?php echo count( $staff_list ); ?> 人 ▼
+                </button>
+            </div>
+        <?php endif; ?>
+    </section>
+<?php endif; ?>
+
 
 <?php /* ── Cast ── */ ?>
 <?php if ( ! empty( $cast_main ) ) : ?>
@@ -855,13 +843,12 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                         <div class="asd-music-group">
                             <h3 class="asd-music-group-title"><?php echo $music_type === 'OP' ? '片頭曲 OP' : '片尾曲 ED'; ?></h3>
                             <?php foreach ( $music_list as $t ) :
-                                $t_type   = strtoupper( trim( isset( $t['type'] )       ? $t['type']       : '' ) );
-                                $t_title  = trim( isset( $t['song_title'] ) ? $t['song_title'] : ( isset( $t['title'] )  ? $t['title']  : '' ) );
-                                $t_native = trim( isset( $t['native'] )     ? $t['native']     : '' );
-                                $t_artist = trim( isset( $t['artist'] )     ? $t['artist']     : '' );
-                                $t_url    = trim( isset( $t['url'] )        ? $t['url']        : '' );
-                                $badge_class = ( strpos( $t_type, 'OP' ) === 0 ) ? 'asd-music-type-badge--op' : 'asd-music-type-badge--ed';
-                            ?>
+                              $t_type      = strtoupper( trim( isset( $t['type'] )       ? $t['type']       : '' ) );
+$t_title     = trim( isset( $t['song_title'] )              ? $t['song_title'] : '' );
+$t_native    = '';
+$t_artist    = trim( isset( $t['artist'] )                  ? $t['artist']     : '' );
+$t_url       = trim( isset( $t['video_url'] )               ? $t['video_url']  : ( isset( $t['audio_url'] ) ? $t['audio_url'] : '' ) );
+$badge_class = ( strpos( $t_type, 'OP' ) === 0 ) ? 'asd-music-type-badge--op' : 'asd-music-type-badge--ed';  ?>
                                 <div class="asd-music-card-v2">
                                     <span class="asd-music-type-badge <?php echo esc_attr( $badge_class ); ?>"><?php echo esc_html( $t_type ); ?></span>
                                     <div class="asd-music-body">
