@@ -635,7 +635,7 @@ foreach ( $cast_list as $c ) {
         <?php if ( $youtube_id ) : ?><a class="asd-tab" href="#asd-sec-trailer">🎞 預告片</a><?php endif; ?>
         <?php if ( ! empty( $episodes_list ) ) : ?><a class="asd-tab" href="#asd-sec-episodes">📺 集數列表</a><?php endif; ?>
         <?php if ( ! empty( $staff_list ) ) : ?><a class="asd-tab" href="#asd-sec-staff">🎬 STAFF</a><?php endif; ?>
-        <?php if ( ! empty( $cast_main ) ) : ?><a class="asd-tab" href="#asd-sec-cast">🎭 CAST</a><?php endif; ?>
+        <?php if ( ! empty( $cast_to_display ) ) : ?><a class="asd-tab" href="#asd-sec-cast">🎭 CAST</a><?php endif; ?>
         <?php if ( ! empty( $openings ) || ! empty( $endings ) ) : ?><a class="asd-tab" href="#asd-sec-music">🎵 主題曲</a><?php endif; ?>
         <?php if ( ! empty( $faq_items ) ) : ?><a class="asd-tab" href="#asd-sec-faq">❓ 常見問題</a><?php endif; ?>
         <?php if ( $official_site || $twitter_url || $wikipedia_url || $tiktok_url || $anilist_id || $mal_id || $bangumi_id ) : ?>
@@ -894,40 +894,50 @@ foreach ( $cast_list as $c ) {
                             <?php endif; ?>
                         </div>
 
-                       <?php if ( $t_audio_url || $t_video_url ) : ?>
-    <div class="asd-music-player-wrap">
-        <?php if ( $t_video_url ) : ?>
-            <video
-                class="asd-music-native-player"
-                controls
-                playsinline
-                preload="none"
-                src="<?php echo esc_url( $t_video_url ); ?>"
-                style="width:100%;max-width:420px;border-radius:12px;background:#000;"
-            ></video>
-        <?php elseif ( $t_audio_url ) : ?>
-            <audio
-                class="asd-music-native-player"
-                controls
-                preload="none"
-                src="<?php echo esc_url( $t_audio_url ); ?>"
-                style="width:100%;max-width:420px;"
-            ></audio>
-        <?php endif; ?>
+<?php if ( $t_audio_url || $t_video_url ) : ?>
+    <div
+        class="asd-music-player-wrap"
+        data-audio-src="<?php echo esc_url( $t_audio_url ); ?>"
+        data-video-src="<?php echo esc_url( $t_video_url ); ?>"
+    >
+        <audio
+            class="asd-music-audio"
+            preload="none"
+        ></audio>
+
+        <video
+            class="asd-music-video"
+            preload="none"
+            playsinline
+            style="display:none;width:0;height:0;opacity:0;pointer-events:none;"
+        ></video>
+
+        <button class="asd-music-play-btn" type="button" aria-label="播放"></button>
+
+        <div class="asd-music-progress-wrap">
+            <div class="asd-music-progress-bar"></div>
+        </div>
+
+        <span class="asd-music-time">0:00</span>
 
         <?php if ( $open_url ) : ?>
-            <div style="margin-top:8px;">
-                <a
-                    class="asd-music-open-link"
-                    href="<?php echo esc_url( $open_url ); ?>"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    開啟原檔
-                </a>
-            </div>
+            <a
+                class="asd-music-open-link"
+                href="<?php echo esc_url( $open_url ); ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                開啟原檔
+            </a>
         <?php endif; ?>
     </div>
+<?php endif; ?>
+
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endforeach; ?>
+    </section>
 <?php endif; ?>
 
             <?php /* ── 串流平台 ── */ ?>
