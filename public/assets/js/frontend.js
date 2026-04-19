@@ -156,91 +156,54 @@ function initTabs() {
 // 集數 / Staff / Cast 展開收合
 // ========================================
 function initToggleExpand() {
-    bindToggleButtons({
+    bindToggle({
         buttonSelector: '.asd-ep-toggle',
-        hiddenSelector: '.asd-ep-hidden',
+        itemSelector: '.asd-ep-row',
         hiddenClass: 'asd-ep-hidden',
-        allSelector: '.asd-ep-row',
-        defaultVisible: 3,
-        collapsedText: function (count) { return '顯示全部 ' + count + ' 集 ▼'; },
-        expandedText: '收起 ▲'
+        visibleCount: 3,
+        unit: '集'
     });
 
-    bindToggleButtons({
+    bindToggle({
         buttonSelector: '.asd-staff-toggle',
-        hiddenSelector: '.asd-staff-hidden',
+        itemSelector: '.asd-staff-card-v2, .asd-staff-card',
         hiddenClass: 'asd-staff-hidden',
-        allSelector: '.asd-staff-card-v2',
-        defaultVisible: 6,
-        collapsedText: function (count) { return '顯示全部 ' + count + ' 人 ▼'; },
-        expandedText: '收起 ▲'
+        visibleCount: 6,
+        unit: '人'
     });
 
-    bindToggleButtons({
+    bindToggle({
         buttonSelector: '.asd-cast-toggle',
-        hiddenSelector: '.asd-cast-hidden',
+        itemSelector: '.asd-cast-card, .asd-cast-card-v2',
         hiddenClass: 'asd-cast-hidden',
-        allSelector: '.asd-cast-card',
-        defaultVisible: 6,
-        collapsedText: function (count) { return '顯示全部 ' + count + ' 人 ▼'; },
-        expandedText: '收起 ▲'
+        visibleCount: 4,
+        unit: '人'
     });
 
-    function initToggleExpand() {
-    bindToggleButtons({
-        buttonSelector: '.asd-ep-toggle',
-        itemSelector: '.asd-ep-row, [class*="asd-ep-row"]',
-        hiddenClass: 'asd-ep-hidden',
-        countLabel: '集'
-    });
-
-    bindToggleButtons({
-        buttonSelector: '.asd-staff-toggle',
-        itemSelector: '.asd-staff-card-v2, .asd-staff-card, [class*="asd-staff-card"]',
-        hiddenClass: 'asd-staff-hidden',
-        countLabel: '人'
-    });
-
-    bindToggleButtons({
-        buttonSelector: '.asd-cast-toggle',
-        itemSelector: '.asd-cast-card, .asd-cast-card-v2, [class*="asd-cast-card"]',
-        hiddenClass: 'asd-cast-hidden',
-        countLabel: '人'
-    });
-
-    function bindToggleButtons(config) {
-        var buttons = Array.prototype.slice.call(document.querySelectorAll(config.buttonSelector));
+    function bindToggle(config) {
+        var buttons = document.querySelectorAll(config.buttonSelector);
         if (!buttons.length) return;
 
         buttons.forEach(function (btn) {
             var section = btn.closest('section');
             if (!section) return;
 
-            var allItems = Array.prototype.slice.call(section.querySelectorAll(config.itemSelector));
-            if (!allItems.length) return;
+            var items = Array.prototype.slice.call(section.querySelectorAll(config.itemSelector));
+            if (!items.length) return;
 
-            var initialVisibleCount = allItems.filter(function (item) {
-                return !item.classList.contains(config.hiddenClass);
-            }).length;
-
-            if (!initialVisibleCount) {
-                initialVisibleCount = Math.min(4, allItems.length);
-            }
-
-            if (allItems.length <= initialVisibleCount) {
+            if (items.length <= config.visibleCount) {
                 btn.style.display = 'none';
                 return;
             }
 
-            btn.dataset.originalText = '顯示全部 ' + allItems.length + ' ' + config.countLabel + ' ▼';
-            btn.textContent = btn.dataset.originalText;
+            btn.textContent = '顯示全部 ' + items.length + ' ' + config.unit + ' ▼';
 
             btn.addEventListener('click', function () {
                 var expanded = btn.classList.contains('is-expanded');
 
                 if (expanded) {
-                    allItems.forEach(function (item, index) {
-                        if (index >= initialVisibleCount) {
+                    items.forEach(function (item, index) {
+                        if (index >= config.visibleCount) {
                             item.classList.add(config.hiddenClass);
                         } else {
                             item.classList.remove(config.hiddenClass);
@@ -248,7 +211,7 @@ function initToggleExpand() {
                     });
 
                     btn.classList.remove('is-expanded');
-                    btn.textContent = btn.dataset.originalText;
+                    btn.textContent = '顯示全部 ' + items.length + ' ' + config.unit + ' ▼';
 
                     var top = section.getBoundingClientRect().top + window.pageYOffset - getStickyOffset();
                     window.scrollTo({
@@ -256,7 +219,7 @@ function initToggleExpand() {
                         behavior: 'smooth'
                     });
                 } else {
-                    allItems.forEach(function (item) {
+                    items.forEach(function (item) {
                         item.classList.remove(config.hiddenClass);
                     });
 
@@ -285,7 +248,6 @@ function initMusicPlayer() {
     var currentBar = null;
     var currentTime = null;
     var rafId = null;
-    var playToken = 0;
 
     function cancelProgress() {
         if (rafId) {
@@ -332,114 +294,31 @@ function initMusicPlayer() {
         } catch (e) {}
     }
 
-    function setSource(media, src) {
-        if (!media || !src) return false;
-
-        if (media.getAttribute('src') !== src) {
-            media.setAttribute('src', src);
-            media.load();
-        }
-        return true;
-    }
-
-    function getExt(src) {
-        if (!src) return '';
-        var clean = src.split('?')[0].split('#')[0];
-        var parts = clean.split('.');
-        return parts.length > 1 ? parts.pop().toLowerCase() : '';
-    }
-
-    function canPlayAudioSrc(src) {
-        var audio = document.createElement('audio');
-        var ext = getExt(src);
-
-        if (ext === 'ogg' || ext === 'oga') {
-            return !!(audio.canPlayType('audio/ogg; codecs="vorbis"') || audio.canPlayType('audio/ogg'));
-        }
-        if (ext === 'mp3') {
-            return !!audio.canPlayType('audio/mpeg');
-        }
-        if (ext === 'm4a' || ext === 'aac') {
-            return !!(audio.canPlayType('audio/mp4') || audio.canPlayType('audio/aac'));
-        }
-
-        return true;
-    }
-
-    function canPlayVideoSrc(src) {
-        var video = document.createElement('video');
-        var ext = getExt(src);
-
-        if (ext === 'webm') {
-            return !!(video.canPlayType('video/webm; codecs="vp8, vorbis"') || video.canPlayType('video/webm'));
-        }
-        if (ext === 'mp4' || ext === 'm4v') {
-            return !!video.canPlayType('video/mp4');
-        }
-
-        return true;
-    }
-
-    function buildCandidates(wrap) {
-        var candidates = [];
-        var audio = wrap.querySelector('.asd-music-audio');
-        var video = wrap.querySelector('.asd-music-video');
-        var audioSrc = (wrap.dataset.audioSrc || '').trim();
-        var videoSrc = (wrap.dataset.videoSrc || '').trim();
-
-        if (audio && audioSrc) {
-            candidates.push({
-                el: audio,
-                src: audioSrc,
-                kind: 'audio',
-                supported: canPlayAudioSrc(audioSrc)
+    function playAudioFirst(audioEl, audioSrc, videoEl, videoSrc) {
+        function tryAudio() {
+            if (!audioEl || !audioSrc) {
+                return Promise.reject(new Error('no audio src'));
+            }
+            audioEl.src = audioSrc;
+            audioEl.load();
+            return audioEl.play().then(function () {
+                return audioEl;
             });
         }
 
-        if (video && videoSrc) {
-            video.muted = false;
-            video.playsInline = true;
-
-            candidates.push({
-                el: video,
-                src: videoSrc,
-                kind: 'video',
-                supported: canPlayVideoSrc(videoSrc)
+        function tryVideoFallback() {
+            if (!videoEl || !videoSrc) {
+                return Promise.reject(new Error('no video fallback'));
+            }
+            videoEl.src = videoSrc;
+            videoEl.load();
+            return videoEl.play().then(function () {
+                return videoEl;
             });
         }
 
-        candidates.sort(function (a, b) {
-            if (a.supported === b.supported) return 0;
-            return a.supported ? -1 : 1;
-        });
-
-        return candidates;
-    }
-
-    function playOne(candidate) {
-        if (!candidate || !candidate.el || !candidate.src) {
-            return Promise.reject(new Error('empty candidate'));
-        }
-
-        if (!setSource(candidate.el, candidate.src)) {
-            return Promise.reject(new Error('set source failed'));
-        }
-
-        return candidate.el.play().then(function () {
-            return candidate.el;
-        });
-    }
-
-    function playCandidates(candidates, index) {
-        if (!candidates.length || index >= candidates.length) {
-            return Promise.reject(new Error('no playable source'));
-        }
-
-        var candidate = candidates[index];
-
-        return playOne(candidate).catch(function (err) {
-            console.warn('[Anime Sync Pro] source failed:', candidate.kind, candidate.src, err);
-            return playCandidates(candidates, index + 1);
+        return tryAudio().catch(function () {
+            return tryVideoFallback();
         });
     }
 
@@ -450,43 +329,31 @@ function initMusicPlayer() {
         var wrap = btn.closest('.asd-music-player-wrap');
         if (!wrap) return;
 
+        var audio = wrap.querySelector('.asd-music-audio');
+        var video = wrap.querySelector('.asd-music-video');
         var bar = wrap.querySelector('.asd-music-progress-bar');
         var time = wrap.querySelector('.asd-music-time');
         var openLink = wrap.querySelector('.asd-music-open-link');
 
-        var candidates = buildCandidates(wrap);
-        if (!candidates.length) {
-            if (openLink && openLink.href) {
-                window.open(openLink.href, '_blank', 'noopener');
-                return;
-            }
-            alert('此主題曲沒有可播放來源');
-            return;
-        }
+        var audioSrc = (wrap.dataset.audioSrc || '').trim();
+        var videoSrc = (wrap.dataset.videoSrc || '').trim();
 
-        var isSameWrapPlaying = currentMedia && wrap.contains(currentMedia) && !currentMedia.paused;
-        if (isSameWrapPlaying) {
+        var sameWrapPlaying = currentMedia && wrap.contains(currentMedia) && !currentMedia.paused;
+
+        if (sameWrapPlaying) {
             currentMedia.pause();
             resetUI(btn, bar, time);
             cancelProgress();
             return;
         }
 
-        if (currentMedia && currentMedia !== candidates[0].el) {
+        if (currentMedia) {
             stopMedia(currentMedia);
             resetUI(currentBtn, currentBar, currentTime);
             cancelProgress();
         }
 
-        playToken++;
-        var token = playToken;
-
-        playCandidates(candidates, 0).then(function (media) {
-            if (token !== playToken) {
-                stopMedia(media);
-                return;
-            }
-
+        playAudioFirst(audio, audioSrc, video, videoSrc).then(function (media) {
             currentMedia = media;
             currentBtn = btn;
             currentBar = bar;
@@ -510,9 +377,9 @@ function initMusicPlayer() {
             cancelProgress();
 
             if (openLink && openLink.href) {
-                alert('目前瀏覽器不支援 AnimeThemes 的 OGG / WebM 播放，請改用「開啟原檔」。');
+                alert('此瀏覽器無法直接播放此主題曲，請改用「開啟原檔」。');
             } else {
-                alert('目前瀏覽器不支援此音訊格式。');
+                alert('目前無可播放來源。');
             }
         });
     });
