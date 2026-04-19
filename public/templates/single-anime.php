@@ -773,71 +773,77 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                 </section>
             <?php endif; ?>
 
-            <?php /* ── Cast ── */ ?>
-            <?php if ( ! empty( $cast_main ) ) : ?>
-                <section class="asd-section" id="asd-sec-cast">
-                    <h2 class="asd-section-title">🎭 CAST</h2>
-                    <div class="asd-glass-divider"></div>
-                    <div class="asd-cast-grid" id="asd-cast-grid">
-                        <?php foreach ( $cast_main as $i => $c ) :
-                            $c_char_name   = isset( $c['character_name'] )   ? trim( $c['character_name'] )   : '';
-                            $c_char_native = isset( $c['character_native'] ) ? trim( $c['character_native'] ) : '';
-                            $c_char_image  = isset( $c['character_image'] )  ? trim( $c['character_image'] )  : '';
-                            $c_va_name     = isset( $c['va_name'] )          ? trim( $c['va_name'] )          : '';
-                            $c_va_native   = isset( $c['va_native'] )        ? trim( $c['va_native'] )        : '';
-                            $c_va_image    = isset( $c['va_image'] )         ? trim( $c['va_image'] )         : '';
-                            $c_role        = isset( $c['role'] )             ? trim( $c['role'] )             : '';
-                            $c_fb          = function_exists( 'mb_substr' ) ? mb_substr( $c_char_name, 0, 2 ) : substr( $c_char_name, 0, 2 );
-                            $c_va_fb       = function_exists( 'mb_substr' ) ? mb_substr( $c_va_name, 0, 2 )   : substr( $c_va_name, 0, 2 );
-                        ?>
-                            <div class="asd-cast-card<?php echo $i >= 6 ? ' asd-cast-hidden' : ''; ?>">
-                                <div class="asd-cast-avatar-wrap">
-                                    <?php if ( $c_char_image ) : ?>
-                                        <img src="<?php echo esc_url( $c_char_image ); ?>" alt="<?php echo esc_attr( $c_char_name ); ?>" loading="lazy"
-                                             onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
-                                        <div class="asd-cast-avatar-fb" style="display:none"><span><?php echo esc_html( $c_fb ); ?></span></div>
-                                    <?php else : ?>
-                                        <div class="asd-cast-avatar-fb"><span><?php echo esc_html( $c_fb ); ?></span></div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="asd-cast-info">
-                                    <span class="asd-cast-char"><?php echo esc_html( $c_char_name ); ?></span>
-                                    <?php if ( $c_char_native && $c_char_native !== $c_char_name ) : ?>
-                                        <span class="asd-cast-char-native"><?php echo esc_html( $c_char_native ); ?></span>
-                                    <?php endif; ?>
-                                    <?php if ( $c_role ) : ?>
-                                        <span class="asd-cast-role"><?php echo esc_html( $c_role ); ?></span>
-                                    <?php endif; ?>
-                                    <?php if ( $c_va_name ) : ?>
-                                        <div class="asd-cast-va">
-                                            <?php if ( $c_va_image ) : ?>
-                                                <img src="<?php echo esc_url( $c_va_image ); ?>" alt="<?php echo esc_attr( $c_va_name ); ?>" loading="lazy"
-                                                     onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
-                                                <div class="asd-cast-va-fb" style="display:none"><span><?php echo esc_html( $c_va_fb ); ?></span></div>
-                                            <?php else : ?>
-                                                <div class="asd-cast-va-fb"><span><?php echo esc_html( $c_va_fb ); ?></span></div>
-                                            <?php endif; ?>
-                                            <div class="asd-cast-va-info">
-                                                <span class="asd-cast-va-name"><?php echo esc_html( $c_va_name ); ?></span>
-                                                <?php if ( $c_va_native && $c_va_native !== $c_va_name ) : ?>
-                                                    <span class="asd-cast-va-native"><?php echo esc_html( $c_va_native ); ?></span>
-                                                <?php endif; ?>
-                                            </div>
-                                        </div>
+<?php /* ── Cast ── */ ?>
+<?php if ( ! empty( $cast_main ) ) : ?>
+    <section class="asd-section" id="asd-sec-cast">
+        <h2 class="asd-section-title">🎭 CAST</h2>
+        <div class="asd-glass-divider"></div>
+        <div class="asd-cast-grid" id="asd-cast-grid">
+            <?php foreach ( $cast_main as $i => $c ) :
+                $c_char_name   = isset( $c['name'] )   ? trim( $c['name'] )   : '';
+                $c_char_native = isset( $c['native'] ) ? trim( $c['native'] ) : '';
+                $c_char_image  = isset( $c['image'] )  ? trim( $c['image'] )  : '';
+                $va            = ! empty( $c['voice_actors'] ) && is_array( $c['voice_actors'] ) ? $c['voice_actors'][0] : array();
+                $c_va_name     = isset( $va['name'] )   ? trim( $va['name'] )   : '';
+                $c_va_native   = isset( $va['native'] ) ? trim( $va['native'] ) : '';
+                $c_va_image    = isset( $va['image'] )  ? trim( $va['image'] )  : '';
+                $c_role        = isset( $c['role'] )    ? trim( $c['role'] )    : '';
+                $c_fb          = function_exists( 'mb_substr' ) ? mb_substr( $c_char_name, 0, 2 ) : substr( $c_char_name, 0, 2 );
+                $c_va_fb       = function_exists( 'mb_substr' ) ? mb_substr( $c_va_name, 0, 2 )   : substr( $c_va_name, 0, 2 );
+            ?>
+                <div class="asd-cast-card<?php echo $i >= 6 ? ' asd-cast-hidden' : ''; ?>">
+                    <div class="asd-cast-avatar-wrap">
+                        <?php if ( $c_char_image ) : ?>
+                            <img src="<?php echo esc_url( $c_char_image ); ?>"
+                                 alt="<?php echo esc_attr( $c_char_name ); ?>"
+                                 loading="lazy"
+                                 onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+                            <div class="asd-cast-avatar-fb" style="display:none"><span><?php echo esc_html( $c_fb ); ?></span></div>
+                        <?php else : ?>
+                            <div class="asd-cast-avatar-fb"><span><?php echo esc_html( $c_fb ); ?></span></div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="asd-cast-info">
+                        <span class="asd-cast-char"><?php echo esc_html( $c_char_name ); ?></span>
+                        <?php if ( $c_char_native && $c_char_native !== $c_char_name ) : ?>
+                            <span class="asd-cast-char-native"><?php echo esc_html( $c_char_native ); ?></span>
+                        <?php endif; ?>
+                        <?php if ( $c_role ) : ?>
+                            <span class="asd-cast-role"><?php echo esc_html( $c_role ); ?></span>
+                        <?php endif; ?>
+                        <?php if ( $c_va_name ) : ?>
+                            <div class="asd-cast-va">
+                                <?php if ( $c_va_image ) : ?>
+                                    <img src="<?php echo esc_url( $c_va_image ); ?>"
+                                         alt="<?php echo esc_attr( $c_va_name ); ?>"
+                                         loading="lazy"
+                                         onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+                                    <div class="asd-cast-va-fb" style="display:none"><span><?php echo esc_html( $c_va_fb ); ?></span></div>
+                                <?php else : ?>
+                                    <div class="asd-cast-va-fb"><span><?php echo esc_html( $c_va_fb ); ?></span></div>
+                                <?php endif; ?>
+                                <div class="asd-cast-va-info">
+                                    <span class="asd-cast-va-name"><?php echo esc_html( $c_va_name ); ?></span>
+                                    <?php if ( $c_va_native && $c_va_native !== $c_va_name ) : ?>
+                                        <span class="asd-cast-va-native"><?php echo esc_html( $c_va_native ); ?></span>
                                     <?php endif; ?>
                                 </div>
                             </div>
-                        <?php endforeach; ?>
+                        <?php endif; ?>
                     </div>
-                    <?php if ( count( $cast_main ) > 6 ) : ?>
-                        <div style="display:flex;justify-content:center;margin-top:12px;">
-                            <button class="asd-cast-toggle" id="asd-cast-toggle" type="button">
-                                顯示全部 <?php echo count( $cast_main ); ?> 人 ▼
-                            </button>
-                        </div>
-                    <?php endif; ?>
-                </section>
-            <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php if ( count( $cast_main ) > 6 ) : ?>
+            <div style="display:flex;justify-content:center;margin-top:12px;">
+                <button class="asd-cast-toggle" id="asd-cast-toggle" type="button">
+                    顯示全部 <?php echo count( $cast_main ); ?> 人 ▼
+                </button>
+            </div>
+        <?php endif; ?>
+    </section>
+<?php endif; ?>
+
 
             <?php /* ── 主題曲 ── */ ?>
             <?php if ( ! empty( $openings ) || ! empty( $endings ) ) : ?>
