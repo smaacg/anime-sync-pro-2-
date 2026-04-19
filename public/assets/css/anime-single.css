@@ -292,14 +292,19 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
 .asd-wrap .asd-score-pill--bgm .asd-sp-val { color: #FB7185 !important; }
 
 /* Hero sidebar dots 光暈 */
-.asd-hside-dot[style*="--asd-score-al"] {
-  box-shadow: 0 0 6px 2px rgba(99,168,255,.80) !important;
+.asd-wrap .asd-score-pill--al .asd-sp-dot {
+  background: #63A8FF !important;
+  box-shadow: 0 0 4px 1px rgba(99,168,255,.60), 0 0 8px 2px rgba(99,168,255,.30) !important;
 }
-.asd-hside-dot[style*="--asd-score-mal"] {
-  box-shadow: 0 0 6px 2px rgba(143,107,255,.80) !important;
+
+.asd-wrap .asd-score-pill--mal .asd-sp-dot {
+  background: #8F6BFF !important;
+  box-shadow: 0 0 4px 1px rgba(143,107,255,.60), 0 0 8px 2px rgba(143,107,255,.30) !important;
 }
-.asd-hside-dot[style*="--asd-score-bgm"] {
-  box-shadow: 0 0 6px 2px rgba(251,113,133,.80) !important;
+
+.asd-wrap .asd-score-pill--bgm .asd-sp-dot {
+  background: #FB7185 !important;
+  box-shadow: 0 0 4px 1px rgba(251,113,133,.60), 0 0 8px 2px rgba(251,113,133,.30) !important;
 }
 
 /* Action 按鈕 */
@@ -725,7 +730,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-cast-va-native { font-size: .63rem; color: var(--asd-text-dim); }
 
 /* ================================================================
-   15. 主題曲 + 毛玻璃播放器
+   15. 主題曲
    ================================================================ */
 .asd-music-group { margin-bottom: 20px; }
 .asd-music-group:last-child { margin-bottom: 0; }
@@ -735,37 +740,59 @@ nav.asd-tabs a.asd-tab.is-active::after {
   color: var(--asd-text-muted);
   text-transform: uppercase;
   letter-spacing: .5px;
-  margin-bottom: 10px;
+  margin: 0 0 10px 0;
+  padding: 0;
+  border: none;
 }
+
 .asd-music-card-v2 {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 6px 10px;
+  padding: 12px 14px;
   border-radius: var(--asd-radius-md);
   margin-bottom: 8px;
+  border: 1px solid var(--asd-border);
+  background: rgba(255,255,255,.04);
   transition: var(--trans-smooth);
 }
-.asd-music-card-v2:hover { background: rgba(255,255,255,.10) !important; }
+.asd-music-card-v2:hover { background: rgba(255,255,255,.08) !important; }
+
+/* badge：第一行左側 */
 .asd-music-type-badge {
+  order: 1;
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: .68rem;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: .70rem;
   font-weight: 700;
-  letter-spacing: .5px;
+  letter-spacing: 0;
   flex-shrink: 0;
 }
-.asd-music-type-badge--op { background: rgba(99,168,255,.18); color: var(--asd-primary); }
-.asd-music-type-badge--ed { background: rgba(143,107,255,.18); color: #8F6BFF; }
-.asd-music-body  { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.asd-music-title  { font-size: .88rem; font-weight: 600; color: var(--asd-text); }
+.asd-music-type-badge--op { background: rgba(99,168,255,.22); color: var(--asd-primary); }
+.asd-music-type-badge--ed { background: rgba(143,107,255,.22); color: #A78BFA; }
+
+/* 歌名區：第一行佔剩餘空間 */
+.asd-music-body {
+  order: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.asd-music-title  { font-size: .90rem; font-weight: 700; color: var(--asd-text); }
 .asd-music-native { font-size: .75rem; color: var(--asd-text-dim); }
 .asd-music-artist { font-size: .78rem; color: var(--asd-text-muted); }
 
-/* 毛玻璃播放器 */
+/* 播放器：獨占第二行 */
 .asd-music-player-wrap {
+  order: 3;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -775,11 +802,10 @@ nav.asd-tabs a.asd-tab.is-active::after {
   border: 1px solid rgba(255,255,255,.10);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  flex-shrink: 0;
-  min-width: 140px;
 }
 .asd-music-play-btn {
-  width: 28px; height: 28px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 1px solid rgba(99,168,255,.40);
   background: rgba(99,168,255,.12);
@@ -817,7 +843,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
   color: var(--asd-text-dim);
   white-space: nowrap;
   flex-shrink: 0;
-  min-width: 28px;
+  min-width: 36px;
   text-align: right;
 }
 
