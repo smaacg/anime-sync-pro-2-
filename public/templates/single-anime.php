@@ -842,13 +842,14 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                         <?php if ( empty( $music_list ) ) continue; ?>
                         <div class="asd-music-group">
                             <h3 class="asd-music-group-title"><?php echo $music_type === 'OP' ? '片頭曲 OP' : '片尾曲 ED'; ?></h3>
-                            <?php foreach ( $music_list as $t ) :
-                              $t_type      = strtoupper( trim( isset( $t['type'] )       ? $t['type']       : '' ) );
-$t_title     = trim( isset( $t['song_title'] )              ? $t['song_title'] : '' );
-$t_native    = '';
-$t_artist    = trim( isset( $t['artist'] )                  ? $t['artist']     : '' );
-$t_url       = trim( isset( $t['video_url'] )               ? $t['video_url']  : ( isset( $t['audio_url'] ) ? $t['audio_url'] : '' ) );
-$badge_class = ( strpos( $t_type, 'OP' ) === 0 ) ? 'asd-music-type-badge--op' : 'asd-music-type-badge--ed';  ?>
+                       <?php foreach ( $music_list as $t ) :
+    $t_type      = strtoupper( trim( isset( $t['type'] )       ? $t['type']       : '' ) );
+    $t_title     = trim( isset( $t['song_title'] )             ? $t['song_title'] : '' );
+    $t_native    = '';
+    $t_artist    = trim( isset( $t['artist'] )                 ? $t['artist']     : '' );
+    $t_url       = trim( isset( $t['audio_url'] ) && $t['audio_url'] !== '' ? $t['audio_url'] : ( isset( $t['video_url'] ) ? $t['video_url'] : '' ) );
+    $badge_class = ( strpos( $t_type, 'OP' ) === 0 ) ? 'asd-music-type-badge--op' : 'asd-music-type-badge--ed';
+?>
                                 <div class="asd-music-card-v2">
                                     <span class="asd-music-type-badge <?php echo esc_attr( $badge_class ); ?>"><?php echo esc_html( $t_type ); ?></span>
                                     <div class="asd-music-body">
@@ -862,9 +863,16 @@ $badge_class = ( strpos( $t_type, 'OP' ) === 0 ) ? 'asd-music-type-badge--op' : 
                                             <span class="asd-music-artist">by <?php echo esc_html( $t_artist ); ?></span>
                                         <?php endif; ?>
                                     </div>
-                                    <?php if ( $t_url ) : ?>
-                                        <a href="<?php echo esc_url( $t_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-music-player">▶</a>
-                                    <?php endif; ?>
+                                 <?php if ( $t_url ) : ?>
+    <div class="asd-music-player-wrap">
+        <audio class="asd-music-audio" preload="none" src="<?php echo esc_url( $t_url ); ?>"></audio>
+        <button class="asd-music-play-btn" type="button" aria-label="播放"></button>
+        <div class="asd-music-progress-wrap">
+            <div class="asd-music-progress-bar"></div>
+        </div>
+        <span class="asd-music-time">0:00</span>
+    </div>
+<?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
