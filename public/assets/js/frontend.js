@@ -186,6 +186,28 @@ function initToggleExpand() {
         expandedText: '收起 ▲'
     });
 
+    function initToggleExpand() {
+    bindToggleButtons({
+        buttonSelector: '.asd-ep-toggle',
+        itemSelector: '.asd-ep-row, [class*="asd-ep-row"]',
+        hiddenClass: 'asd-ep-hidden',
+        countLabel: '集'
+    });
+
+    bindToggleButtons({
+        buttonSelector: '.asd-staff-toggle',
+        itemSelector: '.asd-staff-card-v2, .asd-staff-card, [class*="asd-staff-card"]',
+        hiddenClass: 'asd-staff-hidden',
+        countLabel: '人'
+    });
+
+    bindToggleButtons({
+        buttonSelector: '.asd-cast-toggle',
+        itemSelector: '.asd-cast-card, .asd-cast-card-v2, [class*="asd-cast-card"]',
+        hiddenClass: 'asd-cast-hidden',
+        countLabel: '人'
+    });
+
     function bindToggleButtons(config) {
         var buttons = Array.prototype.slice.call(document.querySelectorAll(config.buttonSelector));
         if (!buttons.length) return;
@@ -194,27 +216,34 @@ function initToggleExpand() {
             var section = btn.closest('section');
             if (!section) return;
 
-            var allItems = Array.prototype.slice.call(section.querySelectorAll(config.allSelector));
+            var allItems = Array.prototype.slice.call(section.querySelectorAll(config.itemSelector));
             if (!allItems.length) return;
 
-            var hiddenItems = Array.prototype.slice.call(section.querySelectorAll(config.hiddenSelector));
-            if (!hiddenItems.length) return;
+            var initialVisibleCount = allItems.filter(function (item) {
+                return !item.classList.contains(config.hiddenClass);
+            }).length;
 
-            var totalCount = allItems.length;
-            var initialText = typeof config.collapsedText === 'function'
-                ? config.collapsedText(totalCount)
-                : config.collapsedText;
+            if (!initialVisibleCount) {
+                initialVisibleCount = Math.min(4, allItems.length);
+            }
 
-            btn.dataset.originalText = initialText;
-            btn.textContent = initialText;
+            if (allItems.length <= initialVisibleCount) {
+                btn.style.display = 'none';
+                return;
+            }
+
+            btn.dataset.originalText = '顯示全部 ' + allItems.length + ' ' + config.countLabel + ' ▼';
+            btn.textContent = btn.dataset.originalText;
 
             btn.addEventListener('click', function () {
                 var expanded = btn.classList.contains('is-expanded');
 
                 if (expanded) {
                     allItems.forEach(function (item, index) {
-                        if (index >= config.defaultVisible) {
+                        if (index >= initialVisibleCount) {
                             item.classList.add(config.hiddenClass);
+                        } else {
+                            item.classList.remove(config.hiddenClass);
                         }
                     });
 
@@ -232,7 +261,7 @@ function initToggleExpand() {
                     });
 
                     btn.classList.add('is-expanded');
-                    btn.textContent = config.expandedText;
+                    btn.textContent = '收起 ▲';
                 }
             });
         });
