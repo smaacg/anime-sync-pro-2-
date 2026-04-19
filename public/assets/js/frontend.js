@@ -176,7 +176,7 @@ function initToggleExpand() {
         buttonSelector: '.asd-cast-toggle',
         itemSelector: '.asd-cast-card, .asd-cast-card-v2',
         hiddenClass: 'asd-cast-hidden',
-        visibleCount: 4,
+        visibleCount: 6,
         unit: '人'
     });
 
