@@ -1213,3 +1213,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
   nav.asd-tabs { gap: 1px !important; }
   nav.asd-tabs a.asd-tab { padding: 0 8px !important; font-size: .72rem !important; }
 }
+.asd-section,
+#comments {
+  scroll-margin-top: 72px;
+}
