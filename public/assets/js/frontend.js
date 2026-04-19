@@ -155,15 +155,13 @@ function initTabs() {
 // ========================================
 // 集數 / Staff / Cast 展開收合
 // ========================================
-// ========================================
-// 集數 / Staff / Cast 展開收合
-// ========================================
 function initToggleExpand() {
     bindToggleButtons({
         buttonSelector: '.asd-ep-toggle',
         hiddenSelector: '.asd-ep-hidden',
         hiddenClass: 'asd-ep-hidden',
         allSelector: '.asd-ep-row',
+        defaultVisible: 3,
         collapsedText: function (count) { return '顯示全部 ' + count + ' 集 ▼'; },
         expandedText: '收起 ▲'
     });
@@ -173,6 +171,7 @@ function initToggleExpand() {
         hiddenSelector: '.asd-staff-hidden',
         hiddenClass: 'asd-staff-hidden',
         allSelector: '.asd-staff-card-v2',
+        defaultVisible: 6,
         collapsedText: function (count) { return '顯示全部 ' + count + ' 人 ▼'; },
         expandedText: '收起 ▲'
     });
@@ -182,6 +181,7 @@ function initToggleExpand() {
         hiddenSelector: '.asd-cast-hidden',
         hiddenClass: 'asd-cast-hidden',
         allSelector: '.asd-cast-card',
+        defaultVisible: 6,
         collapsedText: function (count) { return '顯示全部 ' + count + ' 人 ▼'; },
         expandedText: '收起 ▲'
     });
@@ -194,8 +194,10 @@ function initToggleExpand() {
             var section = btn.closest('section');
             if (!section) return;
 
-            var hiddenItems = Array.prototype.slice.call(section.querySelectorAll(config.hiddenSelector));
             var allItems = Array.prototype.slice.call(section.querySelectorAll(config.allSelector));
+            if (!allItems.length) return;
+
+            var hiddenItems = Array.prototype.slice.call(section.querySelectorAll(config.hiddenSelector));
             if (!hiddenItems.length) return;
 
             var totalCount = allItems.length;
@@ -203,26 +205,15 @@ function initToggleExpand() {
                 ? config.collapsedText(totalCount)
                 : config.collapsedText;
 
-            if (!btn.dataset.originalText) {
-                btn.dataset.originalText = initialText;
-                btn.textContent = initialText;
-            }
+            btn.dataset.originalText = initialText;
+            btn.textContent = initialText;
 
             btn.addEventListener('click', function () {
                 var expanded = btn.classList.contains('is-expanded');
-                var items = Array.prototype.slice.call(section.querySelectorAll('.' + config.hiddenClass));
 
                 if (expanded) {
                     allItems.forEach(function (item, index) {
-                        var keepVisible = false;
-
-                        if (config.hiddenClass === 'asd-ep-hidden') {
-                            keepVisible = index < 3;
-                        } else {
-                            keepVisible = index < 6;
-                        }
-
-                        if (!keepVisible) {
+                        if (index >= config.defaultVisible) {
                             item.classList.add(config.hiddenClass);
                         }
                     });
@@ -236,7 +227,7 @@ function initToggleExpand() {
                         behavior: 'smooth'
                     });
                 } else {
-                    items.forEach(function (item) {
+                    allItems.forEach(function (item) {
                         item.classList.remove(config.hiddenClass);
                     });
 
@@ -253,10 +244,6 @@ function initToggleExpand() {
     }
 }
 
-
-// ========================================
-// 音樂播放器
-// ========================================
 // ========================================
 // 音樂播放器
 // ========================================
