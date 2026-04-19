@@ -93,44 +93,33 @@
         });
     }
 
-    // ========================================
-    // 集數 / Staff / Cast 展開
-    // ========================================
-    function initToggleExpand() {
+// ========================================
+// 集數 / Staff / Cast 展開
+// ========================================
+function initToggleExpand() {
 
-        // ── 集數展開 ──
-        $(document).on('click', '.asd-ep-toggle', function () {
-            var $btn = $(this);
-            var $list = $('#asd-ep-list');
-            if ($list.length === 0) {
-                $list = $btn.closest('section').find('.asd-ep-list');
-            }
-            $list.find('.asd-ep-hidden').each(function () {
-                $(this).removeClass('asd-ep-hidden');
-            });
-            $btn.fadeOut(200);
-        });
+    // ── 集數展開 ──
+    $(document).on('click', '.asd-ep-toggle', function () {
+        var $btn = $(this);
+        $('#asd-ep-list .asd-ep-hidden').removeClass('asd-ep-hidden');
+        $btn.closest('div').fadeOut(200);
+    });
 
-        // ── Staff 展開 ──
-        $(document).on('click', '.asd-staff-toggle', function () {
-            var $btn = $(this);
-            var $section = $btn.closest('section');
-            $section.find('.asd-staff-hidden').each(function () {
-                $(this).removeClass('asd-staff-hidden');
-            });
-            $btn.fadeOut(200);
-        });
+    // ── Staff 展開 ──
+    $(document).on('click', '.asd-staff-toggle', function () {
+        var $btn = $(this);
+        $('#asd-staff-grid .asd-staff-hidden').removeClass('asd-staff-hidden');
+        $btn.closest('div').fadeOut(200);
+    });
 
-        // ── Cast 展開 ──
-        $(document).on('click', '.asd-cast-toggle', function () {
-            var $btn = $(this);
-            var $section = $btn.closest('section');
-            $section.find('.asd-cast-hidden').each(function () {
-                $(this).removeClass('asd-cast-hidden');
-            });
-            $btn.fadeOut(200);
-        });
-    }
+    // ── Cast 展開 ──
+    $(document).on('click', '.asd-cast-toggle', function () {
+        var $btn = $(this);
+        $('#asd-cast-grid .asd-cast-hidden').removeClass('asd-cast-hidden');
+        $btn.closest('div').fadeOut(200);
+    });
+}
+
 
     // ========================================
     // 音樂播放器
