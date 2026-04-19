@@ -521,7 +521,7 @@ class Anime_Sync_Admin {
     }
 
     // =========================================================================
-    // AJAX：系列缺口掃描（ACI 新增）
+    // AJAX：系列缺口掃描（ACI 新增，ACI v2 修正：只掃描選擇的文章）
     // =========================================================================
 
     public function handle_ajax_scan_series_gaps(): void {
@@ -533,12 +533,24 @@ class Anime_Sync_Admin {
         $force     = ! empty( $_POST['force'] );
         $cache_key = 'anime_sync_series_gaps';
 
-        // 未強制更新時，優先回傳快取
+        // ACI v2 修正：取得前端傳遞的選擇文章 ID（勾選的）
+        $selected_ids_str = isset( $_POST['selected_ids'] ) ? sanitize_text_field( $_POST['selected_ids'] ) : '';
+        $selected_ids = [];
+        if ( ! empty( $selected_ids_str ) ) {
+            $selected_ids = array_filter( array_map( 'intval', explode( ',', $selected_ids_str ) ) );
+        }
+
+        // 如果沒有選擇文章，回傳錯誤
+        if ( empty( $selected_ids ) ) {
+            wp_send_json_error( '請先在審核列表勾選要掃描的動畫作品' );
+        }
+
+        // 未強制更新時，優先回傳快取（但必須是相同選擇的文章）
         if ( ! $force ) {
-            $cached = get_transient( $cache_key );
-            if ( false !== $cached ) {
+            $cached = get_transient( $cache_key . '_selected' );
+            if ( false !== $cached && ! empty( $cached['ids'] ) && $cached['ids'] === $selected_ids ) {
                 wp_send_json_success( [
-                    'gaps'      => $cached,
+                    'gaps'      => $cached['gaps'],
                     'cached'    => true,
                     'cached_at' => get_option( 'anime_sync_series_gaps_time', '' ),
                 ] );
@@ -548,13 +560,14 @@ class Anime_Sync_Admin {
         $relation_types = [ 'PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'SPIN_OFF' ];
         $gaps           = [];
 
-        // 取所有已發布動畫 ID
+        // ACI v2：只取選擇的文章 ID
         $posts = get_posts( [
-            'post_type'      => 'anime',
-            'post_status'    => 'publish',
+            'post__in'        => $selected_ids,
+            'post_type'       => 'anime',
+            'post_status'     => [ 'publish', 'draft' ],
             'posts_per_page' => -1,
             'fields'         => 'ids',
-            'no_found_rows'  => true,
+            'no_found_rows'   => true,
         ] );
 
         foreach ( $posts as $post_id ) {
@@ -563,6 +576,11 @@ class Anime_Sync_Admin {
 
             $relations = json_decode( $relations_raw, true );
             if ( ! is_array( $relations ) ) continue;
+
+            // 取得來源文章的基本資訊
+            $source_title = get_post_meta( $post_id, 'anime_title_chinese', true )
+                            ?: get_the_title( $post_id );
+            $source_anilist_id = get_post_meta( $post_id, 'anime_anilist_id', true );
 
             foreach ( $relations as $rel ) {
                 $type = strtoupper( $rel['relation_type'] ?? '' );
@@ -587,12 +605,27 @@ class Anime_Sync_Admin {
                 ] );
 
                 if ( empty( $existing ) ) {
+                    // 關聯類型中文對照
+                    $relation_type_cn = [
+                        'PREQUEL'     => '前傳',
+                        'SEQUEL'      => '續集',
+                        'PARENT'      => '主系列',
+                        'SIDE_STORY'  => '外傳',
+                        'SPIN_OFF'    => '衍生作品',
+                        'ALTERNATIVE' => '平行世界',
+                        'CHARACTER'   => '角色衍生',
+                        'SUMMARY'     => '總集篇',
+                        'OTHER'       => '其他',
+                    ];
+                    $type_cn = $relation_type_cn[ $type ] ?? $type;
+
                     $gaps[] = [
                         'source_id'          => $post_id,
-                        'source_title'       => get_post_meta( $post_id, 'anime_title_chinese', true )
-                                                ?: get_the_title( $post_id ),
+                        'source_title'       => $source_title,
+                        'source_anilist_id'  => $source_anilist_id,
                         'source_url'         => get_edit_post_link( $post_id ),
                         'relation_type'      => $type,
+                        'relation_type_cn'   => $type_cn,
                         'missing_anilist_id' => $rel_anilist_id,
                         'missing_title'      => $rel['title'] ?? '',
                     ];
@@ -601,7 +634,8 @@ class Anime_Sync_Admin {
 
         } // end foreach $posts
 
-        // 寫入快取（6 小時）
+        // 寫入快取（6 小時）- 使用選擇的文章 ID 作為快取的一部分
+        set_transient( $cache_key . '_selected', [ 'ids' => $selected_ids, 'gaps' => $gaps ], 6 * HOUR_IN_SECONDS );
         set_transient( $cache_key, $gaps, 6 * HOUR_IN_SECONDS );
         update_option( 'anime_sync_series_gaps_time', current_time( 'mysql' ) );
 
@@ -609,6 +643,7 @@ class Anime_Sync_Admin {
             'gaps'      => $gaps,
             'cached'    => false,
             'cached_at' => current_time( 'mysql' ),
+            'total'     => count( $gaps ),
         ] );
     }
 
