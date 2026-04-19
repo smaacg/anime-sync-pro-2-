@@ -621,7 +621,7 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
 </div>
 
 
-    <div class="asd-container<?php echo $has_sidebar_content ? ' asd-container--has-sidebar' : ''; ?>">
+    <div class="asd-container asd-container--has-sidebar">
 
         <main class="asd-main" id="asd-main">
 
