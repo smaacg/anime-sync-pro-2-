@@ -927,28 +927,30 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                 </section>
             <?php endif; ?>
 
-            <?php /* ── FAQ ── */ ?>
-            <?php if ( ! empty( $faq_items ) ) : ?>
-                <section class="asd-section" id="asd-sec-faq">
-                    <h2 class="asd-section-title">❓ 常見問題</h2>
-                    <div class="asd-glass-divider"></div>
-                    <div class="asd-faq-list">
-                        <?php foreach ( $faq_items as $f ) :
-                            if ( empty( $f['q'] ) || empty( $f['a'] ) ) continue;
-                        ?>
-                            <div class="asd-faq-item">
-                                <button class="asd-faq-question" type="button">
-                                    <span><?php echo esc_html( $f['q'] ); ?></span>
-                                    <span class="asd-faq-icon">＋</span>
-                                </button>
-                                <div class="asd-faq-answer">
-                                    <?php echo wp_kses_post( wpautop( $f['a'] ) ); ?>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
+    <?php /* ── FAQ ── */ ?>
+<?php if ( ! empty( $faq_items ) ) : ?>
+    <section class="asd-section" id="asd-sec-faq">
+        <h2 class="asd-section-title">❓ 常見問題</h2>
+        <div class="asd-glass-divider"></div>
+        <div class="asd-faq-list">
+            <?php foreach ( $faq_items as $f ) :
+                if ( empty( $f['q'] ) || empty( $f['a'] ) ) continue;
+            ?>
+                <div class="asd-faq-item">
+                    <div class="asd-faq-q">
+                        <span class="asd-faq-q-label">Q.</span>
+                        <span class="asd-faq-q-text"><?php echo esc_html( $f['q'] ); ?></span>
                     </div>
-                </section>
-            <?php endif; ?>
+                    <div class="asd-faq-a">
+                        <span class="asd-faq-a-label">A.</span>
+                        <div class="asd-faq-a-text"><?php echo wp_kses_post( wpautop( $f['a'] ) ); ?></div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </section>
+<?php endif; ?>
+
 
             <?php /* ── 外部連結 ── */ ?>
             <?php if ( $official_site || $twitter_url || $wikipedia_url || $tiktok_url || $anilist_id || $mal_id || $bangumi_id ) : ?>
