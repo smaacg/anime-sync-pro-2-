@@ -669,12 +669,11 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                     <div class="asd-synopsis"><?php echo wp_kses_post( wpautop( $synopsis ) ); ?></div>
                 </section>
             <?php endif; ?>
-
             <?php /* ── 預告片 ── */ ?>
             <?php if ( $youtube_id ) : ?>
                 <section class="asd-section" id="asd-sec-trailer">
                     <h2 class="asd-section-title">🎞 預告片</h2>
-                                    <div class="asd-glass-divider"></div>
+                    <div class="asd-glass-divider"></div>
                     <div class="asd-trailer-wrap">
                         <iframe
                             src="https://www.youtube.com/embed/<?php echo esc_attr( $youtube_id ); ?>?rel=0&modestbranding=1"
@@ -687,16 +686,45 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
                 </section>
             <?php endif; ?>
 
-        <?php /* ── 集數展開按鈕 ── */ ?>
-<?php if ( count( $episodes_list ) > 3 ) : ?>
-    <div style="display:flex;justify-content:center;margin-top:12px;">
-        <button class="asd-ep-toggle" id="asd-ep-toggle" type="button">
-            顯示全部 <?php echo count( $episodes_list ); ?> 集 ▼
-        </button>
-    </div>
-<?php endif; ?>
-</section>
-<?php endif; ?>
+            <?php /* ── 集數列表 ── */ ?>
+            <?php if ( ! empty( $episodes_list ) ) : ?>
+                <section class="asd-section" id="asd-sec-episodes">
+                    <h2 class="asd-section-title">📺 集數列表</h2>
+                    <div class="asd-glass-divider"></div>
+                    <div class="asd-ep-list" id="asd-ep-list">
+                        <?php foreach ( $episodes_list as $i => $ep ) :
+                            $ep_num     = isset( $ep['ep'] ) ? (int) $ep['ep'] : 0;
+                            $ep_name_cn = trim( isset( $ep['name_cn'] ) ? $ep['name_cn'] : '' );
+                            $ep_name_ja = trim( isset( $ep['name'] ) ? $ep['name'] : '' );
+                            $ep_airdate = isset( $ep['airdate'] ) ? $ep['airdate'] : '';
+                            if ( $ep_name_cn !== '' && class_exists( 'Anime_Sync_CN_Converter' ) ) {
+                                $ep_name_cn = Anime_Sync_CN_Converter::static_convert( $ep_name_cn );
+                            }
+                            $ep_name = $ep_name_cn ? $ep_name_cn : $ep_name_ja;
+                        ?>
+                            <div class="asd-ep-row<?php echo $i >= 3 ? ' asd-ep-hidden' : ''; ?>">
+                                <span class="asd-ep-num">第 <?php echo esc_html( $ep_num ); ?> 集</span>
+                                <span class="asd-ep-title">
+                                    <?php echo esc_html( $ep_name ); ?>
+                                    <?php if ( $ep_name_cn && $ep_name_ja && $ep_name_cn !== $ep_name_ja ) : ?>
+                                        <small class="asd-ep-title-ja"><?php echo esc_html( $ep_name_ja ); ?></small>
+                                    <?php endif; ?>
+                                </span>
+                                <?php if ( $ep_airdate ) : ?>
+                                    <span class="asd-ep-date"><?php echo esc_html( $ep_airdate ); ?></span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php if ( count( $episodes_list ) > 3 ) : ?>
+                        <div style="display:flex;justify-content:center;margin-top:12px;">
+                            <button class="asd-ep-toggle" id="asd-ep-toggle" type="button">
+                                顯示全部 <?php echo count( $episodes_list ); ?> 集 ▼
+                            </button>
+                        </div>
+                    <?php endif; ?>
+                </section>
+            <?php endif; ?>
 
             <?php /* ── STAFF ── */ ?>
             <?php if ( ! empty( $staff_list ) ) : ?>
