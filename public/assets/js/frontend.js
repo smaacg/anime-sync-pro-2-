@@ -21,7 +21,7 @@ function asdInit() {
     safeInit('lazy-load', initLazyLoad);
     safeInit('tabs', initTabs);
     safeInit('toggle-expand', initToggleExpand);
-    safeInit('music-player', initMusicPlayer);
+    // safeInit('music-player', initMusicPlayer);
     safeInit('countdown', initCountdown);
 
     window.__asdFrontendInited = true;
