@@ -1106,7 +1106,6 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
 
             <?php /* ── 5. 贊助區域 ── */ ?>
             <div class="asd-side-section asd-sponsor-block">
-                <div class="asd-sponsor-icon">☕</div>
                 <div class="asd-sponsor-title">支持微笑動漫</div>
                 <div class="asd-sponsor-desc">
                     喜歡這部作品的資訊嗎？微笑動漫每天整合來自全球三大資料庫的動漫情報，全靠社群支持維持運作。你的咖啡讓我們繼續走下去 ☕
