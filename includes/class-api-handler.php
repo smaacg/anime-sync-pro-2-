@@ -1328,10 +1328,11 @@ private function get_bgm_staff( int $bangumi_id ): array {
             'filter[has]'         => 'resources',
             'filter[site]'        => 'MyAnimeList',
             'filter[external_id]' => $mal_id,
-            'include'             => 'animethemes.animethemeentries.videos.audio,animethemes.song',
+            'include'             => 'animethemes.animethemeentries.videos.audio,animethemes.song.artists',
             'fields[anime]'       => 'slug',
             'fields[animetheme]'  => 'type,sequence,slug',
             'fields[song]'        => 'title',
+            'fields[artist]'      => 'name',
             'fields[video]'       => 'link,resolution',
             'fields[audio]'       => 'link',
         ], self::ANIMETHEMES_URL ), [
@@ -1356,15 +1357,21 @@ private function get_bgm_staff( int $bangumi_id ): array {
             $audio_url = $video['audio']['link']        ?? '';
             $video_url = $video['link']                 ?? '';
 
-            $themes[] = [
-                'type'       => $theme['type']          ?? '',
-                'sequence'   => $theme['sequence']      ?? 1,
-                'slug'       => $theme['slug']          ?? '',
-                'song_title' => $theme['song']['title'] ?? '',
-                'audio_url'  => $audio_url,
-                'video_url'  => $video_url,
-                'resolution' => $video['resolution']    ?? '',
-            ];
+         $artists = [];
+foreach ( $theme['song']['artists'] ?? [] as $a ) {
+    $artists[] = $a['name'] ?? '';
+}
+
+$themes[] = [
+    'type'       => $theme['type']          ?? '',
+    'sequence'   => $theme['sequence']      ?? 1,
+    'slug'       => $theme['slug']          ?? '',
+    'song_title' => $theme['song']['title'] ?? '',
+    'artist'     => implode( ', ', $artists ),
+    'audio_url'  => $audio_url,
+    'video_url'  => $video_url,
+    'resolution' => $video['resolution']    ?? '',
+];
         }
 
         $result = [ 'slug' => $slug, 'themes' => $themes ];
