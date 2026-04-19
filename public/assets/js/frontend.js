@@ -6,22 +6,46 @@
 
 'use strict';
 
-function asdInit() {
-    if (window.__asdFrontendInited) return;
-    window.__asdFrontendInited = true;
-
-    initLazyLoad();
-    initTabs();
-    initToggleExpand();
-    initMusicPlayer();
-    initCountdown();
+function safeInit(name, fn) {
+    try {
+        fn();
+    } catch (err) {
+        console.error('[Anime Sync Pro] init failed:', name, err);
+    }
 }
 
+function asdInit() {
+    if (window.__asdFrontendInited) return;
+    if (!document.body) return;
+
+    safeInit('lazy-load', initLazyLoad);
+    safeInit('tabs', initTabs);
+    safeInit('toggle-expand', initToggleExpand);
+    safeInit('music-player', initMusicPlayer);
+    safeInit('countdown', initCountdown);
+
+    window.__asdFrontendInited = true;
+    window.__asdFrontendBootedAt = Date.now();
+
+    if (window.animeSyncData && window.animeSyncData.debug) {
+        console.info('[Anime Sync Pro] frontend booted');
+    }
+}
+
+window.asdInit = asdInit;
+
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', asdInit);
+    document.addEventListener('DOMContentLoaded', asdInit, { once: true });
 } else {
     asdInit();
 }
+
+window.addEventListener('load', asdInit, { once: true });
+window.addEventListener('pageshow', function () {
+    if (!window.__asdFrontendInited) {
+        asdInit();
+    }
+});
 
 // ========================================
 // 圖片 Lazy Load
