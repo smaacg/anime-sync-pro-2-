@@ -8,10 +8,11 @@
 (function($) {
     'use strict';
 
-    $(document).ready(function() {
-        initLazyLoad();
-        initStickyTabs();
-    });
+   $(document).ready(function() {
+    initLazyLoad();
+    initStickyTabs();
+    initToggleExpand(); // ← 加這行
+});
 
     // ========================================
     // 圖片 Lazy Load
@@ -54,5 +55,30 @@
             }
         });
     }
+    // ========================================
+// 集數 / Staff / Cast 展開
+// ========================================
+function initToggleExpand() {
+
+    // 集數展開
+    $(document).on('click', '.asd-ep-toggle', function() {
+        $('#asd-ep-list .asd-ep-hidden').removeClass('asd-ep-hidden');
+        $(this).hide();
+    });
+
+    // Staff 展開
+    $(document).on('click', '.asd-staff-toggle', function() {
+        var $grid = $(this).closest('section').find('.asd-staff-hidden');
+        $grid.removeClass('asd-staff-hidden');
+        $(this).hide();
+    });
+
+    // Cast 展開
+    $(document).on('click', '.asd-cast-toggle', function() {
+        var $grid = $(this).closest('section').find('.asd-cast-hidden');
+        $grid.removeClass('asd-cast-hidden');
+        $(this).hide();
+    });
+}
 
 })(jQuery);
