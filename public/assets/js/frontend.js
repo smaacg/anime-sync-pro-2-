@@ -101,22 +101,28 @@ function initToggleExpand() {
     // ── 集數展開 ──
     $(document).on('click', '.asd-ep-toggle', function () {
         var $btn = $(this);
-        $('#asd-ep-list .asd-ep-hidden').removeClass('asd-ep-hidden');
-        $btn.closest('div').fadeOut(200);
+        // 用 class selector，避免 ID 對不上
+        $('.asd-ep-list .asd-ep-hidden').removeClass('asd-ep-hidden');
+        // 只 fadeOut 按鈕本身，不影響 list 容器
+        $btn.fadeOut(200);
     });
 
-    // ── Staff 展開 ──
+    // ── Staff 展開（改用 class selector）──
     $(document).on('click', '.asd-staff-toggle', function () {
         var $btn = $(this);
-        $('#asd-staff-grid .asd-staff-hidden').removeClass('asd-staff-hidden');
-        $btn.closest('div').fadeOut(200);
+        // 修正：PHP 容器是 .asd-staff-grid-v2，沒有 ID
+        var $grid = $btn.closest('section').find('.asd-staff-grid-v2');
+        $grid.find('.asd-staff-hidden').removeClass('asd-staff-hidden');
+        $btn.fadeOut(200);
     });
 
-    // ── Cast 展開 ──
+    // ── Cast 展開（改用 class selector）──
     $(document).on('click', '.asd-cast-toggle', function () {
         var $btn = $(this);
-        $('#asd-cast-grid .asd-cast-hidden').removeClass('asd-cast-hidden');
-        $btn.closest('div').fadeOut(200);
+        // 修正：PHP 容器是 .asd-cast-grid 或 .asd-cast-grid-v2
+        var $grid = $btn.closest('section').find('.asd-cast-grid, .asd-cast-grid-v2');
+        $grid.find('.asd-cast-hidden').removeClass('asd-cast-hidden');
+        $btn.fadeOut(200);
     });
 }
 
