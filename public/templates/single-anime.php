@@ -894,55 +894,40 @@ foreach ( $cast_list as $c ) {
                             <?php endif; ?>
                         </div>
 
-                        <?php if ( $t_audio_url || $t_video_url ) : ?>
-                            <div
-                                class="asd-music-player-wrap"
-                                data-audio-src="<?php echo esc_url( $t_audio_url ); ?>"
-                                data-video-src="<?php echo esc_url( $t_video_url ); ?>"
-                            >
-                                <?php if ( $t_audio_url ) : ?>
-                                    <audio
-                                        class="asd-music-audio"
-                                        preload="none"
-                                        crossorigin="anonymous"
-                                    ></audio>
-                                <?php endif; ?>
+                       <?php if ( $t_audio_url || $t_video_url ) : ?>
+    <div class="asd-music-player-wrap">
+        <?php if ( $t_video_url ) : ?>
+            <video
+                class="asd-music-native-player"
+                controls
+                playsinline
+                preload="none"
+                src="<?php echo esc_url( $t_video_url ); ?>"
+                style="width:100%;max-width:420px;border-radius:12px;background:#000;"
+            ></video>
+        <?php elseif ( $t_audio_url ) : ?>
+            <audio
+                class="asd-music-native-player"
+                controls
+                preload="none"
+                src="<?php echo esc_url( $t_audio_url ); ?>"
+                style="width:100%;max-width:420px;"
+            ></audio>
+        <?php endif; ?>
 
-                                <?php if ( $t_video_url ) : ?>
-                                    <video
-                                        class="asd-music-video"
-                                        preload="none"
-                                        playsinline
-                                        crossorigin="anonymous"
-                                        style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;"
-                                    ></video>
-                                <?php endif; ?>
-
-                                <button class="asd-music-play-btn" type="button" aria-label="播放"></button>
-
-                                <div class="asd-music-progress-wrap">
-                                    <div class="asd-music-progress-bar"></div>
-                                </div>
-
-                                <span class="asd-music-time">0:00</span>
-
-                                <?php if ( $open_url ) : ?>
-                                    <a
-                                        class="asd-music-open-link"
-                                        href="<?php echo esc_url( $open_url ); ?>"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        開啟原檔
-                                    </a>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                <?php endforeach; ?>
+        <?php if ( $open_url ) : ?>
+            <div style="margin-top:8px;">
+                <a
+                    class="asd-music-open-link"
+                    href="<?php echo esc_url( $open_url ); ?>"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    開啟原檔
+                </a>
             </div>
-        <?php endforeach; ?>
-    </section>
+        <?php endif; ?>
+    </div>
 <?php endif; ?>
 
             <?php /* ── 串流平台 ── */ ?>
