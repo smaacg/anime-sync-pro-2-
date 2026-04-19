@@ -98,42 +98,45 @@ function initActiveTab() {
 function initToggleExpand() {
 
     // ── 集數展開 ──
-    document.addEventListener('click', function (e) {
-        var btn = e.target.closest('.asd-ep-toggle');
-        if (!btn) return;
-        var section = btn.closest('section');
-        if (!section) return;
-        section.querySelectorAll('.asd-ep-hidden').forEach(function (el) {
-            el.classList.remove('asd-ep-hidden');
+    var epBtns = document.querySelectorAll('.asd-ep-toggle');
+    epBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var section = btn.closest('section');
+            if (!section) return;
+            section.querySelectorAll('.asd-ep-hidden').forEach(function(el) {
+                el.classList.remove('asd-ep-hidden');
+            });
+            var wrap = btn.closest('div');
+            if (wrap) wrap.style.display = 'none';
         });
-        var wrap = btn.closest('div');
-        if (wrap) wrap.style.display = 'none';
     });
 
     // ── Staff 展開 ──
-    document.addEventListener('click', function (e) {
-        var btn = e.target.closest('.asd-staff-toggle');
-        if (!btn) return;
-        var section = btn.closest('section');
-        if (!section) return;
-        section.querySelectorAll('.asd-staff-hidden').forEach(function (el) {
-            el.classList.remove('asd-staff-hidden');
+    var staffBtns = document.querySelectorAll('.asd-staff-toggle');
+    staffBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var section = btn.closest('section');
+            if (!section) return;
+            section.querySelectorAll('.asd-staff-hidden').forEach(function(el) {
+                el.classList.remove('asd-staff-hidden');
+            });
+            var wrap = btn.closest('div');
+            if (wrap) wrap.style.display = 'none';
         });
-        var wrap = btn.closest('div');
-        if (wrap) wrap.style.display = 'none';
     });
 
     // ── Cast 展開 ──
-    document.addEventListener('click', function (e) {
-        var btn = e.target.closest('.asd-cast-toggle');
-        if (!btn) return;
-        var section = btn.closest('section');
-        if (!section) return;
-        section.querySelectorAll('.asd-cast-hidden').forEach(function (el) {
-            el.classList.remove('asd-cast-hidden');
+    var castBtns = document.querySelectorAll('.asd-cast-toggle');
+    castBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var section = btn.closest('section');
+            if (!section) return;
+            section.querySelectorAll('.asd-cast-hidden').forEach(function(el) {
+                el.classList.remove('asd-cast-hidden');
+            });
+            var wrap = btn.closest('div');
+            if (wrap) wrap.style.display = 'none';
         });
-        var wrap = btn.closest('div');
-        if (wrap) wrap.style.display = 'none';
     });
 }
 
