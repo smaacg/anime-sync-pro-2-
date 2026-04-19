@@ -1012,30 +1012,34 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
         </main><!-- /.asd-main -->
 
         <aside class="asd-sidebar" aria-label="側邊欄">
-
-            <?php /* ── 1. 作品標籤 ── */ ?>
-            <div class="asd-side-section">
-                <div class="asd-side-section__head"><h3>🏷️ 作品標籤</h3></div>
-                <div class="asd-tags-wrap">
-                    <?php if ( ! empty( $season_child_terms ) ) : ?>
-                        <?php foreach ( $season_child_terms as $st ) : ?>
-                            <a href="<?php echo esc_url( get_term_link( $st ) ); ?>" class="asd-tag-item asd-tag-item--season">
-                                <?php echo esc_html( $st->name ); ?>
-                            </a>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                    <?php if ( ! empty( $genre_terms ) ) : ?>
-                        <?php foreach ( $genre_terms as $gt ) : ?>
-                            <a href="<?php echo esc_url( get_term_link( $gt ) ); ?>" class="asd-tag-item">
-                                <?php echo esc_html( $gt->name ); ?>
-                            </a>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                    <?php if ( empty( $season_child_terms ) && empty( $genre_terms ) ) : ?>
-                        <p class="asd-side-empty">暫無標籤資料</p>
-                    <?php endif; ?>
-                </div>
-            </div>
+<?php /* ── 1. 作品標籤 ── */ ?>
+<div class="asd-side-section">
+    <div class="asd-side-section__head"><h3>🏷️ 作品標籤</h3></div>
+    <div class="asd-tags-wrap">
+        <?php if ( ! empty( $studio ) ) : ?>
+            <span class="asd-tag-item asd-tag-item--studio">
+                🎬 <?php echo esc_html( $studio ); ?>
+            </span>
+        <?php endif; ?>
+        <?php if ( ! empty( $season_child_terms ) ) : ?>
+            <?php foreach ( $season_child_terms as $st ) : ?>
+                <a href="<?php echo esc_url( get_term_link( $st ) ); ?>" class="asd-tag-item asd-tag-item--season">
+                    <?php echo esc_html( $st->name ); ?>
+                </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+        <?php if ( ! empty( $genre_terms ) ) : ?>
+            <?php foreach ( $genre_terms as $gt ) : ?>
+                <a href="<?php echo esc_url( get_term_link( $gt ) ); ?>" class="asd-tag-item">
+                    <?php echo esc_html( $gt->name ); ?>
+                </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+        <?php if ( empty( $studio ) && empty( $season_child_terms ) && empty( $genre_terms ) ) : ?>
+            <p class="asd-side-empty">暫無標籤資料</p>
+        <?php endif; ?>
+    </div>
+</div>
 
             <?php /* ── 2. 相關新聞 ── */ ?>
             <div class="asd-side-section">
