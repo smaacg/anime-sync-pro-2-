@@ -21,7 +21,7 @@ function asdInit() {
     safeInit('lazy-load', initLazyLoad);
     safeInit('tabs', initTabs);
     safeInit('toggle-expand', initToggleExpand);
-    // safeInit('music-player', initMusicPlayer);
+    safeInit('music-player', initMusicPlayer);
     safeInit('countdown', initCountdown);
 
     window.__asdFrontendInited = true;
@@ -311,6 +311,8 @@ function initMusicPlayer() {
                 return Promise.reject(new Error('no video fallback'));
             }
             videoEl.src = videoSrc;
+            videoEl.muted = false;
+            videoEl.volume = 1;
             videoEl.load();
             return videoEl.play().then(function () {
                 return videoEl;
