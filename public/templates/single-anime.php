@@ -1018,11 +1018,13 @@ if ( empty( $cast_main ) ) $cast_main = array_slice( $cast_list, 0, 8 );
 <div class="asd-side-section">
     <div class="asd-side-section__head"><h3>🏷️ 作品標籤</h3></div>
     <div class="asd-tags-wrap">
-        <?php if ( ! empty( $studio ) ) : ?>
-            <span class="asd-tag-item asd-tag-item--studio">
-                🎬 <?php echo esc_html( $studio ); ?>
-            </span>
-        <?php endif; ?>
+<?php if ( ! empty( $studio ) ) : ?>
+    <a href="<?php echo esc_url( home_url( '/?s=' . urlencode( $studio ) ) ); ?>" 
+       class="asd-tag-item asd-tag-item--studio" 
+       target="_blank" rel="noopener noreferrer">
+        🎬 <?php echo esc_html( $studio ); ?>
+    </a>
+<?php endif; ?>
         <?php if ( ! empty( $season_child_terms ) ) : ?>
             <?php foreach ( $season_child_terms as $st ) : ?>
                 <a href="<?php echo esc_url( get_term_link( $st ) ); ?>" class="asd-tag-item asd-tag-item--season">
