@@ -1,7 +1,6 @@
 /* =================================================================
-   Anime Sync Pro — anime-single.css  v16.1
+   Anime Sync Pro — anime-single.css  v17.0
    對應 single-anime.php v14.0
-   海報尺寸：330 × 422.89 px
    深藍灰毛玻璃主題 / Hero 三欄 / 內容區 7:3
    2026-04-19
    ================================================================= */
@@ -65,6 +64,8 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
   --asd-text:           #D0D7E0;
   --asd-text-muted:     rgba(208,215,224,.55);
   --asd-text-dim:       rgba(208,215,224,.35);
+  --asd-text-soft:      rgba(208,215,224,.75);
+  --asd-text-faint:     rgba(208,215,224,.25);
 
   --asd-border:         rgba(255,255,255,.08);
 
@@ -79,14 +80,14 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
   --asd-radius-sm:      6px;
   --asd-radius-md:      10px;
   --asd-radius-lg:      16px;
+  --asd-radius-xl:      22px;
   --asd-radius-pill:    50px;
 
   --asd-container:      1200px;
   --asd-gap:            24px;
   --asd-content-gap:    20px;
 
-  --asd-poster-w:       330px;
-  --asd-poster-h:       422.89px;
+  --asd-poster-w:       300px;
   --asd-hero-side-w:    220px;
 
   --glass-blur:         14px;
@@ -106,7 +107,6 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
 /* ================================================================
    3. 外層容器
    ================================================================ */
-/* 背景漸層 */
 .asd-wrap {
   max-width: var(--asd-container);
   margin: 0 auto;
@@ -143,7 +143,6 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
 /* ================================================================
    5. Hero 三欄
    ================================================================ */
-/* Hero 區移除框 */
 .asd-wrap .asd-hero-new {
   display: grid !important;
   grid-template-columns: var(--asd-poster-w) minmax(0,1fr) var(--asd-hero-side-w) !important;
@@ -151,70 +150,78 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
   align-items: start !important;
   margin: 0 0 var(--asd-gap) 0 !important;
   padding: var(--asd-gap) !important;
-  border-radius: 0 !important;
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  border-radius: var(--asd-radius-lg) !important;
+  border: 1px solid var(--glass-border) !important;
+  background: linear-gradient(135deg, rgba(13,26,48,.82), rgba(17,31,58,.58)) !important;
+  box-shadow: var(--asd-shadow-md) !important;
+  overflow: hidden !important;
 }
 
 /* ── 海報 ── */
 .asd-hero-poster {
-  width: var(--asd-poster-w);
-  height: var(--asd-poster-h);
-  flex-shrink: 0;
-  position: relative;
+  width: 100%;
+  max-width: var(--asd-poster-w);
   align-self: start !important;
 }
 .asd-poster-img {
   width: 100% !important;
-  height: 100% !important;
+  height: 424px !important;
   object-fit: cover !important;
-  border-radius: var(--asd-radius-md) !important;
-  border: 1px solid var(--asd-border) !important;
-  box-shadow: var(--asd-shadow-md) !important;
+  border-radius: var(--asd-radius-xl) !important;
+  box-shadow: var(--asd-shadow-lg) !important;
   display: block !important;
   max-width: none !important;
+  background: rgba(255,255,255,.05);
 }
 .asd-poster-fallback {
   width: 100%;
-  height: 100%;
+  height: 424px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--asd-radius-md);
-  background: var(--asd-bg);
-  border: 1px solid var(--asd-border);
-  color: var(--asd-text-dim);
-  font-size: 1.4rem;
-  font-weight: 700;
+  border-radius: var(--asd-radius-xl);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(124,92,255,.35), transparent 34%),
+    linear-gradient(135deg, #182d53, #10213d);
+  color: #fff;
+  font-size: 3.5rem;
+  font-weight: 800;
+  overflow: hidden;
 }
 
 /* ── Hero 中欄 ── */
 .asd-hero-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
   min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 16px;
   align-self: start !important;
 }
 .asd-hero-breadcrumb {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
-  font-size: .75rem;
-  color: var(--asd-text-dim);
+  gap: 8px;
+  color: var(--asd-text-muted);
+  font-size: .9rem;
 }
-.asd-hbc-sep { opacity: .5; }
+.asd-hbc-sep { color: var(--asd-text-faint); }
+
 .asd-hero-title {
-  font-size: 1.65rem !important;
-  font-weight: 700 !important;
-  line-height: 1.25 !important;
-  color: #fff !important;
   margin: 0 !important;
+  font-size: clamp(1.9rem, 2.3vw, 2.7rem) !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  color: #fff !important;
+  word-break: break-word;
 }
-.asd-hero-native { font-size: .82rem; color: var(--asd-text-dim); margin: 0; }
-.asd-hero-romaji { font-size: .80rem; color: var(--asd-text-dim); }
+.asd-hero-native {
+  margin: 0;
+  color: var(--asd-text-soft);
+  line-height: 1.6;
+  font-size: 1rem;
+  word-break: break-word;
+}
+.asd-hero-romaji { color: var(--asd-text-muted); font-size: .94rem; }
 
 .asd-series-entry-badge {
   display: inline-flex;
@@ -233,25 +240,44 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
 .asd-series-entry-badge:hover { background: rgba(99,168,255,.22); }
 
 /* Hero badges */
-.asd-hero-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.asd-hero-badges { display: flex; flex-wrap: wrap; gap: 10px; }
 .asd-hbadge {
-  padding: 3px 10px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
   border-radius: var(--asd-radius-pill);
-  font-size: .72rem;
-  font-weight: 600;
-  letter-spacing: .3px;
-  background: rgba(255,255,255,.07);
-  border: 1px solid var(--asd-border);
-  color: var(--asd-text-muted);
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  color: #fff;
+  font-size: .84rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
-.asd-hbadge--s-rel { background: rgba(52,211,153,.12);  border-color: rgba(52,211,153,.35);  color: #34D399; }
-.asd-hbadge--s-fin { background: rgba(208,215,224,.08); border-color: rgba(208,215,224,.20); color: var(--asd-text-muted); }
-.asd-hbadge--s-pre { background: rgba(251,191,36,.12);  border-color: rgba(251,191,36,.35);  color: #FBBF24; }
-.asd-hbadge--s-can { background: rgba(239,68,68,.12);   border-color: rgba(239,68,68,.35);   color: #EF4444; }
-.asd-hbadge--genre { background: rgba(99,168,255,.10);  border-color: rgba(99,168,255,.25);  color: var(--asd-primary); }
+.asd-hbadge--s-fin {
+  background: rgba(52,211,153,.14);
+  border-color: rgba(52,211,153,.28);
+}
+.asd-hbadge--s-rel {
+  background: rgba(76,201,240,.14);
+  border-color: rgba(76,201,240,.26);
+}
+.asd-hbadge--s-pre {
+  background: rgba(251,191,36,.14);
+  border-color: rgba(251,191,36,.28);
+}
+.asd-hbadge--s-can,
+.asd-hbadge--s-hia {
+  background: rgba(251,113,133,.14);
+  border-color: rgba(251,113,133,.26);
+}
+.asd-hbadge--genre {
+  background: rgba(124,92,255,.12);
+  border-color: rgba(124,92,255,.24);
+}
 
 /* ── 評分 Pills ── */
-.asd-hero-scores-new { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.asd-hero-scores-new { display: flex; flex-wrap: wrap; gap: 12px; }
 .asd-score-pill {
   display: inline-flex;
   align-items: center;
@@ -275,37 +301,21 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
 
 .asd-wrap .asd-score-pill--al .asd-sp-dot {
   background: #63A8FF !important;
-  box-shadow: 0 0 6px 2px rgba(99,168,255,.90), 0 0 14px 4px rgba(99,168,255,.55), 0 0 22px 6px rgba(99,168,255,.30) !important;
+  box-shadow: 0 0 4px 1px rgba(99,168,255,.60), 0 0 8px 2px rgba(99,168,255,.30) !important;
 }
 .asd-wrap .asd-score-pill--al .asd-sp-val { color: #63A8FF !important; }
 
 .asd-wrap .asd-score-pill--mal .asd-sp-dot {
   background: #8F6BFF !important;
-  box-shadow: 0 0 6px 2px rgba(143,107,255,.90), 0 0 14px 4px rgba(143,107,255,.55), 0 0 22px 6px rgba(143,107,255,.30) !important;
+  box-shadow: 0 0 4px 1px rgba(143,107,255,.60), 0 0 8px 2px rgba(143,107,255,.30) !important;
 }
 .asd-wrap .asd-score-pill--mal .asd-sp-val { color: #8F6BFF !important; }
 
 .asd-wrap .asd-score-pill--bgm .asd-sp-dot {
   background: #FB7185 !important;
-  box-shadow: 0 0 6px 2px rgba(251,113,133,.90), 0 0 14px 4px rgba(251,113,133,.55), 0 0 22px 6px rgba(251,113,133,.30) !important;
-}
-.asd-wrap .asd-score-pill--bgm .asd-sp-val { color: #FB7185 !important; }
-
-/* Hero sidebar dots 光暈 */
-.asd-wrap .asd-score-pill--al .asd-sp-dot {
-  background: #63A8FF !important;
-  box-shadow: 0 0 4px 1px rgba(99,168,255,.60), 0 0 8px 2px rgba(99,168,255,.30) !important;
-}
-
-.asd-wrap .asd-score-pill--mal .asd-sp-dot {
-  background: #8F6BFF !important;
-  box-shadow: 0 0 4px 1px rgba(143,107,255,.60), 0 0 8px 2px rgba(143,107,255,.30) !important;
-}
-
-.asd-wrap .asd-score-pill--bgm .asd-sp-dot {
-  background: #FB7185 !important;
   box-shadow: 0 0 4px 1px rgba(251,113,133,.60), 0 0 8px 2px rgba(251,113,133,.30) !important;
 }
+.asd-wrap .asd-score-pill--bgm .asd-sp-val { color: #FB7185 !important; }
 
 /* Action 按鈕 */
 .asd-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -345,7 +355,7 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
 .asd-hside-block {
   padding: 14px;
   border-radius: var(--asd-radius-md);
-  background: var(--asd-bg);
+  background: rgba(255,255,255,.06);
   border: 1px solid var(--asd-border);
   margin: 0 !important;
 }
@@ -517,19 +527,9 @@ nav.asd-tabs a.asd-tab.is-active::after {
   font-weight: 700 !important;
   color: var(--asd-text) !important;
   margin-bottom: 12px !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-}
-.asd-wrap h2.asd-section-title::after {
-  content: '' !important;
-  flex: 1 !important;
-  height: 1px !important;
-  background: linear-gradient(to right, rgba(255,255,255,.25), transparent) !important;
   display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  border: none !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid rgba(255,255,255,.15) !important;
 }
 
 /* ================================================================
@@ -606,12 +606,12 @@ nav.asd-tabs a.asd-tab.is-active::after {
   transition: var(--trans-smooth);
 }
 .asd-ep-row:hover { background: var(--asd-bg-hover); }
-.asd-ep-hidden { display: none !important; }
-.asd-ep-num      { font-size: .78rem; color: var(--asd-primary); font-weight: 700; }
-.asd-ep-body     { display: flex; flex-direction: column; gap: 2px; }
-.asd-ep-title    { font-size: .85rem; color: var(--asd-text); }
+.asd-ep-hidden  { display: none !important; }
+.asd-ep-num     { font-size: .78rem; color: var(--asd-primary); font-weight: 700; }
+.asd-ep-body    { display: flex; flex-direction: column; gap: 2px; }
+.asd-ep-title   { font-size: .85rem; color: var(--asd-text); }
 .asd-ep-title-ja { font-size: .75rem; color: var(--asd-text-dim); }
-.asd-ep-date     { font-size: .72rem; color: var(--asd-text-dim); white-space: nowrap; }
+.asd-ep-date    { font-size: .72rem; color: var(--asd-text-dim); white-space: nowrap; }
 
 /* 展開按鈕共用 */
 .asd-ep-toggle,
@@ -629,6 +629,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
   background: rgba(255,255,255,.04) !important;
   cursor: pointer !important;
   transition: var(--trans-smooth) !important;
+  margin-top: 12px !important;
 }
 .asd-ep-toggle:hover,
 .asd-staff-toggle:hover,
@@ -715,7 +716,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-cast-char-native { font-size: .68rem; color: var(--asd-text-dim); }
 .asd-cast-role        { font-size: .65rem; color: var(--asd-primary); }
 
-/* VA 只顯示名字，無圖 */
 .asd-cast-va {
   display: flex;
   align-items: center;
@@ -725,7 +725,7 @@ nav.asd-tabs a.asd-tab.is-active::after {
   border-top: 1px solid var(--asd-border);
   width: 100%;
 }
-.asd-cast-va-info { display: flex; flex-direction: column; gap: 1px; text-align: center; }
+.asd-cast-va-info  { display: flex; flex-direction: column; gap: 1px; text-align: center; }
 .asd-cast-va-name   { font-size: .70rem; color: var(--asd-text-muted); }
 .asd-cast-va-native { font-size: .63rem; color: var(--asd-text-dim); }
 
@@ -744,7 +744,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   padding: 0;
   border: none;
 }
-
 .asd-music-card-v2 {
   display: flex;
   flex-wrap: wrap;
@@ -753,13 +752,9 @@ nav.asd-tabs a.asd-tab.is-active::after {
   padding: 12px 14px;
   border-radius: var(--asd-radius-md);
   margin-bottom: 8px;
-  border: 1px solid var(--asd-border);
-  background: rgba(255,255,255,.04);
   transition: var(--trans-smooth);
 }
 .asd-music-card-v2:hover { background: rgba(255,255,255,.08) !important; }
-
-/* badge：第一行左側 */
 .asd-music-type-badge {
   order: 1;
   display: inline-flex;
@@ -770,13 +765,10 @@ nav.asd-tabs a.asd-tab.is-active::after {
   border-radius: 50%;
   font-size: .70rem;
   font-weight: 700;
-  letter-spacing: 0;
   flex-shrink: 0;
 }
 .asd-music-type-badge--op { background: rgba(99,168,255,.22); color: var(--asd-primary); }
 .asd-music-type-badge--ed { background: rgba(143,107,255,.22); color: #A78BFA; }
-
-/* 歌名區：第一行佔剩餘空間 */
 .asd-music-body {
   order: 2;
   display: flex;
@@ -788,8 +780,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
 .asd-music-title  { font-size: .90rem; font-weight: 700; color: var(--asd-text); }
 .asd-music-native { font-size: .75rem; color: var(--asd-text-dim); }
 .asd-music-artist { font-size: .78rem; color: var(--asd-text-muted); }
-
-/* 播放器：獨占第二行 */
 .asd-music-player-wrap {
   order: 3;
   width: 100%;
@@ -1025,7 +1015,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   max-height: calc(2 * 28px + 6px);
   overflow: hidden;
 }
-
 .asd-tag-item {
   padding: 3px 10px;
   border-radius: var(--asd-radius-pill);
@@ -1075,7 +1064,6 @@ nav.asd-tabs a.asd-tab.is-active::after {
   overflow: hidden;
   word-break: break-word;
 }
-.asd-news-arrow { font-size: .75rem; color: var(--asd-text-dim); flex-shrink: 0; }
 
 /* ── 相關作品 ── */
 .asd-side-cards { display: flex; flex-direction: column; gap: 8px; }
@@ -1131,116 +1119,97 @@ nav.asd-tabs a.asd-tab.is-active::after {
 
 /* ── 贊助區塊 ── */
 .asd-sponsor-block {
-  padding: 24px 20px;
+  padding: 20px 16px;
   border-radius: var(--asd-radius-lg);
-  border: 1px solid var(--glass-border) !important;
-  background: var(--glass-bg) !important;
-  box-shadow: var(--asd-shadow-md) !important;
-  backdrop-filter: blur(var(--glass-blur)) !important;
-  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
 }
-.asd-sponsor-icon {
-  font-size: 1.6rem;
-  line-height: 1;
-}
 .asd-sponsor-title {
-  font-size: 1rem;
+  font-size: .95rem;
   font-weight: 700;
   color: var(--asd-text);
 }
 .asd-sponsor-desc {
   font-size: .80rem;
   color: var(--asd-text-muted);
-  line-height: 1.65;
+  line-height: 1.6;
 }
-.asd-sponsor-highlight {
+.asd-sponsor-h {
   color: var(--asd-primary);
-  font-weight: 600;
+  font-weight: 700;
 }
 .asd-sponsor-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 24px;
+  gap: 6px;
+  padding: 9px 22px;
   border-radius: var(--asd-radius-pill);
-  background: linear-gradient(135deg, #4080D0, #63A8FF);
-  color: #fff !important;
-  font-size: .88rem;
+  background: linear-gradient(135deg, #3B82F6, #2563EB);
+  color: #fff;
+  font-size: .85rem;
   font-weight: 700;
-  text-decoration: none !important;
+  text-decoration: none;
   border: none;
   cursor: pointer;
   transition: var(--trans-smooth);
-  box-shadow: 0 4px 16px rgba(99,168,255,.35);
-  width: 100%;
+  box-shadow: 0 4px 14px rgba(59,130,246,.35);
 }
 .asd-sponsor-btn:hover {
-  background: linear-gradient(135deg, #63A8FF, #4080D0);
-  box-shadow: 0 6px 22px rgba(99,168,255,.55);
-  transform: translateY(-1px);
-  color: #fff !important;
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
+  box-shadow: 0 4px 20px rgba(59,130,246,.55);
+  color: #fff;
 }
 .asd-sponsor-note {
-  font-size: .70rem;
+  font-size: .72rem;
   color: var(--asd-text-dim);
 }
 
 /* ================================================================
-   21. RWD 響應式
+   21. RWD
    ================================================================ */
 @media (max-width: 1024px) {
   :root {
-    --asd-poster-w: 240px;
-    --asd-poster-h: 307.8px;
-    --asd-hero-side-w: 180px;
+    --asd-poster-w:      260px;
+    --asd-hero-side-w:   180px;
   }
-  .asd-cast-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
 @media (max-width: 900px) {
   .asd-wrap .asd-hero-new {
-    grid-template-columns: 180px minmax(0,1fr) !important;
+    grid-template-columns: 200px minmax(0,1fr) !important;
   }
   .asd-hero-sidebar { display: none !important; }
-  :root {
-    --asd-poster-w: 180px;
-    --asd-poster-h: 230.8px;
-  }
-  .asd-container.asd-container--has-sidebar {
-    grid-template-columns: 1fr;
-  }
-  .asd-sidebar { order: -1; }
-  .asd-cast-grid { grid-template-columns: repeat(3, 1fr); }
+  .asd-poster-img,
+  .asd-poster-fallback { height: 280px !important; }
 }
 
 @media (max-width: 768px) {
   .asd-wrap .asd-hero-new {
     grid-template-columns: 1fr !important;
+    padding: 16px !important;
   }
-  .asd-hero-poster {
-    width: 100%;
-    height: 200px;
+  .asd-hero-poster { max-width: 180px; margin: 0 auto; }
+  .asd-poster-img,
+  .asd-poster-fallback { height: 240px !important; }
+  .asd-container.asd-container--has-sidebar {
+    grid-template-columns: 1fr;
   }
-  .asd-poster-img {
-    width: 100% !important;
-    height: 100% !important;
-    object-position: center top !important;
+  .asd-cast-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
-  .asd-staff-grid-v2 { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
-  .asd-cast-grid { grid-template-columns: repeat(2, 1fr); }
-  .asd-ext-links-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 480px) {
-  .asd-wrap { padding: 12px; }
-  .asd-banner { height: 140px; }
-  .asd-info-grid { grid-template-columns: 1fr 1fr; }
-  .asd-cast-grid { grid-template-columns: repeat(2, 1fr); }
-  .asd-music-player-wrap { min-width: 110px; }
+  :root { --asd-gap: 14px; }
+  .asd-hero-poster { max-width: 140px; }
+  .asd-poster-img,
+  .asd-poster-fallback { height: 200px !important; }
+  .asd-cast-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  nav.asd-tabs { gap: 1px !important; }
+  nav.asd-tabs a.asd-tab { padding: 0 8px !important; font-size: .72rem !important; }
 }
