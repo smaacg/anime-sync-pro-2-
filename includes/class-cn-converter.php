@@ -3,8 +3,8 @@
  * Class Anime_Sync_CN_Converter
  *
  * 簡繁轉換類別。
- * 優先使用 overtrue/php-opencc（S2TWP 策略）。
- * fallback 至靜態字典。
+ * 流程：OpenCC（S2TWP）→ 自訂站內字典覆寫。
+ * 若 OpenCC 不可用，則 fallback 至靜態字典。
  *
  * @package Anime_Sync_Pro
  */
@@ -18,79 +18,60 @@ class Anime_Sync_CN_Converter {
     private static ?bool  $opencc_available = null;
     private static ?array $dict_cache       = null;
 
-// =========================================================================
-// 公開靜態介面
-// =========================================================================
+    // =========================================================================
+    // 公開介面
+    // =========================================================================
 
-public static function static_convert( string $text ): string {
-    if ( $text === '' ) return '';
-
-    // 先跑靜態字典
-    $text = self::convert_with_dict( $text );
-
-    // 強制嘗試載入 OpenCC，不依賴快取
-    $autoload = self::get_autoload_path();
-    if ( file_exists( $autoload ) ) {
-        if ( ! class_exists( 'Overtrue\\PHPOpenCC\\OpenCC', false ) ) {
-            require_once $autoload;
+    public static function static_convert( string $text ): string {
+        if ( $text === '' ) {
+            return '';
         }
-        if ( class_exists( 'Overtrue\\PHPOpenCC\\OpenCC', false ) ) {
-            try {
-                return \Overtrue\PHPOpenCC\OpenCC::convert( $text, 'S2TWP' );
-            } catch ( \Throwable $e ) {
-                // 失敗就回傳字典結果
-            }
-        }
+
+        return self::convert_document( $text );
     }
-
-    return $text;
-}
-
-
-    // =========================================================================
-    // 相容實例方法（dashboard.php / import-tool.php）
-    // =========================================================================
 
     public function convert( string $text ): string {
         return self::static_convert( $text );
     }
 
+    /**
+     * 遞迴轉換字串 / 陣列 / 物件。
+     * 保留 array key，不直接動 key 名稱。
+     *
+     * @param mixed $value
+     * @return mixed
+     */
+    public function convert_mixed( $value ) {
+        return self::convert_mixed_value( $value );
+    }
+
+    /**
+     * 若是 JSON 字串則只轉換值，不動 key；否則當一般字串處理。
+     */
+    public function convert_json_string( string $json ): string {
+        return self::convert_possible_json_string( $json );
+    }
+
     public function get_stats(): array {
-        $opencc_ok = self::is_opencc_available();
-
-        if ( $opencc_ok ) {
-            return [
-                'dict_path'   => self::get_vendor_path(),
-                'file_size'   => 1,
-                'entry_count' => 'OpenCC S2TWP（詞庫完整）',
-                'mode'        => 'opencc',
-                'loaded'      => true,
-            ];
-        }
-
         $dict_file = self::get_dict_path();
-        $file_size = file_exists( $dict_file ) ? filesize( $dict_file ) : 0;
         $dict      = self::load_dict();
 
         return [
-            'dict_path'   => $dict_file,
-            'file_size'   => (int) $file_size,
-            'entry_count' => count( $dict ),
-            'mode'        => 'dict',
-            'loaded'      => $file_size > 0,
+            'dict_path'          => $dict_file,
+            'dict_file_exists'   => file_exists( $dict_file ),
+            'dict_file_size'     => file_exists( $dict_file ) ? (int) filesize( $dict_file ) : 0,
+            'dict_entry_count'   => count( $dict ),
+            'opencc_available'   => self::is_opencc_available(),
+            'opencc_vendor_path' => self::get_vendor_path(),
+            'mode'               => self::is_opencc_available() ? 'opencc_then_dict' : 'dict_only',
         ];
     }
 
     // =========================================================================
-    // PRIVATE – 路徑輔助
+    // 路徑輔助
     // =========================================================================
 
-    /**
-     * 用 __FILE__ 往上兩層取插件根目錄，比 plugin_dir_path() 更可靠。
-     */
     private static function get_plugin_root(): string {
-        // __FILE__ = .../anime-sync-pro/includes/class-cn-converter.php
-        // dirname x2 = .../anime-sync-pro/
         return dirname( __FILE__, 2 ) . DIRECTORY_SEPARATOR;
     }
 
@@ -107,8 +88,49 @@ public static function static_convert( string $text ): string {
     }
 
     // =========================================================================
-    // PRIVATE – OpenCC
+    // OpenCC / 字典主流程
     // =========================================================================
+
+    private static function convert_document( string $text ): string {
+        if ( $text === '' ) {
+            return '';
+        }
+
+        if ( ! self::contains_cjk( $text ) ) {
+            return $text;
+        }
+
+        $tokens = [];
+        $text   = self::protect_segments( $text, $tokens );
+
+        if ( self::looks_like_json( $text ) ) {
+            $text = self::convert_possible_json_string( $text );
+        } elseif ( self::looks_like_html( $text ) ) {
+            $text = self::convert_html_text_nodes( $text );
+        } else {
+            $text = self::convert_plain_text( $text );
+        }
+
+        return self::restore_segments( $text, $tokens );
+    }
+
+    private static function convert_plain_text( string $text ): string {
+        $converted = $text;
+
+        if ( self::is_opencc_available() ) {
+            $converted = self::convert_with_opencc( $converted );
+        }
+
+        return self::convert_with_dict( $converted );
+    }
+
+    private static function convert_with_opencc( string $text ): string {
+        try {
+            return \Overtrue\PHPOpenCC\OpenCC::convert( $text, 'S2TWP' );
+        } catch ( \Throwable $e ) {
+            return $text;
+        }
+    }
 
     private static function is_opencc_available(): bool {
         if ( self::$opencc_available !== null ) {
@@ -122,26 +144,117 @@ public static function static_convert( string $text ): string {
             return false;
         }
 
-        if ( ! class_exists( 'Overtrue\\PHPOpenCC\\OpenCC', false ) ) {
+        if ( ! class_exists( 'Overtrue\PHPOpenCC\OpenCC', false ) ) {
             require_once $autoload;
         }
 
-        self::$opencc_available = class_exists( 'Overtrue\\PHPOpenCC\\OpenCC', false );
+        self::$opencc_available = class_exists( 'Overtrue\PHPOpenCC\OpenCC', false );
         return self::$opencc_available;
     }
 
-private static function convert_with_opencc( string $text ): string {
-    try {
-        $result = \Overtrue\PHPOpenCC\OpenCC::convert( $text, 'S2T' );
-        $result = \Overtrue\PHPOpenCC\OpenCC::convert( $result, 'T2TW' );
-        return self::convert_with_dict( $result );
-    } catch ( \Throwable $e ) {
-        return self::convert_with_dict( $text );
+    // =========================================================================
+    // HTML / JSON / Mixed 處理
+    // =========================================================================
+
+    private static function convert_html_text_nodes( string $html ): string {
+        $parts = preg_split( '/(<[^>]+>)/u', $html, -1, PREG_SPLIT_DELIM_CAPTURE );
+        if ( ! is_array( $parts ) ) {
+            return self::convert_plain_text( $html );
+        }
+
+        foreach ( $parts as $index => $part ) {
+            if ( $part === '' ) {
+                continue;
+            }
+
+            if ( preg_match( '/^<[^>]+>$/u', $part ) ) {
+                continue;
+            }
+
+            $parts[ $index ] = self::convert_plain_text( $part );
+        }
+
+        return implode( '', $parts );
     }
-}
+
+    private static function convert_possible_json_string( string $json ): string {
+        $trimmed = trim( $json );
+        if ( $trimmed === '' ) {
+            return $json;
+        }
+
+        $decoded = json_decode( $json, true );
+        if ( json_last_error() !== JSON_ERROR_NONE ) {
+            return self::looks_like_html( $json )
+                ? self::convert_html_text_nodes( $json )
+                : self::convert_plain_text( $json );
+        }
+
+        $converted = self::convert_mixed_value( $decoded );
+
+        $encoded = wp_json_encode( $converted, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+        return is_string( $encoded ) ? $encoded : $json;
+    }
+
+    private static function convert_mixed_value( $value ) {
+        if ( is_string( $value ) ) {
+            return self::convert_document( $value );
+        }
+
+        if ( is_array( $value ) ) {
+            foreach ( $value as $key => $item ) {
+                $value[ $key ] = self::convert_mixed_value( $item );
+            }
+            return $value;
+        }
+
+        if ( is_object( $value ) ) {
+            foreach ( $value as $key => $item ) {
+                $value->{$key} = self::convert_mixed_value( $item );
+            }
+            return $value;
+        }
+
+        return $value;
+    }
 
     // =========================================================================
-    // PRIVATE – Fallback 靜態字典
+    // 保護片段（避免破壞 URL / shortcode / code）
+    // =========================================================================
+
+    private static function protect_segments( string $text, array &$tokens ): string {
+        $patterns = [
+            '/https?:\/\/[^\s"\'<>]+/u',
+            '/\[[^\]]+\]/u',
+            '/<code\b[^>]*>.*?<\/code>/uis',
+            '/<pre\b[^>]*>.*?<\/pre>/uis',
+        ];
+
+        foreach ( $patterns as $pattern ) {
+            $text = preg_replace_callback(
+                $pattern,
+                static function ( array $matches ) use ( &$tokens ): string {
+                    $token            = '__ASCNPROTECT_' . count( $tokens ) . '__';
+                    $tokens[ $token ] = $matches[0];
+                    return $token;
+                },
+                $text
+            );
+        }
+
+        return $text;
+    }
+
+    private static function restore_segments( string $text, array $tokens ): string {
+        if ( empty( $tokens ) ) {
+            return $text;
+        }
+
+        return strtr( $text, $tokens );
+    }
+
+    // =========================================================================
+    // 靜態字典
     // =========================================================================
 
     private static function load_dict(): array {
@@ -168,33 +281,54 @@ private static function convert_with_opencc( string $text ): string {
             return [];
         }
 
-        uksort( $decoded, function( $a, $b ) {
-            return mb_strlen( $b ) - mb_strlen( $a );
-        } );
+        $dict = [];
+        foreach ( $decoded as $from => $to ) {
+            if ( is_string( $from ) && is_string( $to ) && $from !== '' ) {
+                $dict[ $from ] = $to;
+            }
+        }
 
-        self::$dict_cache = $decoded;
+        uksort(
+            $dict,
+            static function ( string $a, string $b ): int {
+                return mb_strlen( $b, 'UTF-8' ) <=> mb_strlen( $a, 'UTF-8' );
+            }
+        );
+
+        self::$dict_cache = $dict;
         return self::$dict_cache;
     }
 
     private static function convert_with_dict( string $text ): string {
         $dict = self::load_dict();
-        if ( empty( $dict ) ) {
+        if ( $text === '' || empty( $dict ) ) {
             return $text;
         }
 
-        $keys   = [];
-        $values = [];
-        foreach ( $dict as $k => $v ) {
-            if ( is_string( $k ) && is_string( $v ) ) {
-                $keys[]   = $k;
-                $values[] = $v;
-            }
+        return str_replace( array_keys( $dict ), array_values( $dict ), $text );
+    }
+
+    // =========================================================================
+    // 判斷輔助
+    // =========================================================================
+
+    private static function looks_like_json( string $text ): bool {
+        $trimmed = trim( $text );
+        if ( $trimmed === '' ) {
+            return false;
         }
 
-        if ( empty( $keys ) ) {
-            return $text;
-        }
+        $first = substr( $trimmed, 0, 1 );
+        $last  = substr( $trimmed, -1 );
 
-        return str_replace( $keys, $values, $text );
+        return ( $first === '{' && $last === '}' ) || ( $first === '[' && $last === ']' );
+    }
+
+    private static function looks_like_html( string $text ): bool {
+        return (bool) preg_match( '/<[^>]+>/u', $text );
+    }
+
+    private static function contains_cjk( string $text ): bool {
+        return (bool) preg_match( '/[\x{3400}-\x{9FFF}\x{F900}-\x{FAFF}]/u', $text );
     }
 }
