@@ -439,7 +439,7 @@
         max-width: 300px;
     }
 }
-/* --- 修正查看動畫頁面跑版問題 --- */
+/* --- 修正查看動漫頁面跑版問題 --- */
 
 /* 1. 限制表格內封面圖的大小 */
 .wp-list-table .column-anime_cover img,
@@ -457,7 +457,7 @@
     vertical-align: middle !important;
 }
 
-/* 3. 修正「查看動畫」分頁按鈕或版面錯位 */
+/* 3. 修正「查看動漫」分頁按鈕或版面錯位 */
 .tablenav {
     height: auto !important;
     margin-bottom: 10px;

@@ -15,7 +15,7 @@ $query = new WP_Query( [
 ?>
 
 <div class="wrap">
-    <h1 class="wp-heading-inline">已發布動畫</h1>
+    <h1 class="wp-heading-inline">已發布動漫</h1>
     <hr class="wp-header-end">
 
     <div class="anime-sync-published-list" style="margin-top:20px;">
@@ -23,7 +23,7 @@ $query = new WP_Query( [
         <div class="tablenav top">
             <div class="alignleft actions">
                 <a href="<?php echo admin_url('edit.php?post_type=anime'); ?>" class="button">完整管理介面</a>
-                <a href="<?php echo admin_url('post-new.php?post_type=anime'); ?>" class="button button-primary">新增動畫</a>
+                <a href="<?php echo admin_url('post-new.php?post_type=anime'); ?>" class="button button-primary">新增動漫</a>
             </div>
         </div>
 
@@ -110,7 +110,7 @@ $query = new WP_Query( [
                 <tr>
                     <td colspan="6" style="text-align:center;padding:60px;background:#fff;">
                         <span class="dashicons dashicons-video-alt3" style="font-size:48px;width:48px;height:48px;color:#ddd;"></span>
-                        <p style="margin-top:15px;font-size:16px;color:#666;">尚未匯入任何動畫</p>
+                        <p style="margin-top:15px;font-size:16px;color:#666;">尚未匯入任何動漫</p>
                         <a href="<?php echo admin_url('admin.php?page=anime-sync-import'); ?>" class="button button-primary button-large">立即匯入</a>
                     </td>
                 </tr>

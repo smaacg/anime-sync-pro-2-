@@ -118,11 +118,11 @@ class Anime_Sync_Admin {
 
     public function register_admin_menu(): void {
         $cap = 'manage_options';
-        add_menu_page( '動畫同步 Pro', '動畫同步', $cap, 'anime-sync-pro', [ $this, 'render_dashboard' ], 'dashicons-video-alt', 30 );
+        add_menu_page( '動漫同步 Pro', '動漫同步', $cap, 'anime-sync-pro', [ $this, 'render_dashboard' ], 'dashicons-video-alt', 30 );
         add_submenu_page( 'anime-sync-pro', '儀表板',   '儀表板',   $cap, 'anime-sync-pro',       [ $this, 'render_dashboard'      ] );
         add_submenu_page( 'anime-sync-pro', '匯入工具', '匯入工具', $cap, 'anime-sync-import',    [ $this, 'render_import_tool'    ] );
         add_submenu_page( 'anime-sync-pro', '審核佇列', '審核佇列', $cap, 'anime-sync-queue',     [ $this, 'render_review_queue'   ] );
-        add_submenu_page( 'anime-sync-pro', '查看動畫', '查看動畫', $cap, 'anime-sync-published', [ $this, 'render_published_page' ] );
+        add_submenu_page( 'anime-sync-pro', '查看動漫', '查看動漫', $cap, 'anime-sync-published', [ $this, 'render_published_page' ] );
         add_submenu_page( 'anime-sync-pro', '錯誤日誌', '錯誤日誌', $cap, 'anime-sync-logs',      [ $this, 'render_logs_page'      ] );
         add_submenu_page( 'anime-sync-pro', '插件設定', '插件設定', $cap, 'anime-sync-settings',  [ $this, 'render_settings'       ] );
     }
@@ -542,7 +542,7 @@ class Anime_Sync_Admin {
 
         // 如果沒有選擇文章，回傳錯誤
         if ( empty( $selected_ids ) ) {
-            wp_send_json_error( '請先在審核列表勾選要掃描的動畫作品' );
+            wp_send_json_error( '請先在審核列表勾選要掃描的動漫作品' );
         }
 
         // 未強制更新時，優先回傳快取（但必須是相同選擇的文章）

@@ -20,7 +20,7 @@ $converter_stats = $cn_converter->get_stats();
 ?>
 
 <div class="wrap anime-sync-import-tool">
-    <h1>匯入動畫工具</h1>
+    <h1>匯入動漫工具</h1>
 
     <div class="notice notice-info inline" style="margin: 15px 0 10px; border-left-color: #2271b1;">
         <p>
@@ -460,7 +460,7 @@ jQuery( function( $ ) {
         $( '#season-anime-tbody tr:visible .season-item-check:checked' ).each( function() {
             ids.push( parseInt( $( this ).val() ) );
         } );
-        if ( !ids.length ) { alert('請至少選擇一部動畫'); return; }
+        if ( !ids.length ) { alert('請至少選擇一部動漫'); return; }
         seasonStop.value = false;
         $( '#btn-season-import' ).prop('disabled',true);
         $( '#btn-season-stop' ).show();

@@ -26,7 +26,7 @@ $data = $item['api_data'];
 ?>
 
 <div class="wrap">
-    <h1>預覽動畫資料</h1>
+    <h1>預覽動漫資料</h1>
     
     <div class="anime-sync-preview">
         

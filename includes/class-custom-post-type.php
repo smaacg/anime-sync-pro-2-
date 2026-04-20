@@ -198,16 +198,16 @@ class Anime_Sync_Custom_Post_Type {
 			return $messages;
 		}
 
-		$view_link = sprintf( ' <a href="%s">查看動畫</a>', esc_url( get_permalink( $post->ID ) ) );
+		$view_link = sprintf( ' <a href="%s">查看動漫</a>', esc_url( get_permalink( $post->ID ) ) );
 		$messages['anime'] = [
 			0  => '',
-			1  => '動畫已更新。' . $view_link,
-			4  => '動畫已更新。',
-			6  => '動畫已發布。' . $view_link,
-			7  => '動畫已儲存。',
-			8  => '動畫已提交審核。',
-			9  => '動畫已排程發布。',
-			10 => '動畫草稿已更新。',
+			1  => '動漫已更新。' . $view_link,
+			4  => '動漫已更新。',
+			6  => '動漫已發布。' . $view_link,
+			7  => '動漫已儲存。',
+			8  => '動漫已提交審核。',
+			9  => '動漫已排程發布。',
+			10 => '動漫草稿已更新。',
 		];
 
 		return $messages;

@@ -26,7 +26,7 @@ Copy
 
 | 來源 | 用途 | Endpoint |
 |------|------|----------|
-| AniList（GraphQL） | 主要動畫資料、Staff/Cast fallback | https://graphql.anilist.co |
+| AniList（GraphQL） | 主要動漫資料、Staff/Cast fallback | https://graphql.anilist.co |
 | Bangumi TV | 中文標題、簡介、Staff、Cast、集數（主要） | https://api.bgm.tv/v0/ |
 | AnimeThemes | OP/ED 音訊（OGG）與影片（WebM） | https://api.animethemes.moe/anime |
 | Jikan（MAL） | MAL 評分 | https://api.jikan.moe/v4/anime/ |
@@ -109,9 +109,9 @@ Copy
 
 | Slug | 說明 |
 |------|------|
-| `genre` | 動畫類型（動作/愛情等） |
+| `genre` | 動漫類型（動作/愛情等） |
 | `anime_season_tax` | 播出季度（2024 Spring 等） |
-| `anime_format_tax` | 動畫格式（tv/movie 等） |
+| `anime_format_tax` | 動漫格式（tv/movie 等） |
 | `anime_series_tax` | 系列（進擊的巨人系列等） |
 | `post_tag` | WordPress 標籤 |
 
@@ -232,7 +232,7 @@ Copy<?php if ( comments_open() || get_comments_number() ) : ?>
 <?php endif; ?>
 已知問題與狀態
 編號	問題	狀態
-1	現有已入庫動畫的 anime_themes 需重新 enrich 才能取得 audio_url	⚠️ 需手動觸發 enrich
+1	現有已入庫動漫的 anime_themes 需重新 enrich 才能取得 audio_url	⚠️ 需手動觸發 enrich
 2	_enriched_at 存在時 enrich_single() 回傳 already_enriched	⚠️ 已知限制，手動刪除 meta 可重跑
 3	Bangumi API 無法找到對應時，Staff/Cast 維持 AniList 英文資料	✅ 符合設計
 4	anime_tw_streaming_url_ani_one（底線）對應 checkbox key ani-one（連字號）	⚠️ 注意對應關係

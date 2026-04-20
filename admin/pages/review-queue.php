@@ -448,7 +448,7 @@ $gap_cached_at = get_transient( 'anime_sync_series_gaps_time' );
             <span class="dashicons dashicons-format-video"
                   style="font-size:48px;height:48px;width:48px;color:#ddd;"></span>
             <p style="font-size:16px;margin-top:12px;">
-                <?php esc_html_e( '目前沒有符合條件的動畫。', 'anime-sync-pro' ); ?>
+                <?php esc_html_e( '目前沒有符合條件的動漫。', 'anime-sync-pro' ); ?>
             </p>
             <a href="<?php echo esc_url( admin_url( 'admin.php?page=anime-sync-import' ) ); ?>"
                class="button button-primary">
@@ -625,7 +625,7 @@ $gap_cached_at = get_transient( 'anime_sync_series_gaps_time' );
         const $result = $( '#gap-scan-result' );
 
         if ( ids.length === 0 ) {
-            alert( '<?php esc_js( esc_html__( '請先在審核列表勾選要掃描的動畫作品', 'anime-sync-pro' ) ); ?>' );
+            alert( '<?php esc_js( esc_html__( '請先在審核列表勾選要掃描的動漫作品', 'anime-sync-pro' ) ); ?>' );
             return;
         }
 
@@ -643,10 +643,10 @@ $gap_cached_at = get_transient( 'anime_sync_series_gaps_time' );
                 const total = resp.data.total || gaps.length;
 
                 let html = '<div style="padding:12px;background:#fff;border:1px solid #ddd;border-radius:4px;">';
-                html += '<h3 style="margin:0 0 12px;">📡 系列缺漏掃描結果（已勾選 ' + ids.length + ' 部動畫）</h3>';
+                html += '<h3 style="margin:0 0 12px;">📡 系列缺漏掃描結果（已勾選 ' + ids.length + ' 部動漫）</h3>';
 
                 if ( gaps.length === 0 ) {
-                    html += '<p style="color:#46b450;margin:0;">✓ 所有選擇的動畫系列關聯都已齊全，沒有發現缺漏。</p>';
+                    html += '<p style="color:#46b450;margin:0;">✓ 所有選擇的動漫系列關聯都已齊全，沒有發現缺漏。</p>';
                 } else {
                     html += '<p style="color:#dc3232;margin:0 0 12px;">找到 ' + gaps.length + ' 個缺漏系列關聯：</p>';
                     html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
@@ -670,7 +670,7 @@ $gap_cached_at = get_transient( 'anime_sync_series_gaps_time' );
                     } );
 
                     html += '</tbody></table>';
-                    html += '<p style="margin:12px 0 0;color:#666;">這些是您選擇的動畫中，關聯到但站上沒有的系列作品。</p>';
+                    html += '<p style="margin:12px 0 0;color:#666;">這些是您選擇的動漫中，關聯到但站上沒有的系列作品。</p>';
                 }
 
                 html += '</div>';
@@ -700,7 +700,7 @@ $gap_cached_at = get_transient( 'anime_sync_series_gaps_time' );
             return;
         }
         if ( action === 'delete' &&
-             ! confirm( '<?php esc_js( esc_html__( '確定要刪除選取的動畫？此操作無法復原。', 'anime-sync-pro' ) ); ?>' ) ) {
+             ! confirm( '<?php esc_js( esc_html__( '確定要刪除選取的動漫？此操作無法復原。', 'anime-sync-pro' ) ); ?>' ) ) {
             return;
         }
 
@@ -765,7 +765,7 @@ $gap_cached_at = get_transient( 'anime_sync_series_gaps_time' );
 
     /* ── Delete single ── */
     $( document ).on( 'click', '.btn-delete-one', function () {
-        if ( ! confirm( '<?php esc_js( esc_html__( '確定刪除這筆動畫？', 'anime-sync-pro' ) ); ?>' ) ) return;
+        if ( ! confirm( '<?php esc_js( esc_html__( '確定刪除這筆動漫？', 'anime-sync-pro' ) ); ?>' ) ) return;
         const postId = $( this ).data( 'post-id' );
         const $btn   = $( this );
         $btn.prop( 'disabled', true );

@@ -5,7 +5,7 @@
  * Path: wp-content/plugins/anime-sync-pro/public/templates/archive-series.php
  *
  * 系列列表頁模板
- * 兩欄佈局：左側主內容（動畫卡片）＋右側 Sidebar（統計、快速跳轉、相關標籤）
+ * 兩欄佈局：左側主內容（動漫卡片）＋右側 Sidebar（統計、快速跳轉、相關標籤）
  * CSS 前綴：.asa-*（archive-series-anime），避免與 .aaa-* 衝突
  * 所有 CSS inline 於檔案底部，與 archive-anime.php 同模式
  */
@@ -107,7 +107,7 @@ $schema_breadcrumb = [
     '@type'           => 'BreadcrumbList',
     'itemListElement' => [
         [ '@type' => 'ListItem', 'position' => 1, 'name' => '首頁',     'item' => home_url( '/' ) ],
-        [ '@type' => 'ListItem', 'position' => 2, 'name' => '動畫列表', 'item' => home_url( '/anime/' ) ],
+        [ '@type' => 'ListItem', 'position' => 2, 'name' => '動漫列表', 'item' => home_url( '/anime/' ) ],
         [ '@type' => 'ListItem', 'position' => 3, 'name' => $series_name,
           'item' => is_wp_error( $series_url ) ? '' : $series_url ],
     ],
@@ -122,7 +122,7 @@ $schema_breadcrumb = [
     <nav class="asa-breadcrumb" aria-label="麵包屑導航">
         <ol>
             <li><a href="<?php echo esc_url( home_url( '/' ) ); ?>">首頁</a></li>
-            <li><a href="<?php echo esc_url( home_url( '/anime/' ) ); ?>">動畫列表</a></li>
+            <li><a href="<?php echo esc_url( home_url( '/anime/' ) ); ?>">動漫列表</a></li>
             <li><?php echo esc_html( $series_name ); ?></li>
         </ol>
     </nav>
@@ -130,7 +130,7 @@ $schema_breadcrumb = [
     <?php /* ── Hero ────────────────────────────────────────── */ ?>
     <div class="asa-hero">
         <div class="asa-hero-inner">
-            <div class="asa-hero-label">📺 動畫系列</div>
+            <div class="asa-hero-label">📺 動漫系列</div>
             <h1 class="asa-hero-title"><?php echo esc_html( $series_name ); ?></h1>
             <?php if ( $series_slug && $series_slug !== sanitize_title( $series_name ) ) : ?>
                 <p class="asa-hero-romaji"><?php echo esc_html( $series_slug ); ?></p>
@@ -161,7 +161,7 @@ $schema_breadcrumb = [
     <?php /* ── 主體：左主內容 + 右 Sidebar ─────────────────── */ ?>
     <div class="asa-layout">
 
-        <?php /* ══ 左：動畫卡片列表 ══════════════════════════ */ ?>
+        <?php /* ══ 左：動漫卡片列表 ══════════════════════════ */ ?>
         <main class="asa-main">
 
             <?php if ( empty( $all_posts ) ) : ?>
@@ -169,7 +169,7 @@ $schema_breadcrumb = [
                     <p>這個系列目前沒有已匯入的作品。</p>
                     <?php if ( current_user_can( 'manage_options' ) ) : ?>
                         <a href="<?php echo esc_url( admin_url( 'admin.php?page=anime-sync-import' ) ); ?>"
-                           class="asa-btn">前往匯入動畫</a>
+                           class="asa-btn">前往匯入動漫</a>
                     <?php endif; ?>
                 </div>
             <?php else : ?>

@@ -56,7 +56,7 @@ $log_stats = $logger->get_statistics(7);
                 <div class="stat-content">
                     <h3>已發布</h3>
                     <p class="stat-number"><?php echo esc_html($published_total); ?></p>
-                    <a href="<?php echo admin_url('admin.php?page=anime-sync-published'); ?>" class="stat-link">查看動畫 →</a>
+                    <a href="<?php echo admin_url('admin.php?page=anime-sync-published'); ?>" class="stat-link">查看動漫 →</a>
                 </div>
             </div>
             
@@ -76,7 +76,7 @@ $log_stats = $logger->get_statistics(7);
             <h2>快速操作</h2>
             <div class="quick-actions-grid">
                 <a href="<?php echo admin_url('admin.php?page=anime-sync-import'); ?>" class="quick-action-btn">
-                    <span class="dashicons dashicons-download"></span> 匯入動畫
+                    <span class="dashicons dashicons-download"></span> 匯入動漫
                 </a>
                 <a href="<?php echo admin_url('admin.php?page=anime-sync-queue'); ?>" class="quick-action-btn">
                     <span class="dashicons dashicons-list-view"></span> 審核佇列
@@ -85,7 +85,7 @@ $log_stats = $logger->get_statistics(7);
                     <span class="dashicons dashicons-admin-settings"></span> 設定
                 </a>
                 <a href="<?php echo admin_url('edit.php?post_type=anime'); ?>" class="quick-action-btn">
-                    <span class="dashicons dashicons-edit"></span> 管理動畫
+                    <span class="dashicons dashicons-edit"></span> 管理動漫
                 </a>
             </div>
         </div>

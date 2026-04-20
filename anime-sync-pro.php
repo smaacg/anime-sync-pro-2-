@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Anime Sync Pro
- * Description: 從 AniList、Bangumi 自動同步動畫資料。
+ * Description: 從 AniList、Bangumi 自動同步動漫資料。
  * Version:     1.0.5
  * Author:      SmaACG
  * Requires PHP: 8.0
@@ -71,16 +71,16 @@ add_action( 'init', function () {
     // ----------------------------------------------------------
     register_post_type( 'anime', [
         'labels' => [
-            'name'          => '動畫',
-            'singular_name' => '動畫',
-            'add_new'       => '新增動畫',
-            'add_new_item'  => '新增動畫',
-            'edit_item'     => '編輯動畫',
-            'view_item'     => '檢視動畫',
-            'search_items'  => '搜尋動畫',
-            'not_found'     => '找不到動畫',
-            'all_items'     => '所有動畫',
-            'menu_name'     => '動畫',
+            'name'          => '動漫',
+            'singular_name' => '動漫',
+            'add_new'       => '新增動漫',
+            'add_new_item'  => '新增動漫',
+            'edit_item'     => '編輯動漫',
+            'view_item'     => '檢視動漫',
+            'search_items'  => '搜尋動漫',
+            'not_found'     => '找不到動漫',
+            'all_items'     => '所有動漫',
+            'menu_name'     => '動漫',
         ],
         'public'             => true,
         'has_archive'        => 'anime',
@@ -139,7 +139,7 @@ add_action( 'init', function () {
     // ----------------------------------------------------------
     register_taxonomy( 'anime_format_tax', [ 'anime' ], [
         'labels' => [
-            'name'          => '動畫格式',
+            'name'          => '動漫格式',
             'singular_name' => '格式',
             'search_items'  => '搜尋格式',
             'all_items'     => '所有格式',

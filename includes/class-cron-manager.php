@@ -6,7 +6,7 @@
  *  1. 註冊自訂 WP-Cron 排程間隔
  *  2. 每日自動更新評分 / 熱度 / 播出狀態
  *  3. 每週清除過期快取與舊日誌
- *  4. 季度批次匯入（新一季動畫自動入庫）
+ *  4. 季度批次匯入（新一季動漫自動入庫）
  *
  * @package Anime_Sync_Pro
  */
@@ -113,7 +113,7 @@ class Anime_Sync_Cron_Manager {
     // =========================================================================
 
     /**
-     * 對「連載中」與「近期完結」動畫執行評分同步。
+     * 對「連載中」與「近期完結」動漫執行評分同步。
      * 使用 Anime_Sync_Performance::batch_process() 分批處理，避免逾時。
      */
     public function run_daily_score_update(): void {
@@ -124,7 +124,7 @@ class Anime_Sync_Cron_Manager {
 
         $batch_size = (int) get_option( 'anime_sync_batch_size', 15 );
 
-        // 查詢連載中 + 近期 90 天內完結的動畫
+        // 查詢連載中 + 近期 90 天內完結的動漫
         $query = new WP_Query( [
             'post_type'      => 'anime',
             'post_status'    => 'publish',
@@ -158,11 +158,11 @@ class Anime_Sync_Cron_Manager {
         $post_ids = $query->posts;
 
         if ( empty( $post_ids ) ) {
-            $this->logger->log( 'info', '每日評分更新：無需更新的動畫' );
+            $this->logger->log( 'info', '每日評分更新：無需更新的動漫' );
             return;
         }
 
-        $this->logger->log( 'info', sprintf( '每日評分更新：共 %d 部動畫待更新', count( $post_ids ) ) );
+        $this->logger->log( 'info', sprintf( '每日評分更新：共 %d 部動漫待更新', count( $post_ids ) ) );
 
         $updated = 0;
         $failed  = 0;
@@ -239,7 +239,7 @@ class Anime_Sync_Cron_Manager {
     // =========================================================================
 
     /**
-     * 觸發新一季動畫的批次匯入（手動或排程呼叫）。
+     * 觸發新一季動漫的批次匯入（手動或排程呼叫）。
      *
      * @param string $season  季節（WINTER/SPRING/SUMMER/FALL）
      * @param int    $year    年份

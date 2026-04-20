@@ -154,7 +154,7 @@ class Anime_Sync_Image_Handler {
             return false;
         }
 
-        $alt_text  = trim( $title ) . ' 封面圖 | 動畫資料庫';
+        $alt_text  = trim( $title ) . ' 封面圖 | 動漫資料庫';
         $file_name = sanitize_file_name( $title . '-cover.jpg' );
 
         $file_array = [

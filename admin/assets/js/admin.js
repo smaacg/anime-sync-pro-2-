@@ -180,7 +180,7 @@
                 alert( animeSyncAdmin.i18n.network_error || '網路錯誤。' );
             } ).always( function () {
                 $btn.prop( 'disabled', false )
-                    .text( animeSyncAdmin.i18n.query_season || '第一步：查詢季度動畫清單' );
+                    .text( animeSyncAdmin.i18n.query_season || '第一步：查詢季度動漫清單' );
             } );
         } );
 
@@ -235,7 +235,7 @@
                 .get();
 
             if ( ! selectedIds.length ) {
-                alert( animeSyncAdmin.i18n.select_anime || '請勾選至少一部動畫。' );
+                alert( animeSyncAdmin.i18n.select_anime || '請勾選至少一部動漫。' );
                 return;
             }
 

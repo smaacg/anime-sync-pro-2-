@@ -20,7 +20,7 @@ $is_format    = is_tax( 'anime_format_tax' );
 $is_search    = is_search() && get_query_var( 'post_type' ) === 'anime';
 $current_term = ( $is_genre || $is_season || $is_format ) ? get_queried_object() : null;
 
-$archive_title = '動畫列表';
+$archive_title = '動漫列表';
 $archive_desc  = '';
 if ( $is_search ) {
     $archive_title = '搜尋結果：' . get_search_query();
@@ -87,17 +87,17 @@ $canonical_url = ( $is_genre || $is_season || $is_format ) && $current_term
 $schema = [
     '@context'    => 'https://schema.org',
     '@type'       => 'CollectionPage',
-    'name'        => $archive_title . ' | 動畫資料庫',
+    'name'        => $archive_title . ' | 動漫資料庫',
     'description' => $archive_desc
         ? wp_strip_all_tags( $archive_desc )
-        : '收錄所有動畫資訊，包含評分、季度、類型、聲優等完整資料。',
+        : '收錄所有動漫資訊，包含評分、季度、類型、聲優等完整資料。',
     'url'         => $canonical_url,
 ];
 
 /* ── Schema：麵包屑 ───────────────────────────────────────── */
 $breadcrumb_items = [
     [ '@type' => 'ListItem', 'position' => 1, 'name' => '首頁',     'item' => home_url( '/' ) ],
-    [ '@type' => 'ListItem', 'position' => 2, 'name' => '動畫列表', 'item' => home_url( '/anime/' ) ],
+    [ '@type' => 'ListItem', 'position' => 2, 'name' => '動漫列表', 'item' => home_url( '/anime/' ) ],
 ];
 if ( $current_term ) {
     $breadcrumb_items[] = [
@@ -129,7 +129,7 @@ $breadcrumb_schema = [
     <nav class="aaa-breadcrumb" aria-label="麵包屑導航">
         <ol>
             <li><a href="<?php echo esc_url( home_url( '/' ) ); ?>">首頁</a></li>
-            <li><a href="<?php echo esc_url( home_url( '/anime/' ) ); ?>">動畫列表</a></li>
+            <li><a href="<?php echo esc_url( home_url( '/anime/' ) ); ?>">動漫列表</a></li>
             <?php if ( $current_term ) : ?>
                 <li><?php echo esc_html( $current_term->name ); ?></li>
             <?php elseif ( $is_search ) : ?>
@@ -144,7 +144,7 @@ $breadcrumb_schema = [
         <?php if ( $archive_desc ) : ?>
             <p class="aaa-desc"><?php echo wp_kses_post( $archive_desc ); ?></p>
         <?php endif; ?>
-        <p class="aaa-count">共 <strong><?php echo esc_html( $total_posts ); ?></strong> 部動畫</p>
+        <p class="aaa-count">共 <strong><?php echo esc_html( $total_posts ); ?></strong> 部動漫</p>
     </div>
 
     <?php /* ── 搜尋框 ─────────────────────────────────────── */ ?>
@@ -157,7 +157,7 @@ $breadcrumb_schema = [
                     type="search"
                     name="s"
                     class="aaa-search-input"
-                    placeholder="搜尋動畫名稱（中文、日文、英文）…"
+                    placeholder="搜尋動漫名稱（中文、日文、英文）…"
                     value="<?php echo esc_attr( get_search_query() ); ?>"
                     autocomplete="off"
                 >
@@ -190,7 +190,7 @@ $breadcrumb_schema = [
         <?php /* 格式篩選 */ ?>
         <?php if ( ! is_wp_error( $format_terms ) && $format_terms ) : ?>
         <div class="aaa-filter-group">
-            <div class="aaa-filter-label">🎬 動畫格式</div>
+            <div class="aaa-filter-label">🎬 動漫格式</div>
             <div class="aaa-filter-row">
                 <a href="<?php echo esc_url( get_post_type_archive_link( 'anime' ) ); ?>"
                    class="aaa-filter-btn <?php echo ( $is_archive && ! $active_format ) ? 'active' : ''; ?>">全部</a>
@@ -207,7 +207,7 @@ $breadcrumb_schema = [
         <?php /* 類型篩選 */ ?>
         <?php if ( ! is_wp_error( $genre_terms ) && $genre_terms ) : ?>
         <div class="aaa-filter-group">
-            <div class="aaa-filter-label">🏷️ 動畫類型</div>
+            <div class="aaa-filter-label">🏷️ 動漫類型</div>
             <div class="aaa-filter-row">
                 <a href="<?php echo esc_url( get_post_type_archive_link( 'anime' ) ); ?>"
                    class="aaa-filter-btn <?php echo ( $is_archive && ! $active_genre ) ? 'active' : ''; ?>">全部</a>
@@ -224,7 +224,7 @@ $breadcrumb_schema = [
     </div>
     <?php endif; ?>
 
-    <?php /* ── 動畫卡片網格 ──────────────────────────────── */ ?>
+    <?php /* ── 動漫卡片網格 ──────────────────────────────── */ ?>
     <?php
     $season_labels = [
         'WINTER' => '冬季', 'SPRING' => '春季',
@@ -340,7 +340,7 @@ $breadcrumb_schema = [
     <div class="aaa-seo-footer">
         <?php if ( ! is_wp_error( $genre_terms ) && $genre_terms ) : ?>
         <div class="aaa-seo-row">
-            <span class="aaa-seo-label">動畫類型：</span>
+            <span class="aaa-seo-label">動漫類型：</span>
             <?php foreach ( $genre_terms as $g ) : ?>
                 <a href="<?php echo esc_url( get_term_link( $g ) ); ?>" class="aaa-seo-tag">
                     <?php echo esc_html( $g->name ); ?>
@@ -350,7 +350,7 @@ $breadcrumb_schema = [
         <?php endif; ?>
         <?php if ( ! is_wp_error( $format_terms ) && $format_terms ) : ?>
         <div class="aaa-seo-row">
-            <span class="aaa-seo-label">動畫格式：</span>
+            <span class="aaa-seo-label">動漫格式：</span>
             <?php foreach ( $format_terms as $f ) : ?>
                 <a href="<?php echo esc_url( get_term_link( $f ) ); ?>" class="aaa-seo-tag">
                     <?php echo esc_html( $f->name ); ?>
@@ -364,13 +364,13 @@ $breadcrumb_schema = [
     <?php else : ?>
     <div class="aaa-empty">
         <?php if ( $is_search ) : ?>
-            <p>找不到「<?php echo esc_html( get_search_query() ); ?>」的相關動畫</p>
-            <a href="<?php echo esc_url( home_url( '/anime/' ) ); ?>" class="aaa-import-btn">回到動畫列表</a>
+            <p>找不到「<?php echo esc_html( get_search_query() ); ?>」的相關動漫</p>
+            <a href="<?php echo esc_url( home_url( '/anime/' ) ); ?>" class="aaa-import-btn">回到動漫列表</a>
         <?php else : ?>
-            <p>目前沒有動畫資料</p>
+            <p>目前沒有動漫資料</p>
             <?php if ( current_user_can( 'manage_options' ) ) : ?>
                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=anime-sync-import' ) ); ?>"
-                   class="aaa-import-btn">前往匯入動畫</a>
+                   class="aaa-import-btn">前往匯入動漫</a>
             <?php endif; ?>
         <?php endif; ?>
     </div>

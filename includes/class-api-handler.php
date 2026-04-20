@@ -1207,7 +1207,7 @@ private function get_bgm_staff( int $bangumi_id ): array {
         '主题歌演出', // OP/ED 演出
         '主题歌作词', // OP/ED 作詞
         '主题歌作曲', // OP/ED 作曲
-        '动画制作',   // 動畫製作公司
+        '动画制作',   // 動漫製作公司
     ];
 
     $staff = [];

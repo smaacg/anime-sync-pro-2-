@@ -411,7 +411,7 @@ class Anime_Sync_Frontend {
         $post = get_post( $request->get_param( 'id' ) );
 
         if ( ! $post || $post->post_type !== 'anime' || $post->post_status !== 'publish' ) {
-            return new \WP_Error( 'not_found', '找不到該動畫', [ 'status' => 404 ] );
+            return new \WP_Error( 'not_found', '找不到該動漫', [ 'status' => 404 ] );
         }
 
         return new \WP_REST_Response( $this->build_rest_response( $post ), 200 );
