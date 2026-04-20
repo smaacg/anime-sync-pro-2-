@@ -1079,13 +1079,25 @@ foreach ( $cast_list as $c ) {
 <div class="asd-side-section">
     <div class="asd-side-section__head"><h3>🏷️ 作品標籤</h3></div>
     <div class="asd-tags-wrap">
-<?php if ( ! empty( $studio ) ) : ?>
-    <a href="<?php echo esc_url( home_url( '/?s=' . urlencode( $studio ) ) ); ?>" 
-       class="asd-tag-item asd-tag-item--studio" 
-       target="_blank" rel="noopener noreferrer">
-        🎬 <?php echo esc_html( $studio ); ?>
-    </a>
-<?php endif; ?>
+
+        <?php if ( ! empty( $studio ) ) : ?>
+            <?php
+            $studio_term = get_terms( [
+                'taxonomy'   => 'anime_studio_tax',
+                'name'       => $studio,
+                'hide_empty' => false,
+                'number'     => 1,
+            ] );
+            $studio_url = ( ! is_wp_error( $studio_term ) && ! empty( $studio_term ) )
+                ? get_term_link( $studio_term[0] )
+                : home_url( '/anime/' );
+            ?>
+            <a href="<?php echo esc_url( $studio_url ); ?>"
+               class="asd-tag-item asd-tag-item--studio">
+                🎬 <?php echo esc_html( $studio ); ?>
+            </a>
+        <?php endif; ?>
+
         <?php if ( ! empty( $season_child_terms ) ) : ?>
             <?php foreach ( $season_child_terms as $st ) : ?>
                 <a href="<?php echo esc_url( get_term_link( $st ) ); ?>" class="asd-tag-item asd-tag-item--season">
@@ -1093,6 +1105,7 @@ foreach ( $cast_list as $c ) {
                 </a>
             <?php endforeach; ?>
         <?php endif; ?>
+
         <?php if ( ! empty( $genre_terms ) ) : ?>
             <?php foreach ( $genre_terms as $gt ) : ?>
                 <a href="<?php echo esc_url( get_term_link( $gt ) ); ?>" class="asd-tag-item">
@@ -1100,9 +1113,11 @@ foreach ( $cast_list as $c ) {
                 </a>
             <?php endforeach; ?>
         <?php endif; ?>
+
         <?php if ( empty( $studio ) && empty( $season_child_terms ) && empty( $genre_terms ) ) : ?>
             <p class="asd-side-empty">暫無標籤資料</p>
         <?php endif; ?>
+
     </div>
 </div>
 
