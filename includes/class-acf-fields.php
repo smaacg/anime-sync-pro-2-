@@ -41,8 +41,6 @@ class Anime_Sync_ACF_Fields {
             'key'                   => 'group_anime_basic_info',
             'title'                 => '📋 基本資訊',
             'fields'                => [
-
-                // --- API ID 區塊（四欄等寬）---
                 [
                     'key'           => 'field_anime_anilist_id',
                     'label'         => 'AniList ID',
@@ -85,8 +83,6 @@ class Anime_Sync_ACF_Fields {
                     'required'      => 0,
                     'wrapper'       => [ 'width' => '25' ],
                 ],
-
-                // --- 標題區塊 ---
                 [
                     'key'           => 'field_anime_title_chinese',
                     'label'         => '中文標題（台灣繁體）',
@@ -123,8 +119,6 @@ class Anime_Sync_ACF_Fields {
                     'required'      => 0,
                     'wrapper'       => [ 'width' => '50' ],
                 ],
-
-                // --- 格式 / 狀態 / 來源 ---
                 [
                     'key'           => 'field_anime_format',
                     'label'         => '作品類型',
@@ -188,8 +182,6 @@ class Anime_Sync_ACF_Fields {
                     'default_value' => 'ORIGINAL',
                     'wrapper'       => [ 'width' => '34' ],
                 ],
-
-                // --- 季度 / 年份 ---
                 [
                     'key'           => 'field_anime_season',
                     'label'         => '播出季度',
@@ -217,8 +209,6 @@ class Anime_Sync_ACF_Fields {
                     'step'          => 1,
                     'wrapper'       => [ 'width' => '50' ],
                 ],
-
-                // --- 集數 / 時長 ---
                 [
                     'key'           => 'field_anime_episodes',
                     'label'         => '總集數',
@@ -252,8 +242,6 @@ class Anime_Sync_ACF_Fields {
                     'step'          => 1,
                     'wrapper'       => [ 'width' => '25' ],
                 ],
-
-                // --- 播出日期 ---
                 [
                     'key'            => 'field_anime_start_date',
                     'label'          => '開播日期',
@@ -325,7 +313,7 @@ class Anime_Sync_ACF_Fields {
                     'label'         => 'MyAnimeList 評分',
                     'name'          => 'anime_score_mal',
                     'type'          => 'number',
-                    'instructions' => '範圍 0–100（原始分數 × 10）。由每週 cron 透過 Jikan API 自動更新。',
+                    'instructions'  => '範圍 0–100（原始分數 × 10）。由每週 cron 透過 Jikan API 自動更新。',
                     'required'      => 0,
                     'min'           => 0,
                     'max'           => 100,
@@ -455,6 +443,7 @@ class Anime_Sync_ACF_Fields {
 
     // =========================================================================
     // 群組 5：製作資訊
+    // ★ 修改：staff / cast / episodes 移除 readonly，允許手動修正繁簡轉換錯誤
     // =========================================================================
     private function register_production(): void {
         acf_add_local_field_group( [
@@ -475,36 +464,33 @@ class Anime_Sync_ACF_Fields {
                     'label'         => 'STAFF 資料（JSON）',
                     'name'          => 'anime_staff_json',
                     'type'          => 'textarea',
-                    'instructions'  => '由 Bangumi STAFF API 自動填入。請勿手動編輯。',
+                    'instructions'  => '由 Bangumi STAFF API 自動填入。可手動修正繁簡轉換錯誤後儲存。修改後請在「同步控制」勾選「鎖定 STAFF 製作資料」。',
                     'required'      => 0,
-                    'rows'          => 4,
+                    'rows'          => 6,
                     'new_lines'     => '',
                     'wrapper'       => [ 'width' => '100' ],
-                    'readonly'      => 1,
                 ],
                 [
                     'key'           => 'field_anime_cast_json',
                     'label'         => 'CAST 角色資料（JSON）',
                     'name'          => 'anime_cast_json',
                     'type'          => 'textarea',
-                    'instructions'  => '由 Bangumi CAST API 自動填入。請勿手動編輯。',
+                    'instructions'  => '由 Bangumi CAST API 自動填入。可手動修正繁簡轉換錯誤後儲存。修改後請在「同步控制」勾選「鎖定 CAST 角色資料」。',
                     'required'      => 0,
-                    'rows'          => 4,
+                    'rows'          => 6,
                     'new_lines'     => '',
                     'wrapper'       => [ 'width' => '100' ],
-                    'readonly'      => 1,
                 ],
                 [
                     'key'           => 'field_anime_episodes_json',
                     'label'         => '集數列表（JSON）',
                     'name'          => 'anime_episodes_json',
                     'type'          => 'textarea',
-                    'instructions'  => '由 Bangumi Episodes API 自動填入。請勿手動編輯。格式：[{"ep":1,"name":"...","name_cn":"...","airdate":"YYYY-MM-DD"}]',
+                    'instructions'  => '由 Bangumi Episodes API 自動填入。可手動修正繁簡轉換錯誤後儲存。修改後請在「同步控制」勾選「鎖定集數列表」。格式：[{"ep":1,"name":"...","name_cn":"...","airdate":"YYYY-MM-DD"}]',
                     'required'      => 0,
-                    'rows'          => 4,
+                    'rows'          => 6,
                     'new_lines'     => '',
                     'wrapper'       => [ 'width' => '100' ],
-                    'readonly'      => 1,
                 ],
             ],
             'location'    => [
@@ -753,7 +739,8 @@ class Anime_Sync_ACF_Fields {
     }
 
     // =========================================================================
-    // 群組 10：同步控制（移除重新同步按鈕，改為獨立 Meta Box）
+    // 群組 10：同步控制
+    // ★ 修改：鎖定欄位只保留 cron 會實際覆蓋的欄位，移除不必要的選項
     // =========================================================================
     private function register_sync_control(): void {
         acf_add_local_field_group( [
@@ -785,7 +772,7 @@ class Anime_Sync_ACF_Fields {
                     'label'         => '鎖定欄位（防止自動覆寫）',
                     'name'          => 'anime_locked_fields',
                     'type'          => 'checkbox',
-                    'instructions'  => '勾選後，自動更新 cron 將跳過該欄位，保留您的人工修改。注意：重新同步 Bangumi 按鈕會強制覆蓋，不受此設定影響。',
+                    'instructions'  => '勾選後，自動更新 cron 與重新同步 Bangumi 將跳過該欄位，保留您的人工修改。',
                     'required'      => 0,
                     'choices'       => [
                         'anime_title_chinese'    => '中文標題',
@@ -793,16 +780,8 @@ class Anime_Sync_ACF_Fields {
                         'anime_cover_image'      => '封面圖片',
                         'anime_banner_image'     => '橫幅圖片',
                         'anime_trailer_url'      => 'YouTube 預告片',
-                        'anime_official_site'    => '官方網站',
-                        'anime_twitter_url'      => 'Twitter 連結',
-                        'anime_wikipedia_url'    => 'Wikipedia 連結',
-                        'anime_tiktok_url'       => 'TikTok 連結',
-                        'anime_tw_distributor'   => '台灣代理商',
-                        'anime_tw_broadcast'     => '台灣播出時間',
                         'anime_cast_json'        => 'CAST 角色資料',
                         'anime_staff_json'       => 'STAFF 製作資料',
-                        'anime_themes_json'      => 'OP/ED 主題曲',
-                        'anime_streaming_json'   => '串流平台資料',
                         'anime_episodes_json'    => '集數列表',
                     ],
                     'layout'        => 'horizontal',
@@ -822,7 +801,7 @@ class Anime_Sync_ACF_Fields {
     }
 
     // =========================================================================
-    // Meta Box：重新同步 Bangumi（原生 WordPress，取代 ACF message 欄位）
+    // Meta Box：重新同步 Bangumi
     // =========================================================================
     public function register_resync_metabox(): void {
         add_meta_box(
@@ -847,13 +826,11 @@ class Anime_Sync_ACF_Fields {
             <?php else : ?>
                 <p style="margin:0 0 8px;color:#999;">尚未設定 Bangumi ID。</p>
             <?php endif; ?>
-
             <?php if ( $last_sync ) : ?>
                 <p style="margin:0 0 8px;font-size:11px;color:#666;">
                     上次同步：<?php echo esc_html( $last_sync ); ?>
                 </p>
             <?php endif; ?>
-
             <button
                 type="button"
                 id="anime-resync-bangumi-btn"
@@ -862,7 +839,6 @@ class Anime_Sync_ACF_Fields {
             >
                 🔄 重新同步 Bangumi 資料
             </button>
-
             <p id="anime-resync-bangumi-msg" style="margin:8px 0 0;min-height:20px;font-size:12px;"></p>
         </div>
         <?php
@@ -871,33 +847,30 @@ class Anime_Sync_ACF_Fields {
     // =========================================================================
     // Helper：16 個台灣串流平台定義
     // =========================================================================
-private function get_tw_platforms(): array {
-    return [
-        // ── 台灣／港澳在地平台 ──
-        'bahamut'     => '巴哈姆特動漫瘋',
-        'kktv'        => 'KKTV',
-        'friday'      => 'friDay 影音',
-        'catchplay'   => 'CatchPlay+',
-        'bilibili'    => 'Bilibili 台灣',
-        'ani-one'     => 'Ani-One',
-        'muse'        => 'Muse 木棉花',
-        'viu'         => 'Viu',
-        'wetv'        => 'WeTV',
-        'youtube'     => 'YouTube（官方頻道）',
-        // ── 全球平台（台灣可用）──
-        'netflix'     => 'Netflix',
-        'disney'      => 'Disney+',
-        'crunchyroll' => 'Crunchyroll',
-        'amazon'      => 'Amazon Prime Video',
-        'hulu'        => 'Hulu',
-        'hidive'      => 'HIDIVE',
-    ];
-}
+    private function get_tw_platforms(): array {
+        return [
+            'bahamut'     => '巴哈姆特動漫瘋',
+            'kktv'        => 'KKTV',
+            'friday'      => 'friDay 影音',
+            'catchplay'   => 'CatchPlay+',
+            'bilibili'    => 'Bilibili 台灣',
+            'ani-one'     => 'Ani-One',
+            'muse'        => 'Muse 木棉花',
+            'viu'         => 'Viu',
+            'wetv'        => 'WeTV',
+            'youtube'     => 'YouTube（官方頻道）',
+            'netflix'     => 'Netflix',
+            'disney'      => 'Disney+',
+            'crunchyroll' => 'Crunchyroll',
+            'amazon'      => 'Amazon Prime Video',
+            'hulu'        => 'Hulu',
+            'hidive'      => 'HIDIVE',
+        ];
+    }
 
     // =========================================================================
-    // 靜態輔助方法（保留原始版本）
+    // 靜態輔助方法
     // =========================================================================
-
     public static function get_auto_update_fields(): array {
         return [
             'anime_episodes_aired' => '已播集數',
@@ -908,51 +881,6 @@ private function get_tw_platforms(): array {
             'anime_score_anilist'  => 'AniList 評分',
             'anime_score_mal'      => 'MAL 評分',
             'anime_score_bangumi'  => 'Bangumi 評分',
-            'anime_popularity'     => 'AniList 人氣數',
-            'anime_ranking'        => 'AniList 排名',
-            'anime_themes_json'    => 'OP/ED 主題曲',
         ];
-    }
-
-    public static function get_one_time_fields(): array {
-        return [
-            'anime_anilist_id'       => 'AniList ID',
-            'anime_mal_id'           => 'MAL ID',
-            'anime_bangumi_id'       => 'Bangumi ID',
-            'anime_animethemes_id'   => 'AnimeThemes ID',
-            'anime_title_native'     => '日文原名',
-            'anime_title_romaji'     => 'Romaji 標題',
-            'anime_title_english'    => '英文標題',
-            'anime_format'           => '作品類型',
-            'anime_source'           => '原作來源',
-            'anime_season'           => '播出季度',
-            'anime_season_year'      => '播出年份',
-            'anime_duration'         => '每集時長',
-            'anime_start_date'       => '開播日期',
-            'anime_cover_image'      => '封面圖片',
-            'anime_banner_image'     => '橫幅圖片',
-            'anime_studio'           => '製作公司',
-            'anime_staff_json'       => 'STAFF 資料',
-            'anime_cast_json'        => 'CAST 資料',
-            'anime_streaming_json'   => '串流平台資料',
-            'anime_official_site'    => '官方網站',
-            'anime_twitter_url'      => 'Twitter 連結',
-        ];
-    }
-
-    public static function is_field_locked( int $post_id, string $meta_key ): bool {
-        if ( ! function_exists( 'get_field' ) ) {
-            $locked = get_post_meta( $post_id, 'anime_locked_fields', true );
-        } else {
-            $locked = get_field( 'anime_locked_fields', $post_id );
-        }
-
-        if ( empty( $locked ) || ! is_array( $locked ) ) {
-            return false;
-        }
-
-        return in_array( $meta_key, $locked, true );
     }
 }
-
-new Anime_Sync_ACF_Fields();
