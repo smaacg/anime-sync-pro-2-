@@ -11,6 +11,7 @@
  * import_single() 新增第三參數 $source（預設 'manual'），
  * 相容 class-cron-manager.php 呼叫 import_single($id, null, 'anilist')。
  * generate_slug() 新增 $exclude_id 參數，更新時排除自身避免無限加 suffix。
+ * ACK – 新增 map_streaming_to_tw_fields()：解析 externalLinks 自動寫入台灣串流平台欄位。
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -57,11 +58,11 @@ class Anime_Sync_Import_Manager {
 		$has_streaming = ! empty( $anime_data['anime_streaming'] ) && $anime_data['anime_streaming'] !== '[]';
 
 		$summary = implode( ' | ', array_filter( [
-			$has_chinese ? '✅ 中文標題' : '⚠️ 無中文標題',
-			$has_bangumi ? '✅ Bangumi' : '⚠️ 缺 Bangumi',
-			$has_synopsis ? '✅ 簡介' : null,
-			$has_cover ? '✅ 封面' : '⚠️ 無封面',
-			$has_streaming ? '✅ 串流' : null,
+			$has_chinese   ? '✅ 中文標題' : '⚠️ 無中文標題',
+			$has_bangumi   ? '✅ Bangumi'  : '⚠️ 缺 Bangumi',
+			$has_synopsis  ? '✅ 簡介'     : null,
+			$has_cover     ? '✅ 封面'     : '⚠️ 無封面',
+			$has_streaming ? '✅ 串流'     : null,
 			'⏳ 待補抓：聲優/主題曲/Wikipedia',
 		] ) );
 
@@ -227,7 +228,7 @@ class Anime_Sync_Import_Manager {
 	}
 
 	// =========================================================================
-	// PRIVATE – 產生 Slug（修正：新增 $exclude_id 排除自身）
+	// PRIVATE – 產生 Slug
 	// =========================================================================
 
 	private function generate_slug( array $data, int $exclude_id = 0 ): string {
@@ -305,6 +306,9 @@ class Anime_Sync_Import_Manager {
 			update_post_meta( $post_id, $key, $this->prepare_meta_value( $key, $value ) );
 		}
 
+		// 自動解析 externalLinks 寫入台灣串流平台欄位
+		$this->map_streaming_to_tw_fields( $post_id, $data['anime_external_links'] ?? '[]' );
+
 		$bgm_id_raw   = $data['bangumi_id'] ?? null;
 		$bgm_id       = $bgm_id_raw !== null ? abs( intval( $bgm_id_raw ) ) : 0;
 		$manually_set = (bool) get_post_meta( $post_id, '_bangumi_id_manually_set', true );
@@ -372,7 +376,7 @@ class Anime_Sync_Import_Manager {
 			'summary',
 		];
 
-		$post_fields = [];
+		$post_fields   = [];
 		$existing_post = null;
 
 		$content = $this->pick_first_string( $data, $content_candidates );
@@ -407,7 +411,6 @@ class Anime_Sync_Import_Manager {
 				}
 			}
 		}
-
 		return '';
 	}
 
@@ -527,6 +530,94 @@ class Anime_Sync_Import_Manager {
 	}
 
 	// =========================================================================
+	// PRIVATE – 解析 externalLinks 自動寫入台灣串流平台欄位
+	// =========================================================================
+
+	private function map_streaming_to_tw_fields( int $post_id, string $external_links_json ): void {
+		$links = json_decode( $external_links_json, true );
+		if ( ! is_array( $links ) || empty( $links ) ) return;
+
+		// AniList site 名稱 → meta key 對應
+		$platform_map = [
+			'Crunchyroll'        => 'anime_tw_streaming_url_crunchyroll',
+			'Netflix'            => 'anime_tw_streaming_url_netflix',
+			'Disney Plus'        => 'anime_tw_streaming_url_disney',
+			'Disney+'            => 'anime_tw_streaming_url_disney',
+			'Amazon Prime Video' => 'anime_tw_streaming_url_amazon',
+			'Hulu'               => 'anime_tw_streaming_url_hulu',
+			'HIDIVE'             => 'anime_tw_streaming_url_hidive',
+			'Bilibili'           => 'anime_tw_streaming_url_bilibili',
+			'YouTube'            => 'anime_tw_streaming_url_youtube',
+			'WeTV'               => 'anime_tw_streaming_url_wetv',
+			'Viu'                => 'anime_tw_streaming_url_viu',
+			'Ani-One Asia'       => 'anime_tw_streaming_url_ani_one',
+			'Muse Asia'          => 'anime_tw_streaming_url_muse',
+		];
+
+		// AniList site 名稱 → checkbox value（對應 get_tw_platforms() 的 key）
+		$platform_to_checkbox = [
+			'Crunchyroll'        => 'crunchyroll',
+			'Netflix'            => 'netflix',
+			'Disney Plus'        => 'disney',
+			'Disney+'            => 'disney',
+			'Amazon Prime Video' => 'amazon',
+			'Hulu'               => 'hulu',
+			'HIDIVE'             => 'hidive',
+			'Bilibili'           => 'bilibili',
+			'YouTube'            => 'youtube',
+			'WeTV'               => 'wetv',
+			'Viu'                => 'viu',
+			'Ani-One Asia'       => 'ani-one',
+			'Muse Asia'          => 'muse',
+		];
+
+		$checked_platforms = get_post_meta( $post_id, 'anime_tw_streaming', true );
+		if ( ! is_array( $checked_platforms ) ) {
+			$checked_platforms = [];
+		}
+
+		foreach ( $links as $link ) {
+			$site = $link['site'] ?? '';
+			$url  = $link['url']  ?? '';
+			$type = strtoupper( $link['type'] ?? '' );
+
+			if ( $site === '' || $url === '' ) continue;
+			if ( $type !== '' && $type !== 'STREAMING' ) continue;
+
+			// YouTube 連結判斷是否為 Ani-One 或 Muse 頻道
+			if ( $site === 'YouTube' ) {
+				if ( stripos( $url, 'AniOneAsia' ) !== false || stripos( $url, 'ani-one' ) !== false ) {
+					$site = 'Ani-One Asia';
+				} elseif ( stripos( $url, 'MuseAsia' ) !== false || stripos( $url, 'muse' ) !== false ) {
+					$site = 'Muse Asia';
+				}
+				// 其他 YouTube 連結維持 'YouTube'
+			}
+
+			// 寫入 URL（空白時才填，不覆蓋人工填的連結）
+			if ( isset( $platform_map[ $site ] ) ) {
+				$meta_key = $platform_map[ $site ];
+				$existing = get_post_meta( $post_id, $meta_key, true );
+				if ( empty( $existing ) ) {
+					update_post_meta( $post_id, $meta_key, esc_url_raw( $url ) );
+				}
+			}
+
+			// 更新 checkbox 勾選
+			if ( isset( $platform_to_checkbox[ $site ] ) ) {
+				$val = $platform_to_checkbox[ $site ];
+				if ( ! in_array( $val, $checked_platforms, true ) ) {
+					$checked_platforms[] = $val;
+				}
+			}
+		}
+
+		if ( ! empty( $checked_platforms ) ) {
+			update_post_meta( $post_id, 'anime_tw_streaming', array_values( $checked_platforms ) );
+		}
+	}
+
+	// =========================================================================
 	// PRIVATE – Tag helpers
 	// =========================================================================
 
@@ -572,134 +663,134 @@ class Anime_Sync_Import_Manager {
 
 	private function get_tag_map(): array {
 		return [
-			'Amnesia' => '失憶',
-			'Revenge' => '復仇',
-			'Reincarnation' => '轉生',
-			'Time Travel' => '時間旅行',
-			'Time Loop' => '時間循環',
-			'Isekai' => '異世界',
-			'Parallel World' => '平行世界',
-			'Virtual Reality' => '虛擬實境',
-			'Augmented Reality' => '擴增實境',
-			'Post-Apocalyptic' => '末日後',
-			'Dystopia' => '反烏托邦',
-			'Utopia' => '烏托邦',
-			'Alternate History' => '架空歷史',
-			'Historical' => '歷史',
-			'Fictional World' => '架空世界',
-			'Space' => '宇宙',
-			'Space Opera' => '太空歌劇',
-			'Cyberpunk' => '賽博龐克',
-			'Steampunk' => '蒸汽龐克',
-			'Dieselpunk' => '柴油龐克',
-			'Fantasy World' => '奇幻世界',
-			'High Fantasy' => '高奇幻',
-			'Low Fantasy' => '低奇幻',
-			'Urban Fantasy' => '都市奇幻',
-			'Mythology' => '神話',
-			'Feudal Japan' => '日本戰國',
-			'Anti-Hero' => '反英雄',
-			'Villain Protagonist' => '反派主角',
-			'Overpowered Protagonist' => '無敵主角',
-			'Female Protagonist' => '女主角',
-			'Male Protagonist' => '男主角',
-			'Non-Human Protagonist' => '非人類主角',
-			'Ensemble Cast' => '群像劇',
-			'Kuudere' => '酷蛋',
-			'Tsundere' => '傲嬌',
-			'Yandere' => '病嬌',
-			'Dandere' => '呆萌',
-			'Coming of Age' => '成長故事',
-			'Redemption' => '救贖',
-			'Found Family' => '羈絆家族',
-			'Tragedy' => '悲劇',
-			'Comedy' => '喜劇',
-			'Parody' => '搞笑惡搞',
-			'Romance' => '戀愛',
-			'Harem' => '後宮',
-			'Reverse Harem' => '逆後宮',
-			'Love Triangle' => '三角戀',
-			'Forbidden Love' => '禁忌之戀',
-			'Arranged Marriage' => '包辦婚姻',
-			'Slice of Life' => '日常',
-			'School Life' => '校園生活',
-			'Work Life' => '職場生活',
-			'Magic' => '魔法',
-			'Superpowers' => '超能力',
-			'Supernatural' => '超自然',
-			'Demons' => '惡魔',
-			'Angels' => '天使',
-			'Vampires' => '吸血鬼',
-			'Werewolves' => '狼人',
-			'Ghosts' => '鬼魂',
-			'Undead' => '不死族',
-			'Gods' => '神明',
-			'Spirits' => '精靈/靈魂',
-			'Witches' => '女巫',
-			'Curses' => '詛咒',
-			'Alchemy' => '煉金術',
-			'Necromancy' => '死靈術',
-			'Action' => '動作',
-			'Martial Arts' => '武術',
-			'Swordplay' => '劍術',
-			'Archery' => '弓術',
-			'Gunfights' => '槍戰',
-			'Mechs' => '機甲',
-			'Military' => '軍事',
-			'War' => '戰爭',
-			'Battle Royale' => '大逃殺',
-			'Survival' => '求生',
-			'Tournament' => '競技賽',
-			'Strategy Game' => '策略遊戲',
-			'Idol' => '偶像',
-			'Musician' => '音樂人',
-			'Detective' => '偵探',
-			'Police' => '警察',
-			'Samurai' => '武士',
-			'Ninja' => '忍者',
-			'Pirate' => '海盜',
-			'Doctor' => '醫生',
-			'Teacher' => '教師',
-			'Chef' => '廚師',
-			'Athlete' => '運動員',
-			'Adventurer' => '冒險者',
-			'Guild' => '公會',
-			'Siblings' => '兄弟姊妹',
-			'Twins' => '雙胞胎',
-			'Master-Servant' => '主僕關係',
-			'Senpai-Kohai' => '前輩後輩',
-			'Childhood Friends' => '青梅竹馬',
-			'Rivals' => '對手',
-			'Bromance' => '兄弟情誼',
-			'Psychological' => '心理',
-			'Trauma' => '心理創傷',
-			'Mental Illness' => '精神疾病',
-			'Social Commentary' => '社會批評',
-			'Politics' => '政治',
-			'Philosophy' => '哲學',
-			'Religion' => '宗教',
-			'Gore' => '血腥暴力',
-			'Horror' => '恐怖',
-			'Ecchi' => '輕微色情',
-			'Fanservice' => '福利',
-			'Chibi' => '超可愛',
-			'Moe' => '萌',
+			'Amnesia'                    => '失憶',
+			'Revenge'                    => '復仇',
+			'Reincarnation'              => '轉生',
+			'Time Travel'                => '時間旅行',
+			'Time Loop'                  => '時間循環',
+			'Isekai'                     => '異世界',
+			'Parallel World'             => '平行世界',
+			'Virtual Reality'            => '虛擬實境',
+			'Augmented Reality'          => '擴增實境',
+			'Post-Apocalyptic'           => '末日後',
+			'Dystopia'                   => '反烏托邦',
+			'Utopia'                     => '烏托邦',
+			'Alternate History'          => '架空歷史',
+			'Historical'                 => '歷史',
+			'Fictional World'            => '架空世界',
+			'Space'                      => '宇宙',
+			'Space Opera'                => '太空歌劇',
+			'Cyberpunk'                  => '賽博龐克',
+			'Steampunk'                  => '蒸汽龐克',
+			'Dieselpunk'                 => '柴油龐克',
+			'Fantasy World'              => '奇幻世界',
+			'High Fantasy'               => '高奇幻',
+			'Low Fantasy'                => '低奇幻',
+			'Urban Fantasy'              => '都市奇幻',
+			'Mythology'                  => '神話',
+			'Feudal Japan'               => '日本戰國',
+			'Anti-Hero'                  => '反英雄',
+			'Villain Protagonist'        => '反派主角',
+			'Overpowered Protagonist'    => '無敵主角',
+			'Female Protagonist'         => '女主角',
+			'Male Protagonist'           => '男主角',
+			'Non-Human Protagonist'      => '非人類主角',
+			'Ensemble Cast'              => '群像劇',
+			'Kuudere'                    => '酷蛋',
+			'Tsundere'                   => '傲嬌',
+			'Yandere'                    => '病嬌',
+			'Dandere'                    => '呆萌',
+			'Coming of Age'              => '成長故事',
+			'Redemption'                 => '救贖',
+			'Found Family'               => '羈絆家族',
+			'Tragedy'                    => '悲劇',
+			'Comedy'                     => '喜劇',
+			'Parody'                     => '搞笑惡搞',
+			'Romance'                    => '戀愛',
+			'Harem'                      => '後宮',
+			'Reverse Harem'              => '逆後宮',
+			'Love Triangle'              => '三角戀',
+			'Forbidden Love'             => '禁忌之戀',
+			'Arranged Marriage'          => '包辦婚姻',
+			'Slice of Life'              => '日常',
+			'School Life'                => '校園生活',
+			'Work Life'                  => '職場生活',
+			'Magic'                      => '魔法',
+			'Superpowers'                => '超能力',
+			'Supernatural'               => '超自然',
+			'Demons'                     => '惡魔',
+			'Angels'                     => '天使',
+			'Vampires'                   => '吸血鬼',
+			'Werewolves'                 => '狼人',
+			'Ghosts'                     => '鬼魂',
+			'Undead'                     => '不死族',
+			'Gods'                       => '神明',
+			'Spirits'                    => '精靈/靈魂',
+			'Witches'                    => '女巫',
+			'Curses'                     => '詛咒',
+			'Alchemy'                    => '煉金術',
+			'Necromancy'                 => '死靈術',
+			'Action'                     => '動作',
+			'Martial Arts'               => '武術',
+			'Swordplay'                  => '劍術',
+			'Archery'                    => '弓術',
+			'Gunfights'                  => '槍戰',
+			'Mechs'                      => '機甲',
+			'Military'                   => '軍事',
+			'War'                        => '戰爭',
+			'Battle Royale'              => '大逃殺',
+			'Survival'                   => '求生',
+			'Tournament'                 => '競技賽',
+			'Strategy Game'              => '策略遊戲',
+			'Idol'                       => '偶像',
+			'Musician'                   => '音樂人',
+			'Detective'                  => '偵探',
+			'Police'                     => '警察',
+			'Samurai'                    => '武士',
+			'Ninja'                      => '忍者',
+			'Pirate'                     => '海盜',
+			'Doctor'                     => '醫生',
+			'Teacher'                    => '教師',
+			'Chef'                       => '廚師',
+			'Athlete'                    => '運動員',
+			'Adventurer'                 => '冒險者',
+			'Guild'                      => '公會',
+			'Siblings'                   => '兄弟姊妹',
+			'Twins'                      => '雙胞胎',
+			'Master-Servant'             => '主僕關係',
+			'Senpai-Kohai'               => '前輩後輩',
+			'Childhood Friends'          => '青梅竹馬',
+			'Rivals'                     => '對手',
+			'Bromance'                   => '兄弟情誼',
+			'Psychological'              => '心理',
+			'Trauma'                     => '心理創傷',
+			'Mental Illness'             => '精神疾病',
+			'Social Commentary'          => '社會批評',
+			'Politics'                   => '政治',
+			'Philosophy'                 => '哲學',
+			'Religion'                   => '宗教',
+			'Gore'                       => '血腥暴力',
+			'Horror'                     => '恐怖',
+			'Ecchi'                      => '輕微色情',
+			'Fanservice'                 => '福利',
+			'Chibi'                      => '超可愛',
+			'Moe'                        => '萌',
 			'Cute Girls Doing Cute Things' => '日常萌系',
-			'Anthropomorphism' => '擬人化',
-			'Dragons' => '龍',
-			'Cats' => '貓',
-			'Dogs' => '狗',
-			'Kemonomimi' => '獸耳',
-			'Monster Girls' => '娘化怪物',
-			'Based on a Manga' => '漫改',
-			'Based on a Light Novel' => '輕小說改編',
-			'Based on a Novel' => '小說改編',
-			'Based on a Game' => '遊改',
-			'Based on a Visual Novel' => '視覺小說改編',
-			'Original' => '原創',
-			'Sequel' => '續集',
-			'Prequel' => '前傳',
-			'Spin-Off' => '外傳',
+			'Anthropomorphism'           => '擬人化',
+			'Dragons'                    => '龍',
+			'Cats'                       => '貓',
+			'Dogs'                       => '狗',
+			'Kemonomimi'                 => '獸耳',
+			'Monster Girls'              => '娘化怪物',
+			'Based on a Manga'           => '漫改',
+			'Based on a Light Novel'     => '輕小說改編',
+			'Based on a Novel'           => '小說改編',
+			'Based on a Game'            => '遊改',
+			'Based on a Visual Novel'    => '視覺小說改編',
+			'Original'                   => '原創',
+			'Sequel'                     => '續集',
+			'Prequel'                    => '前傳',
+			'Spin-Off'                   => '外傳',
 		];
 	}
 
