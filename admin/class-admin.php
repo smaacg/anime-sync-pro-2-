@@ -135,7 +135,7 @@ class Anime_Sync_Admin {
     public function render_logs_page()      { $this->safe_include_page( 'logs.php'           ); }
     public function render_settings()       { $this->safe_include_page( 'settings.php'       ); }
 
-    // =========================================================================
+       // =========================================================================
     // ACJ：一鍵轉繁體 Meta Box
     // =========================================================================
 
@@ -151,15 +151,18 @@ class Anime_Sync_Admin {
     }
 
     public function render_convert_meta_box( \WP_Post $post ): void {
-        $nonce = wp_create_nonce( 'anime_sync_nonce' );
-        echo <<<HTML
-        <button type="button" id="asd-convert-btn" class="button button-primary" style="width:100%;margin-bottom:8px" data-id="{$post->ID}" data-nonce="{$nonce}">
+        $nonce   = wp_create_nonce( 'anime_sync_nonce' );
+        $post_id = $post->ID;
+        ?>
+        <button type="button"
+                class="button button-primary"
+                style="width:100%;margin-bottom:8px"
+                onclick="asdConvertPost('<?php echo $post_id; ?>', '<?php echo $nonce; ?>', this)">
             🔄 一鍵轉繁體
         </button>
         <p id="asd-convert-msg" style="margin:0;font-size:13px;display:none"></p>
         <script>
-        document.getElementById('asd-convert-btn').addEventListener('click', function () {
-            var btn = this;
+        function asdConvertPost(postId, nonce, btn) {
             var msg = document.getElementById('asd-convert-msg');
             btn.disabled = true;
             btn.textContent = '⏳ 轉換中...';
@@ -168,9 +171,9 @@ class Anime_Sync_Admin {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({
-                    action:   'anime_sync_convert_post',
-                    nonce:    btn.dataset.nonce,
-                    post_id:  btn.dataset.id,
+                    action:  'anime_sync_convert_post',
+                    nonce:   nonce,
+                    post_id: postId,
                 })
             })
             .then(function(r){ return r.json(); })
@@ -180,7 +183,8 @@ class Anime_Sync_Admin {
                 msg.style.display = 'block';
                 if (data.success) {
                     msg.style.color = '#2271b1';
-                    msg.textContent = '✅ 轉換完成，請重新整理頁面查看結果';
+                    msg.textContent = '✅ 轉換完成，正在重新整理...';
+                    setTimeout(function(){ location.reload(); }, 1000);
                 } else {
                     msg.style.color = '#d63638';
                     msg.textContent = '❌ ' + (data.data || '轉換失敗');
@@ -193,9 +197,9 @@ class Anime_Sync_Admin {
                 msg.style.color = '#d63638';
                 msg.textContent = '❌ 網路錯誤，請重試';
             });
-        });
+        }
         </script>
-        HTML;
+        <?php
     }
 
     public function ajax_convert_post_to_tw(): void {
