@@ -743,7 +743,7 @@ foreach ( $cast_list as $c ) {
         <?php if ( count( $episodes_list ) > 3 ) : ?>
             <div style="display:flex;justify-content:center;margin-top:12px;">
                 <button class="asd-ep-toggle" type="button">
-                    顯示全部 <?php echo count( $episodes_list ); ?> 集 ▼
+                    顯示全部 <?php echo count( $episodes_list ); ?> 話▼
                 </button>
             </div>
         <?php endif; ?>
