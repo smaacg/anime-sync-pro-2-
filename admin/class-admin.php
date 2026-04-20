@@ -66,9 +66,8 @@ class Anime_Sync_Admin {
         add_action( 'wp_ajax_anime_resync_bangumi',          [ $this, 'handle_ajax_resync_bangumi'     ] );
         add_action( 'wp_ajax_anime_sync_scan_series_gaps',   [ $this, 'handle_ajax_scan_series_gaps'   ] );
 
-        // ACJ：一鍵轉繁體
-        add_action( 'add_meta_boxes',                        [ $this, 'register_convert_meta_box'      ] );
-        add_action( 'wp_ajax_anime_sync_convert_post',       [ $this, 'ajax_convert_post_to_tw'        ] );
+        add_action( 'add_meta_boxes',                  [ $this, 'register_convert_meta_box' ] );
+        add_action( 'wp_ajax_anime_sync_convert_post', [ $this, 'ajax_convert_post_to_tw'   ] );
     }
 
     // =========================================================================
@@ -124,18 +123,21 @@ class Anime_Sync_Admin {
     private function safe_include_page( string $file_name ): void {
         $base_dir  = defined( 'ANIME_SYNC_PRO_DIR' ) ? ANIME_SYNC_PRO_DIR : plugin_dir_path( dirname( __FILE__ ) );
         $file_path = $base_dir . 'admin/pages/' . $file_name;
-        if ( file_exists( $file_path ) ) include $file_path;
-        else echo '<div class="wrap"><div class="notice notice-error"><p>找不到頁面：<code>' . esc_html( $file_name ) . '</code></p></div></div>';
+        if ( file_exists( $file_path ) ) {
+            include $file_path;
+        } else {
+            echo '<div class="wrap"><div class="notice notice-error"><p>找不到頁面：<code>' . esc_html( $file_name ) . '</code></p></div></div>';
+        }
     }
 
-    public function render_dashboard()      { $this->safe_include_page( 'dashboard.php'      ); }
-    public function render_import_tool()    { $this->safe_include_page( 'import-tool.php'    ); }
-    public function render_review_queue()   { $this->safe_include_page( 'review-queue.php'   ); }
+    public function render_dashboard()      { $this->safe_include_page( 'dashboard.php' ); }
+    public function render_import_tool()    { $this->safe_include_page( 'import-tool.php' ); }
+    public function render_review_queue()   { $this->safe_include_page( 'review-queue.php' ); }
     public function render_published_page() { $this->safe_include_page( 'published-list.php' ); }
-    public function render_logs_page()      { $this->safe_include_page( 'logs.php'           ); }
-    public function render_settings()       { $this->safe_include_page( 'settings.php'       ); }
+    public function render_logs_page()      { $this->safe_include_page( 'logs.php' ); }
+    public function render_settings()       { $this->safe_include_page( 'settings.php' ); }
 
-       // =========================================================================
+    // =========================================================================
     // ACJ：一鍵轉繁體 Meta Box
     // =========================================================================
 
@@ -204,15 +206,122 @@ class Anime_Sync_Admin {
 
     public function ajax_convert_post_to_tw(): void {
         check_ajax_referer( 'anime_sync_nonce', 'nonce' );
-        if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error( '權限不足' );
 
         $post_id = (int) ( $_POST['post_id'] ?? 0 );
-        if ( ! $post_id ) wp_send_json_error( '缺少 post_id' );
-        if ( get_post_type( $post_id ) !== 'anime' ) wp_send_json_error( '文章類型錯誤' );
+        if ( ! $post_id ) {
+            wp_send_json_error( '缺少 post_id' );
+        }
 
-        $cn = new Anime_Sync_CN_Converter();
+        if ( ! current_user_can( 'edit_post', $post_id ) ) {
+            wp_send_json_error( '權限不足' );
+        }
 
-        $fields = [
+        if ( get_post_type( $post_id ) !== 'anime' ) {
+            wp_send_json_error( '文章類型錯誤' );
+        }
+
+        @set_time_limit( 120 );
+
+        $post = get_post( $post_id );
+        if ( ! $post ) {
+            wp_send_json_error( '找不到文章' );
+        }
+
+        $cn      = new Anime_Sync_CN_Converter();
+        $updated = [
+            'post' => [],
+            'meta' => [],
+            'acf'  => [],
+        ];
+
+        $post_update = [ 'ID' => $post_id ];
+
+        $new_title = $cn->convert( (string) $post->post_title );
+        if ( $new_title !== $post->post_title ) {
+            $post_update['post_title'] = $new_title;
+            $updated['post'][]         = 'post_title';
+        }
+
+        $new_content = $cn->convert( (string) $post->post_content );
+        if ( $new_content !== $post->post_content ) {
+            $post_update['post_content'] = $new_content;
+            $updated['post'][]           = 'post_content';
+        }
+
+        $new_excerpt = $cn->convert( (string) $post->post_excerpt );
+        if ( $new_excerpt !== $post->post_excerpt ) {
+            $post_update['post_excerpt'] = $new_excerpt;
+            $updated['post'][]           = 'post_excerpt';
+        }
+
+        if ( count( $post_update ) > 1 ) {
+            wp_update_post( $post_update );
+        }
+
+        foreach ( $this->get_convert_target_meta_keys() as $meta_key ) {
+            $old_value = get_post_meta( $post_id, $meta_key, true );
+            if ( $old_value === '' || $old_value === null ) {
+                continue;
+            }
+
+            $new_value = $this->convert_meta_value( $cn, $meta_key, $old_value );
+            if ( $new_value !== $old_value ) {
+                update_post_meta( $post_id, $meta_key, $new_value );
+                $updated['meta'][] = $meta_key;
+            }
+        }
+
+        foreach ( $this->get_dynamic_convertible_meta( $post_id ) as $meta_key ) {
+            if ( in_array( $meta_key, $updated['meta'], true ) ) {
+                continue;
+            }
+
+            $old_value = get_post_meta( $post_id, $meta_key, true );
+            $new_value = $this->convert_meta_value( $cn, $meta_key, $old_value );
+            if ( $new_value !== $old_value ) {
+                update_post_meta( $post_id, $meta_key, $new_value );
+                $updated['meta'][] = $meta_key;
+            }
+        }
+
+        if ( function_exists( 'get_field_objects' ) && function_exists( 'update_field' ) ) {
+            $acf_fields = get_field_objects( $post_id, false, true );
+            if ( is_array( $acf_fields ) ) {
+                foreach ( $acf_fields as $field ) {
+                    $field_key  = $field['key'] ?? '';
+                    $field_name = $field['name'] ?? '';
+                    $old_value  = $field['value'] ?? null;
+
+                    if ( ! $field_key || ! $field_name ) {
+                        continue;
+                    }
+
+                    if ( ! $this->is_convertible_meta_key( $field_name ) ) {
+                        continue;
+                    }
+
+                    $new_value = is_string( $old_value )
+                        ? $this->convert_meta_value( $cn, $field_name, $old_value )
+                        : $cn->convert_mixed( $old_value );
+
+                    if ( $new_value !== $old_value ) {
+                        update_field( $field_key, $new_value, $post_id );
+                        $updated['acf'][] = $field_name;
+                    }
+                }
+            }
+        }
+
+        clean_post_cache( $post_id );
+
+        wp_send_json_success( [
+            'message' => '轉換完成',
+            'updated' => $updated,
+        ] );
+    }
+
+    private function get_convert_target_meta_keys(): array {
+        return [
             'anime_title_chinese',
             'anime_synopsis_chinese',
             'anime_studios',
@@ -220,23 +329,99 @@ class Anime_Sync_Admin {
             'anime_cast_json',
             'anime_episodes_json',
         ];
+    }
 
-        foreach ( $fields as $field ) {
-            $val = get_post_meta( $post_id, $field, true );
-            if ( $val !== '' && $val !== null ) {
-                update_post_meta( $post_id, $field, $cn->convert( (string) $val ) );
+    private function get_dynamic_convertible_meta( int $post_id ): array {
+        $all_meta = get_post_meta( $post_id );
+        if ( ! is_array( $all_meta ) ) {
+            return [];
+        }
+
+        $keys = [];
+        foreach ( array_keys( $all_meta ) as $meta_key ) {
+            if ( $this->is_convertible_meta_key( $meta_key ) ) {
+                $keys[] = $meta_key;
             }
         }
 
-        $post = get_post( $post_id );
-        if ( $post ) {
-            wp_update_post( [
-                'ID'         => $post_id,
-                'post_title' => $cn->convert( $post->post_title ),
-            ] );
+        return $keys;
+    }
+
+    private function is_convertible_meta_key( string $meta_key ): bool {
+        if ( $meta_key === '' || $meta_key[0] === '_' ) {
+            return false;
         }
 
-        wp_send_json_success( '轉換完成' );
+        $blocked_exact = [
+            'anime_anilist_id',
+            'anime_mal_id',
+            'anime_bangumi_id',
+            'bangumi_id',
+            'anime_score_anilist',
+            'anime_score_bangumi',
+            'anime_score_mal',
+            'anime_popularity',
+            'anime_episodes',
+            'anime_duration',
+            'anime_season_year',
+            'anime_next_airing',
+            'anime_sync_time',
+            'anime_last_sync',
+            'animethemes_slug',
+        ];
+
+        if ( in_array( $meta_key, $blocked_exact, true ) ) {
+            return false;
+        }
+
+        $blocked_fragments = [
+            'url',
+            'image',
+            'slug',
+            'score',
+            'date',
+            'time',
+            'id',
+            'status',
+            'format',
+            'season',
+            'source',
+            'streaming',
+            'external_links',
+            'official_site',
+            'twitter',
+            'wikipedia',
+            'banner',
+            'cover',
+            'trailer',
+            'relations_json',
+            'themes',
+        ];
+
+        foreach ( $blocked_fragments as $fragment ) {
+            if ( strpos( $meta_key, $fragment ) !== false ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function convert_meta_value( Anime_Sync_CN_Converter $cn, string $meta_key, $value ) {
+        if ( ! is_string( $value ) ) {
+            return $cn->convert_mixed( $value );
+        }
+
+        $trimmed = trim( $value );
+        if ( $trimmed === '' ) {
+            return $value;
+        }
+
+        if ( in_array( $meta_key, [ 'anime_staff_json', 'anime_cast_json', 'anime_episodes_json' ], true ) ) {
+            return $cn->convert_json_string( $value );
+        }
+
+        return $cn->convert( $value );
     }
 
     // =========================================================================
@@ -333,7 +518,7 @@ class Anime_Sync_Admin {
 
             $body      = json_decode( wp_remote_retrieve_body( $res ), true );
             $page_data = $body['data']['Page'] ?? [];
-            $media     = $page_data['media']   ?? [];
+            $media     = $page_data['media'] ?? [];
             $has_next  = (bool) ( $page_data['pageInfo']['hasNextPage'] ?? false );
 
             foreach ( $media as $m ) {
@@ -350,14 +535,15 @@ class Anime_Sync_Admin {
                         'type'    => 'NUMERIC',
                     ] ],
                 ] );
+
                 $all_list[] = [
                     'anilist_id'   => (int) $m['id'],
-                    'mal_id'       => $m['idMal']           ?? null,
+                    'mal_id'       => $m['idMal'] ?? null,
                     'title_romaji' => $m['title']['romaji'] ?? '',
-                    'format'       => $m['format']          ?? '',
-                    'episodes'     => $m['episodes']        ?? null,
+                    'format'       => $m['format'] ?? '',
+                    'episodes'     => $m['episodes'] ?? null,
                     'popularity'   => (int) ( $m['popularity'] ?? 0 ),
-                    'status'       => $m['status']          ?? '',
+                    'status'       => $m['status'] ?? '',
                     'imported'     => ! empty( $existing_query->posts ),
                 ];
             }
@@ -424,12 +610,12 @@ class Anime_Sync_Admin {
     public function handle_ajax_save_bangumi_id(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
-        $post_id    = intval( $_POST['post_id']    ?? 0 );
+        $post_id    = intval( $_POST['post_id'] ?? 0 );
         $bangumi_id = intval( $_POST['bangumi_id'] ?? 0 );
         if ( ! $post_id || ! $bangumi_id ) wp_send_json_error( '參數錯誤' );
         if ( get_post_type( $post_id ) !== 'anime' ) wp_send_json_error( '文章類型錯誤' );
         update_post_meta( $post_id, 'anime_bangumi_id', $bangumi_id );
-        update_post_meta( $post_id, 'bangumi_id',       $bangumi_id );
+        update_post_meta( $post_id, 'bangumi_id', $bangumi_id );
         delete_post_meta( $post_id, '_bangumi_id_pending' );
         update_post_meta( $post_id, '_bangumi_id_manually_set', 1 );
         wp_send_json_success( [ 'bangumi_id' => $bangumi_id ] );
@@ -450,10 +636,10 @@ class Anime_Sync_Admin {
                 $status = $mapper->get_map_status();
                 wp_send_json_success( [
                     'message'          => '對照表更新成功',
-                    'al_count'         => $status['al_count']         ?? 0,
-                    'mal_count'        => $status['mal_count']        ?? 0,
-                    'ext_mal_count'    => $status['ext_mal_count']    ?? 0,
-                    'ext_anidb_count'  => $status['ext_anidb_count']  ?? 0,
+                    'al_count'         => $status['al_count'] ?? 0,
+                    'mal_count'        => $status['mal_count'] ?? 0,
+                    'ext_mal_count'    => $status['ext_mal_count'] ?? 0,
+                    'ext_anidb_count'  => $status['ext_anidb_count'] ?? 0,
                     'ext_last_updated' => $status['ext_last_updated'] ?? '',
                 ] );
             } else {
@@ -542,9 +728,9 @@ class Anime_Sync_Admin {
 
         @set_time_limit( 180 );
 
-        $anilist_id    = intval( $_POST['anilist_id']  ?? 0 );
-        $series_name   = sanitize_text_field( $_POST['series_name']   ?? '' );
-        $root_id       = intval( $_POST['root_id']     ?? 0 );
+        $anilist_id    = intval( $_POST['anilist_id'] ?? 0 );
+        $series_name   = sanitize_text_field( $_POST['series_name'] ?? '' );
+        $root_id       = intval( $_POST['root_id'] ?? 0 );
         $series_romaji = sanitize_text_field( $_POST['series_romaji'] ?? '' );
 
         if ( ! $anilist_id ) wp_send_json_error( [ 'message' => '無效的 AniList ID' ] );
@@ -595,10 +781,10 @@ class Anime_Sync_Admin {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'message' => '權限不足' ] );
 
-        $post_id    = intval( $_POST['post_id']    ?? 0 );
+        $post_id    = intval( $_POST['post_id'] ?? 0 );
         $bangumi_id = intval( $_POST['bangumi_id'] ?? 0 );
 
-        if ( ! $post_id )    wp_send_json_error( [ 'message' => '無效的 post_id' ] );
+        if ( ! $post_id ) wp_send_json_error( [ 'message' => '無效的 post_id' ] );
         if ( ! $bangumi_id ) wp_send_json_error( [ 'message' => '請先填入 Bangumi ID 並儲存文章。' ] );
         if ( get_post_type( $post_id ) !== 'anime' ) wp_send_json_error( [ 'message' => '文章類型錯誤' ] );
 
@@ -657,8 +843,8 @@ class Anime_Sync_Admin {
             'post__in'        => $selected_ids,
             'post_type'       => 'anime',
             'post_status'     => [ 'publish', 'draft' ],
-            'posts_per_page' => -1,
-            'fields'         => 'ids',
+            'posts_per_page'  => -1,
+            'fields'          => 'ids',
             'no_found_rows'   => true,
         ] );
 
@@ -669,13 +855,11 @@ class Anime_Sync_Admin {
             $relations = json_decode( $relations_raw, true );
             if ( ! is_array( $relations ) ) continue;
 
-            $source_title = get_post_meta( $post_id, 'anime_title_chinese', true )
-                            ?: get_the_title( $post_id );
+            $source_title      = get_post_meta( $post_id, 'anime_title_chinese', true ) ?: get_the_title( $post_id );
             $source_anilist_id = get_post_meta( $post_id, 'anime_anilist_id', true );
 
             foreach ( $relations as $rel ) {
                 $type = strtoupper( $rel['relation_type'] ?? '' );
-
                 if ( ! in_array( $type, $relation_types, true ) ) continue;
 
                 $rel_anilist_id = isset( $rel['id'] ) ? intval( $rel['id'] ) : 0;
@@ -741,25 +925,25 @@ class Anime_Sync_Admin {
     public function enqueue_admin_assets( string $hook ): void {
         $is_plugin_page = strpos( $hook, 'anime-sync' ) !== false;
         $is_anime_edit  = in_array( $hook, [ 'post.php', 'post-new.php' ], true )
-                          && (
-                              get_post_type() === 'anime'
-                              || ( sanitize_key( $_GET['post_type'] ?? '' ) === 'anime' )
-                          );
+            && (
+                get_post_type() === 'anime'
+                || ( sanitize_key( $_GET['post_type'] ?? '' ) === 'anime' )
+            );
 
         if ( ! $is_plugin_page && ! $is_anime_edit ) return;
 
-        $url     = defined( 'ANIME_SYNC_PRO_URL' )     ? ANIME_SYNC_PRO_URL     : plugin_dir_url( dirname( __FILE__ ) );
+        $url     = defined( 'ANIME_SYNC_PRO_URL' ) ? ANIME_SYNC_PRO_URL : plugin_dir_url( dirname( __FILE__ ) );
         $version = defined( 'ANIME_SYNC_PRO_VERSION' ) ? ANIME_SYNC_PRO_VERSION : '1.0.0';
 
-        wp_enqueue_style(  'anime-sync-admin', $url . 'admin/assets/css/admin.css', [],           $version );
+        wp_enqueue_style( 'anime-sync-admin', $url . 'admin/assets/css/admin.css', [], $version );
         wp_enqueue_script( 'anime-sync-admin', $url . 'admin/assets/js/admin.js', [ 'jquery' ], time(), true );
         wp_localize_script( 'anime-sync-admin', 'animeSyncAdmin', [
             'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
             'nonce'         => wp_create_nonce( 'anime_sync_admin_nonce' ),
-            'syncing'       => __( '同步中，請稍候…',                  'anime-sync-pro' ),
-            'sync_success'  => __( '✅ 同步完成，頁面即將重新整理…',   'anime-sync-pro' ),
+            'syncing'       => __( '同步中，請稍候…', 'anime-sync-pro' ),
+            'sync_success'  => __( '✅ 同步完成，頁面即將重新整理…', 'anime-sync-pro' ),
             'error_no_id'   => __( '請先填入 Bangumi ID 並儲存文章。', 'anime-sync-pro' ),
-            'network_error' => __( '網路錯誤，請重試。',               'anime-sync-pro' ),
+            'network_error' => __( '網路錯誤，請重試。', 'anime-sync-pro' ),
         ] );
     }
 }
