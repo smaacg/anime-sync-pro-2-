@@ -553,6 +553,12 @@ nav.asd-tabs a.asd-tab.is-active::after {
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
+.asd-info-grid .asd-info-row:last-child:nth-child(3n - 1) {
+  grid-column: span 2;
+}
+.asd-info-grid .asd-info-row:last-child:nth-child(3n - 2) {
+  grid-column: span 3;
+}
 .asd-info-row {
   display: flex;
   flex-direction: column;
