@@ -1184,12 +1184,12 @@ foreach ( $cast_list as $c ) {
             <div class="asd-side-section asd-sponsor-block">
                 <div class="asd-sponsor-title">支持微笑動漫</div>
                 <div class="asd-sponsor-desc">
-                    喜歡這部作品的資訊嗎？微笑動漫每天整合來自全球三大資料庫的動漫情報，全靠社群支持維持運作。你的咖啡讓我們繼續走下去 ☕
+                    喜歡這部作品的資訊嗎？微笑動漫每天整合來自全球三大資料庫的動漫情報，你的咖啡讓我們繼續走下去 ☕
                 </div>
                 <a href="https://YOUR-SPONSOR-URL-HERE" target="_blank" rel="noopener noreferrer" class="asd-sponsor-btn">
                     贊助微笑動漫
                 </a>
-                <div class="asd-sponsor-note">贊助費用用於伺服器維護與資料更新，感謝每一位支持者</div>
+                <div class="asd-sponsor-note">贊助費用於伺服器維護，感謝每一位支持者</div>
             </div>
 
             <?php /* ── 6. 廣告預留 ── */ ?>
