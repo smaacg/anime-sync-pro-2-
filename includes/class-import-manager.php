@@ -24,7 +24,7 @@ class Anime_Sync_Import_Manager {
 		Anime_Sync_API_Handler $api_handler,
 		Anime_Sync_CN_Converter $cn_converter
 	) {
-		$this->api_handler = $api_handler;
+		$this->api_handler  = $api_handler;
 		$this->cn_converter = $cn_converter;
 	}
 
@@ -50,11 +50,11 @@ class Anime_Sync_Import_Manager {
 			];
 		}
 
-		$has_bangumi    = ! empty( $anime_data['bangumi_id'] ) && (int) $anime_data['bangumi_id'] > 0;
-		$has_chinese    = ! empty( $anime_data['anime_title_chinese'] );
-		$has_synopsis   = ! empty( $anime_data['anime_synopsis_chinese'] );
-		$has_cover      = ! empty( $anime_data['anime_cover_image'] );
-		$has_streaming  = ! empty( $anime_data['anime_streaming'] ) && $anime_data['anime_streaming'] !== '[]';
+		$has_bangumi   = ! empty( $anime_data['bangumi_id'] ) && (int) $anime_data['bangumi_id'] > 0;
+		$has_chinese   = ! empty( $anime_data['anime_title_chinese'] );
+		$has_synopsis  = ! empty( $anime_data['anime_synopsis_chinese'] );
+		$has_cover     = ! empty( $anime_data['anime_cover_image'] );
+		$has_streaming = ! empty( $anime_data['anime_streaming'] ) && $anime_data['anime_streaming'] !== '[]';
 
 		$summary = implode( ' | ', array_filter( [
 			$has_chinese ? '✅ 中文標題' : '⚠️ 無中文標題',
@@ -66,15 +66,14 @@ class Anime_Sync_Import_Manager {
 		] ) );
 
 		$existing_id = $this->find_existing( $anilist_id );
-		$is_update = (bool) $existing_id;
+		$is_update   = (bool) $existing_id;
 
-$post_title = ! empty( $anime_data['anime_title_chinese'] )
-    ? $this->cn_converter->convert( $anime_data['anime_title_chinese'] )
-    : ( $anime_data['anime_title_romaji'] ?? "Anime {$anilist_id}" );
+		$post_title = ! empty( $anime_data['anime_title_chinese'] )
+			? $this->cn_converter->convert( (string) $anime_data['anime_title_chinese'] )
+			: ( $anime_data['anime_title_romaji'] ?? "Anime {$anilist_id}" );
 
-
-		// 修正：更新時傳入 $existing_id 排除自身，避免無限加 suffix
-		$post_slug = $this->generate_slug( $anime_data, $existing_id );
+		$post_slug   = $this->generate_slug( $anime_data, $existing_id );
+		$post_fields = $this->extract_post_fields( $anime_data, $existing_id );
 
 		$post_data = [
 			'post_type'   => 'anime',
@@ -83,6 +82,10 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 			'post_status' => 'draft',
 			'post_author' => get_current_user_id() ?: 1,
 		];
+
+		if ( ! empty( $post_fields ) ) {
+			$post_data = array_merge( $post_data, $post_fields );
+		}
 
 		if ( $is_update ) {
 			$post_data['ID'] = $existing_id;
@@ -110,26 +113,19 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 
 		$this->save_taxonomies( $post_id, $anime_data );
 
-		// 記錄匯入來源（manual / anilist / cron）
 		update_post_meta( $post_id, '_import_source', sanitize_text_field( $source ) );
-
-		// ✅ 關鍵修正 1：寫入「上次 API 同步時間」
-		// 後台列表欄位 anime_sync 讀的是 anime_last_sync，沒寫入就會顯示空白
 		update_post_meta( $post_id, 'anime_last_sync', current_time( 'mysql' ) );
-
-		// 匯入後通常需要重跑 enrich，因此建議清掉 _enriched_at，讓下一次 enrich 一定會跑
-		// （如果你不想每次匯入都強制重抓，可移除此段）
 		delete_post_meta( $post_id, '_enriched_at' );
 
 		if ( ! wp_next_scheduled( 'anime_sync_enrich_post', [ $post_id ] ) ) {
 			wp_schedule_single_event( time() + 60, 'anime_sync_enrich_post', [ $post_id ] );
 		}
 
-		$display_title = $anime_data['anime_title_chinese'] ?: $anime_data['anime_title_romaji'] ?: "ID {$anilist_id}";
-		$action_label = $is_update ? '已更新' : '已匯入';
-		$base_message = "{$action_label} – {$display_title} (ID {$anilist_id})";
-
+		$display_title   = $anime_data['anime_title_chinese'] ?: $anime_data['anime_title_romaji'] ?: "ID {$anilist_id}";
+		$action_label    = $is_update ? '已更新' : '已匯入';
+		$base_message    = "{$action_label} – {$display_title} (ID {$anilist_id})";
 		$bangumi_missing = ! $has_bangumi;
+
 		if ( $bangumi_missing ) {
 			$base_message .= ' ⚠️ Bangumi ID 未找到，將於背景補抓';
 		}
@@ -138,14 +134,13 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 			'success'         => true,
 			'message'         => $base_message,
 			'post_id'         => $post_id,
-			'mal_id'          => $anime_data['mal_id'] ?? 0, // ★ 補加這行
+			'mal_id'          => $anime_data['mal_id'] ?? 0,
 			'title'           => $display_title,
 			'edit_url'        => get_edit_post_link( $post_id, 'raw' ),
 			'summary'         => $summary,
 			'bangumi_missing' => $bangumi_missing,
 			'needs_enrich'    => true,
 		];
-
 	}
 
 	// =========================================================================
@@ -159,8 +154,6 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 
 		$result = $this->api_handler->enrich_anime_data( $post_id );
 
-		// ✅ 關鍵修正 2：enrich 成功後寫入「資料最後更新時間」
-		// 你後台第二欄建議顯示 _enriched_at，所以這個一定要寫
 		if ( ! is_wp_error( $result ) ) {
 			update_post_meta( $post_id, '_enriched_at', current_time( 'mysql' ) );
 			delete_post_meta( $post_id, '_needs_enrich' );
@@ -173,13 +166,6 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 	// PUBLIC – ACD 新增：系列分析（供 Tab 4 AJAX）
 	// =========================================================================
 
-	/**
-	 * 分析指定 AniList ID 的完整系列樹。
-	 * 直接委派給 api_handler->get_series_tree()。
-	 *
-	 * @param int $anilist_id
-	 * @return array|WP_Error 系列樹資料（同 get_series_tree() 回傳格式）
-	 */
 	public function analyze_series( int $anilist_id ): array|\WP_Error {
 		return $this->api_handler->get_series_tree( $anilist_id );
 	}
@@ -188,13 +174,6 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 	// PUBLIC – ACD 新增：人氣排行（供 Tab 5 AJAX）
 	// =========================================================================
 
-	/**
-	 * 取得 AniList 人氣排行（每頁 50 筆）。
-	 * 直接委派給 api_handler->fetch_anilist_popularity()。
-	 *
-	 * @param int $page 頁碼（從 1 開始）
-	 * @return array|WP_Error
-	 */
 	public function get_popularity_ranking( int $page = 1 ): array|\WP_Error {
 		return $this->api_handler->fetch_anilist_popularity( $page );
 	}
@@ -203,41 +182,24 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 	// PUBLIC – ACD 新增：系列 Taxonomy 歸類
 	// =========================================================================
 
-	/**
-	 * 將指定文章歸入系列 taxonomy。
-	 * 若 term 不存在則自動建立。
-	 *
-	 * @param int $post_id WP 文章 ID
-	 * @param string $series_name 系列名稱（如「進擊的巨人」）
-	 * @param int $root_id AniList 根源作品 ID（存入 meta，方便日後查詢）
-	 * @return bool
-	 */
 	public function assign_series_taxonomy( int $post_id, string $series_name, int $root_id = 0, string $series_romaji = '' ): bool {
 		if ( ! $post_id || $series_name === '' ) return false;
 
 		$series_name = trim( $series_name );
+		$term        = term_exists( $series_name, 'anime_series_tax' );
 
-		// 查找或建立 term（修正：明確處理 term_exists 回傳型別）
-		$term = term_exists( $series_name, 'anime_series_tax' );
 		if ( ! $term ) {
-			$slug = $series_romaji !== '' ? sanitize_title( $series_romaji ) : sanitize_title( $series_name );
+			$slug   = $series_romaji !== '' ? sanitize_title( $series_romaji ) : sanitize_title( $series_name );
 			$result = wp_insert_term( $series_name, 'anime_series_tax', [ 'slug' => $slug ] );
 			if ( is_wp_error( $result ) ) return false;
 			$term_id = (int) $result['term_id'];
 		} else {
-			// term_exists 回傳陣列或整數，需明確處理
-			if ( is_array( $term ) ) {
-				$term_id = (int) $term['term_id'];
-			} else {
-				$term_id = (int) $term;
-			}
+			$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
 		}
 
-		// 歸類（append = false 確保一部作品只屬於一個系列）
 		$result = wp_set_post_terms( $post_id, [ $term_id ], 'anime_series_tax', false );
 		if ( is_wp_error( $result ) ) return false;
 
-		// 儲存根源 ID，方便系列頁面查詢同系列作品
 		if ( $root_id > 0 ) {
 			update_post_meta( $post_id, '_series_root_anilist_id', $root_id );
 		}
@@ -256,6 +218,7 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 			'anime_trailer_url'      => $data['anime_trailer_url'] ?? '',
 			'anime_synopsis_chinese' => $data['anime_synopsis_chinese'] ?? '',
 		];
+
 		foreach ( $lock_fields as $key => $val ) {
 			if ( $val !== '' ) {
 				update_post_meta( $post_id, "_lock_{$key}", 1 );
@@ -274,20 +237,21 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 			'anime-' . ( $data['anilist_id'] ?? 0 ),
 		] );
 
-		$raw = reset( $candidates );
+		$raw  = reset( $candidates );
 		$slug = sanitize_title( $raw );
 		if ( $slug === '' ) $slug = 'anime-' . ( $data['anilist_id'] ?? 0 );
 
 		$original = $slug;
-		$suffix = 1;
+		$suffix   = 1;
+
 		while ( true ) {
 			$found = get_page_by_path( $slug, OBJECT, 'anime' );
-			// 若找不到衝突，或找到的就是自己（更新情境），則跳出
 			if ( ! $found || ( $exclude_id > 0 && (int) $found->ID === $exclude_id ) ) {
 				break;
 			}
 			$slug = $original . '-' . $suffix++;
 		}
+
 		return $slug;
 	}
 
@@ -295,82 +259,157 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 	// PRIVATE – 儲存 Post Meta
 	// =========================================================================
 
-// =========================================================================
-// PRIVATE – 儲存 Post Meta
-// =========================================================================
+	private function save_post_meta( int $post_id, array $data ): void {
+		$meta_map = [
+			'anime_anilist_id'       => $data['anilist_id'] ?? 0,
+			'anime_mal_id'           => $data['mal_id'] ?? 0,
+			'animethemes_slug'       => $data['animethemes_slug'] ?? '',
+			'anime_title_chinese'    => $data['anime_title_chinese'] ?? '',
+			'anime_title_romaji'     => $data['anime_title_romaji'] ?? '',
+			'anime_title_english'    => $data['anime_title_english'] ?? '',
+			'anime_title_native'     => $data['anime_title_native'] ?? '',
+			'anime_format'           => $data['anime_format'] ?? '',
+			'anime_status'           => $data['anime_status'] ?? '',
+			'anime_season'           => strtoupper( $data['anime_season'] ?? '' ),
+			'anime_season_year'      => $data['anime_season_year'] ?? 0,
+			'anime_source'           => $data['anime_source'] ?? '',
+			'anime_episodes'         => $data['anime_episodes'] ?? 0,
+			'anime_duration'         => $data['anime_duration'] ?? 0,
+			'anime_studios'          => $data['anime_studios'] ?? '',
+			'anime_score_anilist'    => $data['anime_score_anilist'] ?? 0,
+			'anime_score_bangumi'    => $data['anime_score_bangumi'] ?? 0,
+			'anime_score_mal'        => $data['anime_score_mal'] ?? 0,
+			'anime_popularity'       => $data['anime_popularity'] ?? 0,
+			'anime_cover_image'      => $data['anime_cover_image'] ?? '',
+			'anime_banner_image'     => $data['anime_banner_image'] ?? '',
+			'anime_trailer_url'      => $data['anime_trailer_url'] ?? '',
+			'anime_synopsis_chinese' => $data['anime_synopsis_chinese'] ?? '',
+			'anime_synopsis_english' => $data['anime_synopsis_english'] ?? '',
+			'anime_start_date'       => $data['anime_start_date'] ?? '',
+			'anime_end_date'         => $data['anime_end_date'] ?? '',
+			'anime_streaming'        => $data['anime_streaming'] ?? '[]',
+			'anime_themes'           => $data['anime_themes'] ?? '[]',
+			'anime_staff_json'       => $data['anime_staff_json'] ?? '[]',
+			'anime_cast_json'        => $data['anime_cast_json'] ?? '[]',
+			'anime_relations_json'   => $data['anime_relations_json'] ?? '[]',
+			'anime_episodes_json'    => $data['anime_episodes_json'] ?? '[]',
+			'anime_official_site'    => $data['anime_official_site'] ?? '',
+			'anime_twitter_url'      => $data['anime_twitter_url'] ?? '',
+			'anime_wikipedia_url'    => $data['anime_wikipedia_url'] ?? '',
+			'anime_external_links'   => $data['anime_external_links'] ?? '[]',
+			'anime_next_airing'      => $data['anime_next_airing'] ?? '',
+			'anime_sync_time'        => current_time( 'mysql' ),
+		];
 
-// =========================================================================
-// PRIVATE – 儲存 Post Meta
-// =========================================================================
+		foreach ( $meta_map as $key => $value ) {
+			update_post_meta( $post_id, $key, $this->prepare_meta_value( $key, $value ) );
+		}
 
-private function save_post_meta( int $post_id, array $data ): void {
+		$bgm_id_raw   = $data['bangumi_id'] ?? null;
+		$bgm_id       = $bgm_id_raw !== null ? abs( intval( $bgm_id_raw ) ) : 0;
+		$manually_set = (bool) get_post_meta( $post_id, '_bangumi_id_manually_set', true );
 
-    $cn = $this->cn_converter; // ← 新增，方便呼叫轉換器
+		if ( $bgm_id > 0 && ! $manually_set ) {
+			update_post_meta( $post_id, 'anime_bangumi_id', $bgm_id );
+			update_post_meta( $post_id, 'bangumi_id', $bgm_id );
+			delete_post_meta( $post_id, '_bangumi_id_pending' );
+		} elseif ( $bgm_id <= 0 && ! $manually_set ) {
+			delete_post_meta( $post_id, 'anime_bangumi_id' );
+			delete_post_meta( $post_id, 'bangumi_id' );
+			update_post_meta( $post_id, '_bangumi_id_pending', 1 );
+		}
 
-    $meta_map = [
-        'anime_anilist_id'        => $data['anilist_id'] ?? 0,
-        'anime_mal_id'            => $data['mal_id'] ?? 0,
-        'animethemes_slug'        => $data['animethemes_slug'] ?? '',
-        'anime_title_chinese'     => $cn->convert( $data['anime_title_chinese'] ?? '' ),
-        'anime_title_romaji'      => $data['anime_title_romaji'] ?? '',
-        'anime_title_english'     => $data['anime_title_english'] ?? '',
-        'anime_title_native'      => $data['anime_title_native'] ?? '',
-        'anime_format'            => $data['anime_format'] ?? '',
-        'anime_status'            => $data['anime_status'] ?? '',
-        'anime_season'            => strtoupper( $data['anime_season'] ?? '' ),
-        'anime_season_year'       => $data['anime_season_year'] ?? 0,
-        'anime_source'            => $data['anime_source'] ?? '',
-        'anime_episodes'          => $data['anime_episodes'] ?? 0,
-        'anime_duration'          => $data['anime_duration'] ?? 0,
-        'anime_studios'           => $cn->convert( $data['anime_studios'] ?? '' ),
-        'anime_score_anilist'     => $data['anime_score_anilist'] ?? 0,
-        'anime_score_bangumi'     => $data['anime_score_bangumi'] ?? 0,
-        'anime_score_mal'         => $data['anime_score_mal'] ?? 0,
-        'anime_popularity'        => $data['anime_popularity'] ?? 0,
-        'anime_cover_image'       => $data['anime_cover_image'] ?? '',
-        'anime_banner_image'      => $data['anime_banner_image'] ?? '',
-        'anime_trailer_url'       => $data['anime_trailer_url'] ?? '',
-        'anime_synopsis_chinese'  => $cn->convert( $data['anime_synopsis_chinese'] ?? '' ),
-        'anime_synopsis_english'  => $data['anime_synopsis_english'] ?? '',
-        'anime_start_date'        => $data['anime_start_date'] ?? '',
-        'anime_end_date'          => $data['anime_end_date'] ?? '',
-        'anime_streaming'         => $data['anime_streaming'] ?? '[]',
-        'anime_themes'            => $data['anime_themes'] ?? '[]',
-        'anime_staff_json'        => $cn->convert( $data['anime_staff_json'] ?? '[]' ),
-        'anime_cast_json'         => $cn->convert( $data['anime_cast_json'] ?? '[]' ),
-        'anime_relations_json'    => $data['anime_relations_json'] ?? '[]',
-        'anime_episodes_json'     => $cn->convert( $data['anime_episodes_json'] ?? '[]' ),
-        'anime_official_site'     => $data['anime_official_site'] ?? '',
-        'anime_twitter_url'       => $data['anime_twitter_url'] ?? '',
-        'anime_wikipedia_url'     => $data['anime_wikipedia_url'] ?? '',
-        'anime_external_links'    => $data['anime_external_links'] ?? '[]',
-        'anime_next_airing'       => $data['anime_next_airing'] ?? '',
-        'anime_sync_time'         => current_time( 'mysql' ),
-    ];
+		if ( ! empty( $data['_needs_enrich'] ) ) {
+			update_post_meta( $post_id, '_needs_enrich', 1 );
+		}
+	}
 
-    foreach ( $meta_map as $key => $value ) {
-        update_post_meta( $post_id, $key, $value );
-    }
+	private function prepare_meta_value( string $key, $value ) {
+		if ( $this->is_json_meta_key( $key ) ) {
+			return is_string( $value )
+				? $this->cn_converter->convert_json_string( $value )
+				: wp_json_encode( $this->cn_converter->convert_mixed( $value ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+		}
 
-    // Bangumi ID（ABO + ACA：手動設定過的不覆蓋）
-    $bgm_id_raw = $data['bangumi_id'] ?? null;
-    $bgm_id = $bgm_id_raw !== null ? abs( intval( $bgm_id_raw ) ) : 0;
-    $manually_set = (bool) get_post_meta( $post_id, '_bangumi_id_manually_set', true );
+		if ( $this->is_convertible_text_meta_key( $key ) ) {
+			return is_string( $value ) ? $this->cn_converter->convert( $value ) : $value;
+		}
 
-    if ( $bgm_id > 0 && ! $manually_set ) {
-        update_post_meta( $post_id, 'anime_bangumi_id', $bgm_id );
-        update_post_meta( $post_id, 'bangumi_id', $bgm_id );
-        delete_post_meta( $post_id, '_bangumi_id_pending' );
-    } elseif ( $bgm_id <= 0 && ! $manually_set ) {
-        delete_post_meta( $post_id, 'anime_bangumi_id' );
-        delete_post_meta( $post_id, 'bangumi_id' );
-        update_post_meta( $post_id, '_bangumi_id_pending', 1 );
-    }
+		return $value;
+	}
 
-    if ( ! empty( $data['_needs_enrich'] ) ) {
-        update_post_meta( $post_id, '_needs_enrich', 1 );
-    }
-}
+	private function is_convertible_text_meta_key( string $key ): bool {
+		return in_array( $key, [
+			'anime_title_chinese',
+			'anime_synopsis_chinese',
+			'anime_studios',
+		], true );
+	}
+
+	private function is_json_meta_key( string $key ): bool {
+		return in_array( $key, [
+			'anime_staff_json',
+			'anime_cast_json',
+			'anime_episodes_json',
+		], true );
+	}
+
+	private function extract_post_fields( array $data, int $existing_id = 0 ): array {
+		$content_candidates = [
+			'post_content',
+			'content',
+			'article_content',
+			'generated_content',
+			'draft_content',
+			'body',
+		];
+
+		$excerpt_candidates = [
+			'post_excerpt',
+			'excerpt',
+			'article_excerpt',
+			'generated_excerpt',
+			'summary',
+		];
+
+		$post_fields = [];
+		$existing_post = null;
+
+		$content = $this->pick_first_string( $data, $content_candidates );
+		if ( $content !== '' ) {
+			$post_fields['post_content'] = $this->cn_converter->convert( $content );
+		} elseif ( $existing_id > 0 ) {
+			$existing_post = get_post( $existing_id );
+			if ( $existing_post && ! empty( $existing_post->post_content ) ) {
+				$post_fields['post_content'] = $existing_post->post_content;
+			}
+		}
+
+		$excerpt = $this->pick_first_string( $data, $excerpt_candidates );
+		if ( $excerpt !== '' ) {
+			$post_fields['post_excerpt'] = $this->cn_converter->convert( $excerpt );
+		} elseif ( $existing_id > 0 ) {
+			$existing_post = $existing_post ?: get_post( $existing_id );
+			if ( $existing_post && ! empty( $existing_post->post_excerpt ) ) {
+				$post_fields['post_excerpt'] = $existing_post->post_excerpt;
+			}
+		}
+
+		return $post_fields;
+	}
+
+	private function pick_first_string( array $data, array $keys ): string {
+		foreach ( $keys as $key ) {
+			if ( isset( $data[ $key ] ) && is_string( $data[ $key ] ) ) {
+				$value = trim( $data[ $key ] );
+				if ( $value !== '' ) {
+					return $value;
+				}
+			}
+		}
+
+		return '';
+	}
 
 	// =========================================================================
 	// PRIVATE – 設定特色圖片
@@ -382,8 +421,8 @@ private function save_post_meta( int $post_id, array $data ): void {
 		}
 
 		$upload_dir = wp_upload_dir();
-		$filename = sanitize_file_name( 'anime-cover-' . $post_id . '-' . md5( $image_url ) . '.jpg' );
-		$file_path = $upload_dir['path'] . '/' . $filename;
+		$filename   = sanitize_file_name( 'anime-cover-' . $post_id . '-' . md5( $image_url ) . '.jpg' );
+		$file_path  = $upload_dir['path'] . '/' . $filename;
 
 		if ( ! file_exists( $file_path ) ) {
 			$response = wp_remote_get( $image_url, [ 'timeout' => 15 ] );
@@ -393,7 +432,7 @@ private function save_post_meta( int $post_id, array $data ): void {
 			file_put_contents( $file_path, $image_data );
 		}
 
-		$file_type = wp_check_filetype( $filename );
+		$file_type  = wp_check_filetype( $filename );
 		$attachment = [
 			'post_mime_type' => $file_type['type'],
 			'post_title'     => sanitize_text_field( $title ),
@@ -416,7 +455,6 @@ private function save_post_meta( int $post_id, array $data ): void {
 
 	private function save_taxonomies( int $post_id, array $data ): void {
 
-		// Genre
 		if ( ! empty( $data['anime_genres'] ) && is_array( $data['anime_genres'] ) ) {
 			$genre_ids = [];
 			foreach ( $data['anime_genres'] as $genre_name ) {
@@ -431,9 +469,8 @@ private function save_post_meta( int $post_id, array $data ): void {
 			if ( ! empty( $genre_ids ) ) wp_set_post_terms( $post_id, $genre_ids, 'genre' );
 		}
 
-		// Season
 		$season_year = (int) ( $data['anime_season_year'] ?? 0 );
-		$season = strtoupper( $data['anime_season'] ?? '' );
+		$season      = strtoupper( $data['anime_season'] ?? '' );
 		if ( $season_year && $season ) {
 			$season_label = "{$season_year} " . ucfirst( strtolower( $season ) );
 			$term = term_exists( $season_label, 'anime_season_tax' );
@@ -444,7 +481,6 @@ private function save_post_meta( int $post_id, array $data ): void {
 			}
 		}
 
-		// Format
 		$format = $data['anime_format'] ?? '';
 		if ( $format !== '' ) {
 			$format_slug = strtolower( str_replace( '_', '-', $format ) );
@@ -456,23 +492,21 @@ private function save_post_meta( int $post_id, array $data ): void {
 			}
 		}
 
-		// Tags
 		if ( ! empty( $data['anime_tags'] ) && is_array( $data['anime_tags'] ) ) {
 			$tag_ids = [];
 			foreach ( $data['anime_tags'] as $tag_name ) {
 				$tag_name = trim( (string) $tag_name );
 				if ( $tag_name === '' ) continue;
 				$zh_name = $this->resolve_tag_name( $tag_name );
-				$tag_id = $this->find_or_create_tag( $zh_name );
+				$tag_id  = $this->find_or_create_tag( $zh_name );
 				if ( $tag_id ) $tag_ids[] = $tag_id;
 			}
 			if ( ! empty( $tag_ids ) ) wp_set_post_terms( $post_id, $tag_ids, 'post_tag' );
 		}
 
-		// 製作公司 → anime_studio_tax taxonomy
 		$studios_raw = $data['anime_studios'] ?? '';
 		if ( ! empty( $studios_raw ) ) {
-			$studio_names = array_filter( array_map( 'trim', explode( ',', $studios_raw ) ) );
+			$studio_names    = array_filter( array_map( 'trim', explode( ',', $studios_raw ) ) );
 			$studio_term_ids = [];
 			foreach ( $studio_names as $studio_name ) {
 				if ( $studio_name === '' ) continue;
@@ -490,8 +524,7 @@ private function save_post_meta( int $post_id, array $data ): void {
 				wp_set_object_terms( $post_id, $studio_term_ids, 'anime_studio_tax', false );
 			}
 		}
-
-	} // ← save_taxonomies() 結尾
+	}
 
 	// =========================================================================
 	// PRIVATE – Tag helpers
@@ -501,7 +534,7 @@ private function save_post_meta( int $post_id, array $data ): void {
 		$map = $this->get_tag_map();
 		if ( isset( $map[ $en_name ] ) ) return $map[ $en_name ];
 		$cache_key = 'anime_sync_tag_' . md5( $en_name );
-		$cached = get_transient( $cache_key );
+		$cached    = get_transient( $cache_key );
 		if ( $cached !== false ) return (string) $cached;
 		$zh = $this->google_translate( $en_name );
 		$zh = $zh ?: $en_name;
@@ -688,6 +721,7 @@ private function save_post_meta( int $post_id, array $data ): void {
 				'type'    => 'NUMERIC',
 			] ],
 		] );
+
 		return ! empty( $query->posts ) ? (int) $query->posts[0] : 0;
 	}
 }
