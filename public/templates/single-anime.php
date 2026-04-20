@@ -16,7 +16,7 @@ wp_enqueue_style(
     'anime-sync-single',
     plugin_dir_url( dirname( __FILE__ ) ) . 'assets/css/anime-single.css',
     array(),
-    '18'
+    '18.1'
 );
 
 get_header();
@@ -722,7 +722,7 @@ foreach ( $cast_list as $c ) {
                     $ep_name_cn = Anime_Sync_CN_Converter::static_convert( $ep_name_cn );
                 }
                 $ep_name    = $ep_name_cn ? $ep_name_cn : $ep_name_ja;
-                $ep_display = $ep_num > 0 ? '第' . $ep_num . '話' : '第' . ( $i + 1 ) . '話';
+                $ep_display = $ep_num > 0 ? '第' . $ep_num . '集' : '第' . ( $i + 1 ) . '集';
             ?>
                 <div class="asd-ep-row<?php echo $i >= 3 ? ' asd-ep-hidden' : ''; ?>">
                     <span class="asd-ep-num"><?php echo esc_html( $ep_display ); ?></span>
@@ -743,7 +743,7 @@ foreach ( $cast_list as $c ) {
         <?php if ( count( $episodes_list ) > 3 ) : ?>
             <div style="display:flex;justify-content:center;margin-top:12px;">
                 <button class="asd-ep-toggle" type="button">
-                    顯示全部 <?php echo count( $episodes_list ); ?> 話▼
+                    顯示全部 <?php echo count( $episodes_list ); ?> 集▼
                 </button>
             </div>
         <?php endif; ?>
