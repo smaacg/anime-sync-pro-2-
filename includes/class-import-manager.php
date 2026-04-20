@@ -299,6 +299,10 @@ $post_title = ! empty( $anime_data['anime_title_chinese'] )
 // PRIVATE – 儲存 Post Meta
 // =========================================================================
 
+// =========================================================================
+// PRIVATE – 儲存 Post Meta
+// =========================================================================
+
 private function save_post_meta( int $post_id, array $data ): void {
 
     $cn = $this->cn_converter; // ← 新增，方便呼叫轉換器
@@ -307,7 +311,7 @@ private function save_post_meta( int $post_id, array $data ): void {
         'anime_anilist_id'        => $data['anilist_id'] ?? 0,
         'anime_mal_id'            => $data['mal_id'] ?? 0,
         'animethemes_slug'        => $data['animethemes_slug'] ?? '',
-        'anime_title_chinese'     => $cn->convert( $data['anime_title_chinese'] ?? '' ),    // ← 轉換
+        'anime_title_chinese'     => $cn->convert( $data['anime_title_chinese'] ?? '' ),
         'anime_title_romaji'      => $data['anime_title_romaji'] ?? '',
         'anime_title_english'     => $data['anime_title_english'] ?? '',
         'anime_title_native'      => $data['anime_title_native'] ?? '',
@@ -318,7 +322,7 @@ private function save_post_meta( int $post_id, array $data ): void {
         'anime_source'            => $data['anime_source'] ?? '',
         'anime_episodes'          => $data['anime_episodes'] ?? 0,
         'anime_duration'          => $data['anime_duration'] ?? 0,
-        'anime_studios'           => $cn->convert( $data['anime_studios'] ?? '' ),           // ← 轉換
+        'anime_studios'           => $cn->convert( $data['anime_studios'] ?? '' ),
         'anime_score_anilist'     => $data['anime_score_anilist'] ?? 0,
         'anime_score_bangumi'     => $data['anime_score_bangumi'] ?? 0,
         'anime_score_mal'         => $data['anime_score_mal'] ?? 0,
@@ -326,16 +330,16 @@ private function save_post_meta( int $post_id, array $data ): void {
         'anime_cover_image'       => $data['anime_cover_image'] ?? '',
         'anime_banner_image'      => $data['anime_banner_image'] ?? '',
         'anime_trailer_url'       => $data['anime_trailer_url'] ?? '',
-        'anime_synopsis_chinese'  => $cn->convert( $data['anime_synopsis_chinese'] ?? '' ), // ← 轉換
+        'anime_synopsis_chinese'  => $cn->convert( $data['anime_synopsis_chinese'] ?? '' ),
         'anime_synopsis_english'  => $data['anime_synopsis_english'] ?? '',
         'anime_start_date'        => $data['anime_start_date'] ?? '',
         'anime_end_date'          => $data['anime_end_date'] ?? '',
         'anime_streaming'         => $data['anime_streaming'] ?? '[]',
         'anime_themes'            => $data['anime_themes'] ?? '[]',
-        'anime_staff_json'        => $data['anime_staff_json'] ?? '[]',
-        'anime_cast_json'         => $data['anime_cast_json'] ?? '[]',
+        'anime_staff_json'        => $cn->convert( $data['anime_staff_json'] ?? '[]' ),
+        'anime_cast_json'         => $cn->convert( $data['anime_cast_json'] ?? '[]' ),
         'anime_relations_json'    => $data['anime_relations_json'] ?? '[]',
-        'anime_episodes_json'     => $data['anime_episodes_json'] ?? '[]',
+        'anime_episodes_json'     => $cn->convert( $data['anime_episodes_json'] ?? '[]' ),
         'anime_official_site'     => $data['anime_official_site'] ?? '',
         'anime_twitter_url'       => $data['anime_twitter_url'] ?? '',
         'anime_wikipedia_url'     => $data['anime_wikipedia_url'] ?? '',
@@ -367,6 +371,7 @@ private function save_post_meta( int $post_id, array $data ): void {
         update_post_meta( $post_id, '_needs_enrich', 1 );
     }
 }
+
 	// =========================================================================
 	// PRIVATE – 設定特色圖片
 	// =========================================================================
