@@ -18,17 +18,28 @@ class Anime_Sync_CN_Converter {
     private static ?bool  $opencc_available = null;
     private static ?array $dict_cache       = null;
 
-    // =========================================================================
-    // 公開靜態介面
-    // =========================================================================
+// =========================================================================
+// 公開靜態介面
+// =========================================================================
 
-    public static function static_convert( string $text ): string {
-        if ( $text === '' ) return '';
-        if ( self::is_opencc_available() ) {
-            return self::convert_with_opencc( $text );
-        }
-        return self::convert_with_dict( $text );
+public static function static_convert( string $text ): string {
+    if ( $text === '' ) return '';
+    // 先跑靜態字典強制替換每個簡體字
+    $text = self::convert_with_dict( $text );
+    // 再跑 OpenCC 處理詞組層級
+    if ( self::is_opencc_available() ) {
+        return self::convert_with_opencc_only( $text );
     }
+    return $text;
+}
+
+private static function convert_with_opencc_only( string $text ): string {
+    try {
+        return \Overtrue\PHPOpenCC\OpenCC::convert( $text, 'S2TWP' );
+    } catch ( \Throwable $e ) {
+        return $text;
+    }
+}
 
     // =========================================================================
     // 相容實例方法（dashboard.php / import-tool.php）
