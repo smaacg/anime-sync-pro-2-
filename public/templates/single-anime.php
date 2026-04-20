@@ -334,7 +334,7 @@ while ( have_posts() ) :
                     'SIDE_STORY' => '外傳', 'CHARACTER' => '角色', 'SUMMARY' => '總集篇',
                     'ALTERNATIVE' => '替代版本', 'SPIN_OFF' => '衍生作', 'OTHER' => '相關',
                     'SOURCE' => '原作', 'COMPILATION' => '編輯版', 'CONTAINS' => '收錄',
-                    'ANIME' => '動漫',
+                    'ANIME' => '動畫',
                 );
                 $raw_label = isset( $rel['relation_label'] ) ? $rel['relation_label'] : ( isset( $rel['type'] ) ? $rel['type'] : '' );
                 $site_relations[] = array(
@@ -385,7 +385,7 @@ while ( have_posts() ) :
         '@context' => 'https://schema.org', '@type' => 'BreadcrumbList',
         'itemListElement' => array(
             array( '@type' => 'ListItem', 'position' => 1, 'name' => '首頁', 'item' => home_url( '/' ) ),
-            array( '@type' => 'ListItem', 'position' => 2, 'name' => '動漫', 'item' => home_url( '/anime/' ) ),
+            array( '@type' => 'ListItem', 'position' => 2, 'name' => '動畫', 'item' => home_url( '/anime/' ) ),
             array( '@type' => 'ListItem', 'position' => 3, 'name' => $display_title, 'item' => get_permalink( $post_id ) ),
         ),
     );
@@ -483,7 +483,7 @@ foreach ( $cast_list as $c ) {
         <div class="asd-hero-body">
 
             <div class="asd-hero-breadcrumb">
-                <span>動漫</span>
+                <span>動畫</span>
                 <?php if ( $season_str ) : ?>
                     <span class="asd-hbc-sep">›</span>
                     <span><?php echo esc_html( $season_str ); ?></span>
@@ -722,7 +722,7 @@ foreach ( $cast_list as $c ) {
                     $ep_name_cn = Anime_Sync_CN_Converter::static_convert( $ep_name_cn );
                 }
                 $ep_name    = $ep_name_cn ? $ep_name_cn : $ep_name_ja;
-                $ep_display = $ep_num > 0 ? 'EP' . $ep_num : 'EP' . ( $i + 1 );
+                $ep_display = $ep_num > 0 ? '第' . $ep_num . '話' : '第' . ( $i + 1 ) . '話';
             ?>
                 <div class="asd-ep-row<?php echo $i >= 3 ? ' asd-ep-hidden' : ''; ?>">
                     <span class="asd-ep-num"><?php echo esc_html( $ep_display ); ?></span>
