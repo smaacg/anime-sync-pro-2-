@@ -19,21 +19,19 @@ $cn_converter    = new Anime_Sync_CN_Converter();
 $converter_stats = $cn_converter->get_stats();
 ?>
 
-<div class="wrap anime-sync-import-tool">
-    <h1>匯入動漫工具</h1>
-
-    <div class="notice notice-info inline" style="margin: 15px 0 10px; border-left-color: #2271b1;">
-        <p>
-            <strong>🔍 繁簡轉換器狀態：</strong>
-            詞條總數 <code><?php echo number_format($converter_stats['entry_count']); ?></code> 條 |
-            <?php echo $converter_stats['loaded']
-                ? '<span style="color:green;font-weight:bold;">✓ 運作正常</span>'
-                : '<span style="color:red;font-weight:bold;">❌ 字典載入失敗</span>'; ?>
-            <?php if ($converter_stats['loaded']): ?>
-                | <small>測試：「脚本」→「<?php echo esc_html( $cn_converter->convert('脚本') ); ?>」</small>
-            <?php endif; ?>
-        </p>
-    </div>
+<div class="notice notice-info inline" style="margin: 15px 0 10px; border-left-color: #2271b1;">
+    <p>
+        <strong>🔍 繁簡轉換器狀態：</strong>
+        詞條總數 <code><?php echo number_format( (int) ( $converter_stats['dict_entry_count'] ?? 0 ) ); ?></code> 條 |
+        <?php if ( ! empty( $converter_stats['dict_file_exists'] ) ) : ?>
+            <span style="color:green;font-weight:bold;">✓ 運作正常</span>
+            | <small>測試：「脚本」→「<?php echo esc_html( $cn_converter->convert( '脚本' ) ); ?>」</small>
+        <?php else : ?>
+            <span style="color:red;font-weight:bold;">❌ 字典載入失敗</span>
+        <?php endif; ?>
+        | <small>模式：<code><?php echo esc_html( $converter_stats['mode'] ?? 'unknown' ); ?></code></small>
+    </p>
+</div>
 
     <h2 class="nav-tab-wrapper" style="margin-bottom:0;">
         <a href="#single"  class="nav-tab nav-tab-active" data-tab="single">📥 單筆匯入</a>
