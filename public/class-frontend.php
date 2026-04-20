@@ -43,10 +43,11 @@ class Anime_Sync_Frontend {
 
         $is_anime_single  = is_singular( 'anime' );
         $is_anime_archive = is_post_type_archive( 'anime' );
-        $is_anime_tax     = is_tax( 'genre' )
-            || is_tax( 'anime_season_tax' )
-            || is_tax( 'anime_format_tax' )
-            || is_tax( 'anime_series_tax' );
+        $is_anime_tax = is_tax( 'genre' )
+    || is_tax( 'anime_season_tax' )
+    || is_tax( 'anime_format_tax' )
+    || is_tax( 'anime_series_tax' )
+    || is_tax( 'anime_studio_tax' );
         $is_anime_search  = is_search() && get_query_var( 'post_type' ) === 'anime';
 
         if ( ! $is_anime_single && ! $is_anime_archive && ! $is_anime_tax && ! $is_anime_search ) {
@@ -121,14 +122,16 @@ class Anime_Sync_Frontend {
         // anime 搜尋結果頁套用 archive 模板
         $is_anime_search = is_search() && get_query_var( 'post_type' ) === 'anime';
 
-        if (
-            is_post_type_archive( 'anime' )
-            || is_tax( 'genre' )
-            || is_tax( 'anime_season_tax' )
-            || is_tax( 'anime_format_tax' )
-            || is_tax( 'anime_series_tax' )
-            || $is_anime_search
-        ) {
+       if (
+    is_post_type_archive( 'anime' )
+    || is_tax( 'genre' )
+    || is_tax( 'anime_season_tax' )
+    || is_tax( 'anime_format_tax' )
+    || is_tax( 'anime_series_tax' )
+    || is_tax( 'anime_studio_tax' )
+    || $is_anime_search
+) {
+    
             $theme = locate_template( 'archive-anime.php' );
             if ( $theme ) return $theme;
 
@@ -411,7 +414,7 @@ class Anime_Sync_Frontend {
         $post = get_post( $request->get_param( 'id' ) );
 
         if ( ! $post || $post->post_type !== 'anime' || $post->post_status !== 'publish' ) {
-            return new \WP_Error( 'not_found', '找不到該動漫', [ 'status' => 404 ] );
+            return new \WP_Error( 'not_found', '找不到該動畫', [ 'status' => 404 ] );
         }
 
         return new \WP_REST_Response( $this->build_rest_response( $post ), 200 );
