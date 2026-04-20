@@ -133,12 +133,12 @@ class Anime_Sync_ACF_Fields {
                     'instructions'  => '由 AniList format 欄位自動填入。',
                     'required'      => 0,
                     'choices'       => [
-                        'TV'        => '電視動漫 (TV)',
-                        'TV_SHORT'  => '短篇電視動漫 (TV_SHORT)',
+                        'TV'        => '電視動畫 (TV)',
+                        'TV_SHORT'  => '短篇電視動畫 (TV_SHORT)',
                         'MOVIE'     => '劇場版 (MOVIE)',
                         'SPECIAL'   => '特別篇 (SPECIAL)',
                         'OVA'       => 'OVA',
-                        'ONA'       => '網路動漫 (ONA)',
+                        'ONA'       => '網路動畫 (ONA)',
                         'MUSIC'     => '音樂 (MUSIC)',
                     ],
                     'default_value' => 'TV',
@@ -177,7 +177,7 @@ class Anime_Sync_ACF_Fields {
                         'OTHER'              => '其他',
                         'NOVEL'              => '小說',
                         'DOUJINSHI'          => '同人誌',
-                        'ANIME'              => '動漫',
+                        'ANIME'              => '動畫',
                         'WEB_NOVEL'          => '網路小說',
                         'LIVE_ACTION'        => '真人影視',
                         'GAME'               => '遊戲',
@@ -630,7 +630,7 @@ class Anime_Sync_ACF_Fields {
                 'label'        => $label . ' 直達連結',
                 'name'         => 'anime_tw_streaming_url_' . $field_key,
                 'type'         => 'url',
-                'instructions' => '勾選上方「' . $label . '」後，可在此填入該動漫的直達連結（留空則顯示純文字）。',
+                'instructions' => '勾選上方「' . $label . '」後，可在此填入該動畫的直達連結（留空則顯示純文字）。',
                 'required'     => 0,
                 'wrapper'      => [ 'width' => '50' ],
             ];
@@ -646,7 +646,7 @@ class Anime_Sync_ACF_Fields {
                         'label'         => '台灣串流平台',
                         'name'          => 'anime_tw_streaming',
                         'type'          => 'checkbox',
-                        'instructions'  => '勾選有上架的平台；下方可對應填入該動漫的直達連結。',
+                        'instructions'  => '勾選有上架的平台；下方可對應填入該動畫的直達連結。',
                         'required'      => 0,
                         'choices'       => $platforms,
                         'layout'        => 'horizontal',
@@ -871,26 +871,28 @@ class Anime_Sync_ACF_Fields {
     // =========================================================================
     // Helper：16 個台灣串流平台定義
     // =========================================================================
-    private function get_tw_platforms(): array {
-        return [
-            'bahamut'     => '巴哈姆特動漫瘋',
-            'netflix'     => 'Netflix',
-            'disney'      => 'Disney+',
-            'amazon'      => 'Amazon Prime Video',
-            'kktv'        => 'KKTV',
-            'friday'      => 'friDay 影音',
-            'catchplay'   => 'CatchPlay+',
-            'bilibili'    => 'Bilibili 台灣',
-            'crunchyroll' => 'Crunchyroll',
-            'hulu'        => 'Hulu',
-            'hidive'      => 'HIDIVE',
-            'ani-one'     => 'Ani-One',
-            'muse'        => 'Muse 木棉花',
-            'viu'         => 'Viu',
-            'wetv'        => 'WeTV',
-            'youtube'     => 'YouTube（官方頻道）',
-        ];
-    }
+private function get_tw_platforms(): array {
+    return [
+        // ── 台灣／港澳在地平台 ──
+        'bahamut'     => '巴哈姆特動漫瘋',
+        'kktv'        => 'KKTV',
+        'friday'      => 'friDay 影音',
+        'catchplay'   => 'CatchPlay+',
+        'bilibili'    => 'Bilibili 台灣',
+        'ani-one'     => 'Ani-One',
+        'muse'        => 'Muse 木棉花',
+        'viu'         => 'Viu',
+        'wetv'        => 'WeTV',
+        'youtube'     => 'YouTube（官方頻道）',
+        // ── 全球平台（台灣可用）──
+        'netflix'     => 'Netflix',
+        'disney'      => 'Disney+',
+        'crunchyroll' => 'Crunchyroll',
+        'amazon'      => 'Amazon Prime Video',
+        'hulu'        => 'Hulu',
+        'hidive'      => 'HIDIVE',
+    ];
+}
 
     // =========================================================================
     // 靜態輔助方法（保留原始版本）
