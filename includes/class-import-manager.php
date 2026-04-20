@@ -69,8 +69,9 @@ class Anime_Sync_Import_Manager {
 		$existing_id = $this->find_existing( $anilist_id );
 		$is_update   = (bool) $existing_id;
 
+		// ★ 修改1：移除 cn_converter->convert()，直接使用原始標題，避免 OpenCC 把繁體「迴」誤轉成「回」
 		$post_title = ! empty( $anime_data['anime_title_chinese'] )
-			? $this->cn_converter->convert( (string) $anime_data['anime_title_chinese'] )
+			? (string) $anime_data['anime_title_chinese']
 			: ( $anime_data['anime_title_romaji'] ?? "Anime {$anilist_id}" );
 
 		$post_slug   = $this->generate_slug( $anime_data, $existing_id );
@@ -342,9 +343,9 @@ class Anime_Sync_Import_Manager {
 		return $value;
 	}
 
+	// ★ 修改2：移除 'anime_title_chinese'，避免 OpenCC 把繁體字誤轉（如「迴」→「回」）
 	private function is_convertible_text_meta_key( string $key ): bool {
 		return in_array( $key, [
-			'anime_title_chinese',
 			'anime_synopsis_chinese',
 			'anime_studios',
 		], true );
@@ -537,7 +538,6 @@ class Anime_Sync_Import_Manager {
 		$links = json_decode( $external_links_json, true );
 		if ( ! is_array( $links ) || empty( $links ) ) return;
 
-		// AniList site 名稱 → meta key 對應
 		$platform_map = [
 			'Crunchyroll'        => 'anime_tw_streaming_url_crunchyroll',
 			'Netflix'            => 'anime_tw_streaming_url_netflix',
@@ -554,7 +554,6 @@ class Anime_Sync_Import_Manager {
 			'Muse Asia'          => 'anime_tw_streaming_url_muse',
 		];
 
-		// AniList site 名稱 → checkbox value（對應 get_tw_platforms() 的 key）
 		$platform_to_checkbox = [
 			'Crunchyroll'        => 'crunchyroll',
 			'Netflix'            => 'netflix',
@@ -584,17 +583,14 @@ class Anime_Sync_Import_Manager {
 			if ( $site === '' || $url === '' ) continue;
 			if ( $type !== '' && $type !== 'STREAMING' ) continue;
 
-			// YouTube 連結判斷是否為 Ani-One 或 Muse 頻道
 			if ( $site === 'YouTube' ) {
 				if ( stripos( $url, 'AniOneAsia' ) !== false || stripos( $url, 'ani-one' ) !== false ) {
 					$site = 'Ani-One Asia';
 				} elseif ( stripos( $url, 'MuseAsia' ) !== false || stripos( $url, 'muse' ) !== false ) {
 					$site = 'Muse Asia';
 				}
-				// 其他 YouTube 連結維持 'YouTube'
 			}
 
-			// 寫入 URL（空白時才填，不覆蓋人工填的連結）
 			if ( isset( $platform_map[ $site ] ) ) {
 				$meta_key = $platform_map[ $site ];
 				$existing = get_post_meta( $post_id, $meta_key, true );
@@ -603,7 +599,6 @@ class Anime_Sync_Import_Manager {
 				}
 			}
 
-			// 更新 checkbox 勾選
 			if ( isset( $platform_to_checkbox[ $site ] ) ) {
 				$val = $platform_to_checkbox[ $site ];
 				if ( ! in_array( $val, $checked_platforms, true ) ) {
