@@ -115,7 +115,9 @@ class Anime_Sync_CN_Converter {
 
 private static function convert_with_opencc( string $text ): string {
     try {
-        return \Overtrue\PHPOpenCC\OpenCC::convert( $text, 'S2TWP' );
+        $result = \Overtrue\PHPOpenCC\OpenCC::convert( $text, 'S2T' );
+        $result = \Overtrue\PHPOpenCC\OpenCC::convert( $result, 'T2TW' );
+        return self::convert_with_dict( $result );
     } catch ( \Throwable $e ) {
         return self::convert_with_dict( $text );
     }
