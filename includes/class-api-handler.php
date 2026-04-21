@@ -52,6 +52,38 @@ class Anime_Sync_API_Handler {
         $this->id_mapper    = $id_mapper    ?? new Anime_Sync_ID_Mapper();
     }
 
+    private function get_animethemes_meta( int $post_id ): array {
+        if ( $post_id <= 0 ) {
+            return [ 'id' => '', 'slug' => '' ];
+        }
+
+        $id_raw      = get_post_meta( $post_id, 'anime_animethemes_id', true );
+        $slug        = trim( (string) get_post_meta( $post_id, 'anime_animethemes_slug', true ) );
+        $legacy_slug = trim( (string) get_post_meta( $post_id, 'animethemes_slug', true ) );
+        $id          = '';
+
+        if ( is_scalar( $id_raw ) ) {
+            $id_raw = trim( (string) $id_raw );
+            if ( $id_raw !== '' ) {
+                if ( ctype_digit( $id_raw ) ) {
+                    $id = $id_raw;
+                } elseif ( $slug === '' ) {
+                    // 舊版曾把 slug 寫進 anime_animethemes_id，這裡自動轉回 slug。
+                    $slug = $id_raw;
+                }
+            }
+        }
+
+        if ( $slug === '' ) {
+            $slug = $legacy_slug;
+        }
+
+        return [
+            'id'   => $id,
+            'slug' => $slug,
+        ];
+    }
+
     // =========================================================================
     // PUBLIC – 核心匯入（ACB）目標 < 15 秒
     // =========================================================================
@@ -74,6 +106,7 @@ class Anime_Sync_API_Handler {
         $season         = $media['season']            ?? '';
         $episodes       = (int) ( $media['episodes'] ?? 0 );
         $external_links = $media['externalLinks']     ?? [];
+        $animethemes_meta = $this->get_animethemes_meta( $post_id );
 
         if ( ! $bangumi_id || $bangumi_id <= 0 ) {
             $bangumi_id = $this->id_mapper->get_bangumi_id( [
@@ -170,7 +203,9 @@ class Anime_Sync_API_Handler {
             'anilist_id'             => $anilist_id,
             'mal_id'                 => $mal_id,
             'bangumi_id'             => $bangumi_id,
-            'animethemes_slug'       => '',
+            'anime_animethemes_id'   => $animethemes_meta['id'],
+            'anime_animethemes_slug' => $animethemes_meta['slug'],
+            'animethemes_slug'       => $animethemes_meta['slug'],
             'anime_title_chinese'    => $title_chinese,
             'anime_title_romaji'     => $title_romaji,
             'anime_title_english'    => $title_english,
@@ -235,7 +270,7 @@ public function enrich_anime_data( int $post_id ): array|WP_Error {
             update_post_meta( $post_id, 'anime_mal_id', $mal_id );
         }
     }
-
+        $existing_animethemes_meta = $this->get_animethemes_meta( $post_id );
         $title_chinese = (string) get_post_meta( $post_id, 'anime_title_chinese', true );
         $title_native  = (string) get_post_meta( $post_id, 'anime_title_native',  true );
         $title_romaji  = (string) get_post_meta( $post_id, 'anime_title_romaji',  true );
@@ -246,6 +281,14 @@ public function enrich_anime_data( int $post_id ): array|WP_Error {
         }
 
         $enriched = [];
+
+        if ( $existing_animethemes_meta['id'] !== '' ) {
+            $enriched['anime_animethemes_id'] = $existing_animethemes_meta['id'];
+        }
+        if ( $existing_animethemes_meta['slug'] !== '' ) {
+            $enriched['anime_animethemes_slug'] = $existing_animethemes_meta['slug'];
+            $enriched['animethemes_slug']       = $existing_animethemes_meta['slug'];
+        }
 
         if ( $bangumi_id > 0 ) {
             $this->rate_limiter->wait_if_needed( 'bangumi' );
@@ -279,8 +322,20 @@ public function enrich_anime_data( int $post_id ): array|WP_Error {
         if ( $mal_id > 0 ) {
             $themes_result = $this->fetch_animethemes( $mal_id );
             if ( ! empty( $themes_result['themes'] ) ) {
-                $enriched['anime_themes']         = wp_json_encode( $themes_result['themes'], JSON_UNESCAPED_UNICODE );
-                $enriched['anime_animethemes_id'] = $themes_result['slug'] ?? '';
+                $enriched['anime_themes'] = wp_json_encode( $themes_result['themes'], JSON_UNESCAPED_UNICODE );
+            }
+
+            $themes_id = isset( $themes_result['id'] ) && $themes_result['id'] !== null
+                ? trim( (string) $themes_result['id'] )
+                : '';
+            $themes_slug = trim( (string) ( $themes_result['slug'] ?? '' ) );
+
+            if ( $themes_id !== '' ) {
+                $enriched['anime_animethemes_id'] = $themes_id;
+            }
+            if ( $themes_slug !== '' ) {
+                $enriched['anime_animethemes_slug'] = $themes_slug;
+                $enriched['animethemes_slug']       = $themes_slug;
             }
         }
 
@@ -315,6 +370,7 @@ public function enrich_anime_data( int $post_id ): array|WP_Error {
         $season         = $media['season']            ?? '';
         $episodes       = (int) ( $media['episodes'] ?? 0 );
         $external_links = $media['externalLinks']     ?? [];
+        $existing_animethemes_meta = $this->get_animethemes_meta( $post_id );
 
         if ( ! $bangumi_id || $bangumi_id <= 0 ) {
             $bangumi_id = $this->id_mapper->get_bangumi_id( [
@@ -385,7 +441,17 @@ public function enrich_anime_data( int $post_id ): array|WP_Error {
         $wikipedia_url      = $this->fetch_wikipedia_url( $title_chinese, $title_native, $title_romaji, $title_english );
         $animethemes_result = $this->fetch_animethemes( $mal_id );
         $themes             = $animethemes_result['themes'] ?? [];
-        $animethemes_slug   = $animethemes_result['slug']   ?? '';
+        $animethemes_id     = isset( $animethemes_result['id'] ) && $animethemes_result['id'] !== null
+            ? trim( (string) $animethemes_result['id'] )
+            : '';
+        $animethemes_slug   = trim( (string) ( $animethemes_result['slug'] ?? '' ) );
+
+        if ( $animethemes_id === '' ) {
+            $animethemes_id = $existing_animethemes_meta['id'];
+        }
+        if ( $animethemes_slug === '' ) {
+            $animethemes_slug = $existing_animethemes_meta['slug'];
+        }
 
         $episodes_json = '[]';
         if ( $bangumi_id && $bangumi_id > 0 ) {
@@ -429,6 +495,8 @@ public function enrich_anime_data( int $post_id ): array|WP_Error {
             'anilist_id'             => $anilist_id,
             'mal_id'                 => $mal_id,
             'bangumi_id'             => $bangumi_id,
+            'anime_animethemes_id'   => $animethemes_id,
+            'anime_animethemes_slug' => $animethemes_slug,
             'animethemes_slug'       => $animethemes_slug,
             'anime_title_chinese'    => $title_chinese,
             'anime_title_romaji'     => $title_romaji,
@@ -1362,298 +1430,74 @@ private function get_bgm_staff( int $bangumi_id ): array {
         return $result;
     }
 
-  // =========================================================================
-// PRIVATE – AnimeThemes 完整版
-// 資料來源優先順序：
-//   歌曲標題     → AT API（主）
-//   歌曲日文原名 → Jikan API（括號解析）
-//   歌手名稱     → AT API（主）
-//   歌手日文名   → MusicBrainz API（aliases）
-//   歌手法定名   → MusicBrainz API（Legal name）
-//
-// Issues covered:
-//   #37  spoiler/nsfw flag 傳遞
-//   #44  多 artist 支援（陣列）
-//   #45  Unicode × 正規化
-//   #58  同一 MAL ID 多個 AT anime 物件
-//   #59  slug 後綴黑名單
-//   #61  Jikan 日文原名補充
-//   #62  Jikan artist 前綴清理
-//   #63  MB artist 查詢 WP options 永久快取
-// =========================================================================
+    // =========================================================================
+    // PRIVATE – AnimeThemes（ACF：加入 videos.audio，取出 audio_url）
+    //           ACG：統一 User-Agent
+    // =========================================================================
 
-private function fetch_animethemes( ?int $mal_id ): array {
-    if ( ! $mal_id || $mal_id <= 0 ) return [];
+    private function fetch_animethemes( ?int $mal_id ): array {
+        if ( ! $mal_id || $mal_id <= 0 ) return [];
 
-    $cache_key = 'anime_sync_themes_' . $mal_id;
-    $cached    = get_transient( $cache_key );
-    if ( $cached !== false ) return (array) $cached;
+        $cache_key = 'anime_sync_themes_' . $mal_id;
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (array) $cached;
 
-    // ── Step 1: AT API ────────────────────────────────────────────────────
-    $this->rate_limiter->wait_if_needed( 'animethemes' );
-    $response = wp_remote_get( add_query_arg( [
-        'filter[has]'         => 'resources',
-        'filter[site]'        => 'MyAnimeList',
-        'filter[external_id]' => $mal_id,
-        'include'             => 'animethemes.animethemeentries.videos.audio,animethemes.song.artists',
-        'fields[anime]'       => 'slug',
-        'fields[animetheme]'  => 'type,sequence,slug',
-        'fields[song]'        => 'title',
-        'fields[artist]'      => 'name',
-        'fields[video]'       => 'link,resolution',
-        'fields[audio]'       => 'link',
-    ], self::ANIMETHEMES_URL ), [
-        'timeout' => 8,
-        'headers' => [ 'User-Agent' => self::USER_AGENT ],
-    ] );
-
-    if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
-
-    $body      = json_decode( wp_remote_retrieve_body( $response ), true );
-    $anime_arr = $body['anime'] ?? [];
-    if ( empty( $anime_arr ) ) return [];
-
-    // ── Step 2: Jikan API（取日文原名對照表）────────────────────────────
-    $jikan_native_map = $this->fetch_jikan_theme_natives( $mal_id );
-
-    // ── Step 3: slug 後綴黑名單 (#59) ────────────────────────────────────
-    $slug_blacklist = [
-        '-EN', '-EN4Kids', '-YorinukiGintamaSan',
-        '-Subbed', '-Lyrics',
-    ];
-
-    // ── Step 4: 遍歷所有 AT anime 物件 (#58) ─────────────────────────────
-    $slug   = '';
-    $themes = [];
-
-    foreach ( $anime_arr as $anime_obj ) {
-        if ( $slug === '' ) {
-            $slug = $anime_obj['slug'] ?? '';
-        }
-
-        foreach ( $anime_obj['animethemes'] ?? [] as $theme ) {
-            $theme_slug = $theme['slug'] ?? '';
-
-            // 黑名單過濾 (#59)
-            $blacklisted = false;
-            foreach ( $slug_blacklist as $suffix ) {
-                if ( str_contains( $theme_slug, $suffix ) ) {
-                    $blacklisted = true;
-                    break;
-                }
-            }
-            if ( $blacklisted ) continue;
-
-            // 取解析度最高的 video
-            $entry      = $theme['animethemeentries'][0] ?? [];
-            $videos     = $entry['videos'] ?? [];
-            $best_video = [];
-            $best_res   = 0;
-            foreach ( $videos as $v ) {
-                $res = (int) ( $v['resolution'] ?? 0 );
-                if ( $res > $best_res ) {
-                    $best_res   = $res;
-                    $best_video = $v;
-                }
-            }
-            if ( empty( $best_video ) && ! empty( $videos ) ) {
-                $best_video = $videos[0];
-            }
-
-            $audio_url = $best_video['audio']['link'] ?? '';
-            $video_url = $best_video['link']          ?? '';
-
-            // 歌曲標題
-            $title_romaji = $theme['song']['title'] ?? '';
-
-            // 歌曲日文原名：從 Jikan 對照表查（#61）
-            $title_native = $jikan_native_map[ $this->normalize_title( $title_romaji ) ] ?? '';
-
-            // 歌手：AT 提供羅馬拼音，MB 補日文名（#44, #63）
-            $artists = [];
-            foreach ( $theme['song']['artists'] ?? [] as $a ) {
-                $name = trim( $a['name'] ?? '' );
-                if ( $name === '' ) continue;
-
-                $mb_data = $this->fetch_mb_artist( $name );
-
-                $artists[] = [
-                    'name'       => $name,
-                    'name_native'=> $mb_data['name_native'] ?? '',
-                    'name_legal' => $mb_data['name_legal']  ?? '',
-                    'mbid'       => $mb_data['mbid']        ?? '',
-                ];
-            }
-
-            $themes[] = [
-                'type'         => $theme['type']     ?? '',
-                'sequence'     => $theme['sequence'] ?? null,
-                'slug'         => $theme_slug,
-                'title'        => $title_romaji,
-                'title_native' => $title_native,
-                'artists'      => $artists,
-                'audio_url'    => $audio_url,
-                'video_url'    => $video_url,
-                'resolution'   => $best_video['resolution'] ?? '',
-                'spoiler'      => ! empty( $entry['spoiler'] ), // #37
-                'nsfw'         => ! empty( $entry['nsfw'] ),
-            ];
-        }
-    }
-
-    $result = [ 'slug' => $slug, 'themes' => $themes ];
-    set_transient( $cache_key, $result, 24 * HOUR_IN_SECONDS );
-    return $result;
-}
-
-// =========================================================================
-// PRIVATE – Jikan 主題曲日文原名對照表
-// 回傳 [ 'normalize(romaji)' => '日文原名' ]
-// =========================================================================
-
-private function fetch_jikan_theme_natives( int $mal_id ): array {
-    $this->rate_limiter->wait_if_needed( 'jikan' );
-    $response = wp_remote_get(
-        self::JIKAN_ANIME_URL . $mal_id . '/themes',
-        [
+        $this->rate_limiter->wait_if_needed( 'animethemes' );
+        $response = wp_remote_get( add_query_arg( [
+            'filter[has]'         => 'resources',
+            'filter[site]'        => 'MyAnimeList',
+            'filter[external_id]' => $mal_id,
+            'include'             => 'animethemes.animethemeentries.videos.audio,animethemes.song.artists',
+            'fields[anime]'       => 'id,slug',
+            'fields[animetheme]'  => 'type,sequence,slug',
+            'fields[song]'        => 'title',
+            'fields[artist]'      => 'name',
+            'fields[video]'       => 'link,resolution',
+            'fields[audio]'       => 'link',
+        ], self::ANIMETHEMES_URL ), [
             'timeout' => 8,
             'headers' => [ 'User-Agent' => self::USER_AGENT ],
-        ]
-    );
+        ] );
 
-    if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
-        return [];
-    }
+        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
 
-    $body = json_decode( wp_remote_retrieve_body( $response ), true );
-    $map  = [];
+        $body      = json_decode( wp_remote_retrieve_body( $response ), true );
+        $anime_arr = $body['anime'] ?? [];
+        if ( empty( $anime_arr ) ) return [];
 
-    $all_entries = array_merge(
-        $body['data']['openings'] ?? [],
-        $body['data']['endings']  ?? []
-    );
+        $anime_obj = $anime_arr[0];
+        $id        = isset( $anime_obj['id'] ) && $anime_obj['id'] !== null ? (string) (int) $anime_obj['id'] : '';
+        $slug      = $anime_obj['slug'] ?? '';
+        $themes    = [];
 
-    foreach ( $all_entries as $entry ) {
-        // 格式："Title (日文原名)" by Artist
-        // 或：  "1: \"Title (日文原名)\" by Artist (eps 1-13)"
-        if ( ! preg_match( '/"([^"]+)"/', $entry, $title_match ) ) continue;
+        foreach ( $anime_obj['animethemes'] ?? [] as $theme ) {
+            $entry     = $theme['animethemeentries'][0] ?? [];
+            $videos    = $entry['videos']               ?? [];
+            $video     = ! empty( $videos ) ? $videos[0] : [];
+            $audio_url = $video['audio']['link']        ?? '';
+            $video_url = $video['link']                 ?? '';
 
-        $full_title = $title_match[1]; // e.g. "Gurenge (紅蓮華)"
-
-        // 解析日文原名（括號內）
-        $native = '';
-        if ( preg_match( '/\(([^)]+)\)\s*$/', $full_title, $native_match ) ) {
-            $native = trim( $native_match[1] );
-            // 確認括號內是日文（含有 CJK 字符）
-            if ( ! preg_match( '/[\x{3000}-\x{9FFF}\x{F900}-\x{FAFF}]/u', $native ) ) {
-                $native = ''; // 括號內不是日文，忽略
-            }
-        }
-
-        if ( $native === '' ) continue;
-
-        // 取羅馬拼音部分（括號前）
-        $romaji = trim( preg_replace( '/\s*\([^)]+\)\s*$/', '', $full_title ) );
-
-        if ( $romaji !== '' ) {
-            $map[ $this->normalize_title( $romaji ) ] = $native;
-        }
-    }
-
-    return $map;
+         $artists = [];
+foreach ( $theme['song']['artists'] ?? [] as $a ) {
+    $artists[] = $a['name'] ?? '';
 }
 
-// =========================================================================
-// PRIVATE – MusicBrainz artist 查詢
-// 回傳 [ 'mbid' => '', 'name_native' => '', 'name_legal' => '' ]
-// WP options 永久快取（#63），key: anime_sync_mb_artist_{md5(name)}
-// =========================================================================
-
-private function fetch_mb_artist( string $name ): array {
-    $cache_key = 'anime_sync_mb_artist_' . md5( $name );
-    $cached    = get_option( $cache_key );
-    if ( $cached !== false ) return (array) $cached;
-
-    sleep( 1 ); // MB rate limit
-
-    // ✅ 不加引號，讓 MB 做模糊搜尋
-    $url = add_query_arg( array(
-        'query' => $name,   // 改這行，拿掉 artist:"..." 的包法
-        'fmt'   => 'json',
-        'limit' => 5,
-    ), 'https://musicbrainz.org/ws/2/artist' );
-
-    $response = wp_remote_get( $url, array(
-        'timeout' => 10,
-        'headers' => array( 'User-Agent' => self::USER_AGENT ),
-    ) );
-
-    if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
-        return array( 'mbid' => '', 'name_native' => '', 'name_legal' => '' );
-    }
-
-    $body    = json_decode( wp_remote_retrieve_body( $response ), true );
-    $artists = $body['artists'] ?? array();
-    if ( empty( $artists ) ) {
-        return array( 'mbid' => '', 'name_native' => '', 'name_legal' => '' );
-    }
-
-    // score 門檻降到 70（因為主名是日文，romaji 搜尋分數不會到 100）
-    $pick = null;
-    foreach ( $artists as $a ) {
-        if ( ( $a['score'] ?? 0 ) >= 70 ) {
-            $pick = $a;
-            break;
+$themes[] = [
+    'type'       => $theme['type']          ?? '',
+    'sequence'   => $theme['sequence']      ?? 1,
+    'slug'       => $theme['slug']          ?? '',
+    'song_title' => $theme['song']['title'] ?? '',
+    'artist'     => implode( ', ', $artists ),
+    'audio_url'  => $audio_url,
+    'video_url'  => $video_url,
+    'resolution' => $video['resolution']    ?? '',
+];
         }
+
+        $result = [ 'id' => $id, 'slug' => $slug, 'themes' => $themes ];
+        set_transient( $cache_key, $result, 24 * HOUR_IN_SECONDS );
+        return $result;
     }
-    if ( ! $pick ) $pick = $artists[0];
-
-    $name_native = '';
-    $name_legal  = '';
-    foreach ( $pick['aliases'] ?? array() as $alias ) {
-        if ( ( $alias['locale'] ?? '' ) === 'ja' && ( $alias['type'] ?? '' ) === 'Artist name' && ! empty( $alias['primary'] ) ) {
-            $name_native = $alias['name'];
-        }
-        if ( ( $alias['type'] ?? '' ) === 'Legal name' && $name_legal === '' ) {
-            $name_legal = $alias['name'];
-        }
-    }
-
-    $result = array(
-        'mbid'        => $pick['id']   ?? '',
-        'name_native' => $name_native,
-        'name_legal'  => $name_legal,
-    );
-
-    update_option( $cache_key, $result, false );
-    return $result;
-}
-
-// =========================================================================
-// PRIVATE – 標題正規化（用於比對 AT 和 Jikan 的標題）
-// #45: 全形 × → x
-// #40: Unicode 上標數字 → ASCII
-// =========================================================================
-
-private function normalize_title( string $title ): string {
-    $title = strtolower( trim( $title ) );
-
-    // 全形乘號 × → x (#45)
-    $title = str_replace( '×', 'x', $title );
-
-    // Unicode 上標數字 → ASCII (#40)
-    $superscript_map = [
-        '⁰'=>'0','¹'=>'1','²'=>'2','³'=>'3','⁴'=>'4',
-        '⁵'=>'5','⁶'=>'6','⁷'=>'7','⁸'=>'8','⁹'=>'9',
-    ];
-    $title = strtr( $title, $superscript_map );
-
-    // 移除標點符號和多餘空白
-    $title = preg_replace( '/[^\p{L}\p{N}\s]/u', '', $title );
-    $title = preg_replace( '/\s+/', ' ', $title );
-
-    return trim( $title );
-}
 
     // =========================================================================
     // PRIVATE – 解析器
