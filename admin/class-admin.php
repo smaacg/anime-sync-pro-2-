@@ -37,6 +37,9 @@
  *       建構子新增 wp_ajax_anime_sync_scan_series_gaps 掛載。
  *
  * ACJ – 新增「一鍵轉繁體」Meta Box，供編輯頁直接轉換簡體欄位。
+ *
+ * ACK – ajax_convert_post_to_tw() 修正：強制寫入 meta 與 ACF 欄位，
+ *       不依賴新舊值比較，確保 OpenCC 未安裝時靜態字典仍能正常運作。
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -234,6 +237,7 @@ class Anime_Sync_Admin {
             'acf'  => [],
         ];
 
+        // ── post_title / post_content / post_excerpt ──
         $post_update = [ 'ID' => $post_id ];
 
         $new_title = $cn->convert( (string) $post->post_title );
@@ -258,6 +262,7 @@ class Anime_Sync_Admin {
             wp_update_post( $post_update );
         }
 
+        // ── ★ ACK 修正：固定 meta 欄位，強制寫入不比較新舊值 ──
         foreach ( $this->get_convert_target_meta_keys() as $meta_key ) {
             $old_value = get_post_meta( $post_id, $meta_key, true );
             if ( $old_value === '' || $old_value === null ) {
@@ -265,15 +270,16 @@ class Anime_Sync_Admin {
             }
 
             $new_value = $this->convert_meta_value( $cn, $meta_key, $old_value );
+            update_post_meta( $post_id, $meta_key, $new_value ); // ★ 強制寫入
             if ( $new_value !== $old_value ) {
-                update_post_meta( $post_id, $meta_key, $new_value );
                 $updated['meta'][] = $meta_key;
             }
         }
 
+        // ── 動態 meta 欄位（仍保留比較，避免覆蓋不必要的欄位）──
         foreach ( $this->get_dynamic_convertible_meta( $post_id ) as $meta_key ) {
-            if ( in_array( $meta_key, $updated['meta'], true ) ) {
-                continue;
+            if ( in_array( $meta_key, $this->get_convert_target_meta_keys(), true ) ) {
+                continue; // 已在上面處理過，跳過
             }
 
             $old_value = get_post_meta( $post_id, $meta_key, true );
@@ -284,19 +290,20 @@ class Anime_Sync_Admin {
             }
         }
 
+        // ── ★ ACK 修正：ACF 欄位，強制寫入不比較新舊值 ──
         if ( function_exists( 'get_field_objects' ) && function_exists( 'update_field' ) ) {
             $acf_fields = get_field_objects( $post_id, false, true );
             if ( is_array( $acf_fields ) ) {
                 foreach ( $acf_fields as $field ) {
-                    $field_key  = $field['key'] ?? '';
-                    $field_name = $field['name'] ?? '';
+                    $field_key  = $field['key']   ?? '';
+                    $field_name = $field['name']  ?? '';
                     $old_value  = $field['value'] ?? null;
 
                     if ( ! $field_key || ! $field_name ) {
                         continue;
                     }
 
-                    if ( ! $this->is_convertible_meta_key( $field_name ) ) {
+                    if ( ! $this->is_convertible_acf_field( $field_name ) ) {
                         continue;
                     }
 
@@ -304,8 +311,8 @@ class Anime_Sync_Admin {
                         ? $this->convert_meta_value( $cn, $field_name, $old_value )
                         : $cn->convert_mixed( $old_value );
 
+                    update_field( $field_key, $new_value, $post_id ); // ★ 強制寫入
                     if ( $new_value !== $old_value ) {
-                        update_field( $field_key, $new_value, $post_id );
                         $updated['acf'][] = $field_name;
                     }
                 }
@@ -407,6 +414,24 @@ class Anime_Sync_Admin {
         return true;
     }
 
+    // ★ ACK 新增：ACF 欄位專用白名單判斷（只轉文字類欄位）
+    private function is_convertible_acf_field( string $field_name ): bool {
+        $whitelist = [
+            'anime_title_chinese',
+            'anime_synopsis_chinese',
+            'anime_studios',
+            'anime_staff_json',
+            'anime_cast_json',
+            'anime_episodes_json',
+            'anime_faq_json',
+            'anime_tw_broadcast',
+            'anime_tw_distributor_custom',
+            'anime_tw_streaming_other',
+        ];
+
+        return in_array( $field_name, $whitelist, true );
+    }
+
     private function convert_meta_value( Anime_Sync_CN_Converter $cn, string $meta_key, $value ) {
         if ( ! is_string( $value ) ) {
             return $cn->convert_mixed( $value );
@@ -417,7 +442,7 @@ class Anime_Sync_Admin {
             return $value;
         }
 
-        if ( in_array( $meta_key, [ 'anime_staff_json', 'anime_cast_json', 'anime_episodes_json' ], true ) ) {
+        if ( in_array( $meta_key, [ 'anime_staff_json', 'anime_cast_json', 'anime_episodes_json', 'anime_faq_json' ], true ) ) {
             return $cn->convert_json_string( $value );
         }
 
@@ -938,12 +963,12 @@ class Anime_Sync_Admin {
         wp_enqueue_style( 'anime-sync-admin', $url . 'admin/assets/css/admin.css', [], $version );
         wp_enqueue_script( 'anime-sync-admin', $url . 'admin/assets/js/admin.js', [ 'jquery' ], time(), true );
         wp_localize_script( 'anime-sync-admin', 'animeSyncAdmin', [
-            'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
-            'nonce'         => wp_create_nonce( 'anime_sync_admin_nonce' ),
-            'syncing'       => __( '同步中，請稍候…', 'anime-sync-pro' ),
-            'sync_success'  => __( '✅ 同步完成，頁面即將重新整理…', 'anime-sync-pro' ),
-            'error_no_id'   => __( '請先填入 Bangumi ID 並儲存文章。', 'anime-sync-pro' ),
-            'network_error' => __( '網路錯誤，請重試。', 'anime-sync-pro' ),
+            'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
+            'nonce'          => wp_create_nonce( 'anime_sync_admin_nonce' ),
+            'syncing'        => '同步中，請稍候…',
+            'resyncSuccess'  => '✅ 重新同步完成',
+            'resyncError'    => '❌ 同步失敗',
+            'confirmResync'  => '確定要重新同步 Bangumi 資料嗎？鎖定欄位將被跳過。',
         ] );
     }
 }
