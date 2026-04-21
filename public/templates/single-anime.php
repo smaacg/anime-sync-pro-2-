@@ -266,9 +266,9 @@ while ( have_posts() ) :
 /* ── Themes ── */
 $seen = array(); $openings = array(); $endings = array();
 foreach ( $themes_list as $t ) {
-    $type   = strtoupper( trim( isset( $t['type'] ) ? $t['type'] : '' ) );
-    $slug   = trim( isset( $t['slug'] ) ? $t['slug'] : '' );
-    $stitle = trim( isset( $t['song_title'] ) ? $t['song_title'] : ( isset( $t['title'] ) ? $t['title'] : '' ) );
+    $type   = strtoupper( trim( $t['type']  ?? '' ) );
+    $slug   = trim( $t['slug']  ?? '' );
+    $stitle = trim( $t['title'] ?? '' );  // 統一用 title，不再 fallback song_title
     $key    = $slug !== '' ? $slug : ( $type . '||' . $stitle );
     if ( isset( $seen[ $key ] ) ) continue;
     $seen[ $key ] = true;
@@ -863,17 +863,36 @@ foreach ( $cast_list as $c ) {
 
                 <?php foreach ( $music_list as $t ) : ?>
                     <?php
-                    $t_type      = strtoupper( trim( isset( $t['type'] ) ? $t['type'] : '' ) );
-                    $t_title     = trim( isset( $t['song_title'] ) ? $t['song_title'] : '' );
-                    $t_native    = trim( isset( $t['native'] ) ? $t['native'] : '' );
-                    $t_artist    = trim( isset( $t['artist'] ) ? $t['artist'] : '' );
-                    $t_audio_url = trim( isset( $t['audio_url'] ) ? $t['audio_url'] : '' );
-                    $t_video_url = trim( isset( $t['video_url'] ) ? $t['video_url'] : '' );
-                    $open_url    = $t_video_url ?: $t_audio_url;
+$t_type      = strtoupper( trim( $t['type']         ?? '' ) );
+$t_seq       = $t['sequence'] ?? null;
+$t_title     = trim( $t['title']        ?? '' );         // 統一 key
+$t_native    = trim( $t['title_native'] ?? '' );         // 統一 key
+$t_spoiler   = ! empty( $t['spoiler'] );                 // #37
 
-                    $badge_class = ( strpos( $t_type, 'OP' ) === 0 )
-                        ? 'asd-music-type-badge--op'
-                        : 'asd-music-type-badge--ed';
+// artists 是陣列，組成顯示字串
+$t_artists_raw = $t['artists'] ?? [];
+$t_artist_names = [];
+foreach ( $t_artists_raw as $a ) {
+    $display_name = trim( $a['name_native'] ?? $a['name'] ?? '' );
+    if ( $display_name !== '' ) $t_artist_names[] = $display_name;
+}
+$t_artist = implode( '、', $t_artist_names );
+
+// 同時保留羅馬拼音備用
+$t_artist_romaji_parts = [];
+foreach ( $t_artists_raw as $a ) {
+    $rname = trim( $a['name'] ?? '' );
+    if ( $rname !== '' ) $t_artist_romaji_parts[] = $rname;
+}
+$t_artist_romaji = implode( ', ', $t_artist_romaji_parts );
+
+$t_audio_url = trim( $t['audio_url'] ?? '' );
+$t_video_url = trim( $t['video_url'] ?? '' );
+$open_url    = $t_video_url ?: $t_audio_url;
+
+$badge_class = ( strpos( $t_type, 'OP' ) === 0 )
+    ? 'asd-music-type-badge--op'
+    : 'asd-music-type-badge--ed';
                     ?>
 
                     <div class="asd-music-card-v2">
@@ -881,19 +900,33 @@ foreach ( $cast_list as $c ) {
                             <?php echo esc_html( $t_type ); ?>
                         </span>
 
-                        <div class="asd-music-body">
-                            <?php if ( $t_title ) : ?>
-                                <span class="asd-music-title"><?php echo esc_html( $t_title ); ?></span>
-                            <?php endif; ?>
+<div class="asd-music-body">
 
-                            <?php if ( $t_native && $t_native !== $t_title ) : ?>
-                                <span class="asd-music-native"><?php echo esc_html( $t_native ); ?></span>
-                            <?php endif; ?>
+    <?php if ( $t_spoiler ) : ?>
+        <span class="asd-music-spoiler-badge">⚠ 雷</span>
+    <?php endif; ?>
 
-                            <?php if ( $t_artist ) : ?>
-                                <span class="asd-music-artist">by <?php echo esc_html( $t_artist ); ?></span>
-                            <?php endif; ?>
-                        </div>
+    <?php if ( $t_title ) : ?>
+        <span class="asd-music-title"><?php echo esc_html( $t_title ); ?></span>
+    <?php endif; ?>
+
+    <?php if ( $t_native !== '' && $t_native !== $t_title ) : ?>
+        <span class="asd-music-native"><?php echo esc_html( $t_native ); ?></span>
+    <?php endif; ?>
+
+    <?php if ( $t_artist !== '' ) : ?>
+        <span class="asd-music-artist">
+            by <?php echo esc_html( $t_artist ); ?>
+            <?php if ( $t_artist_romaji !== '' && $t_artist_romaji !== $t_artist ) : ?>
+                <span class="asd-music-artist-romaji">(<?php echo esc_html( $t_artist_romaji ); ?>)</span>
+            <?php endif; ?>
+        </span>
+    <?php elseif ( $t_artist_romaji !== '' ) : ?>
+        <span class="asd-music-artist">by <?php echo esc_html( $t_artist_romaji ); ?></span>
+    <?php endif; ?>
+
+</div>
+
 
 <?php if ( $t_audio_url || $t_video_url ) : ?>
     <div
