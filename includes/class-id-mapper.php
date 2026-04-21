@@ -130,6 +130,9 @@ class Anime_Sync_ID_Mapper {
         // ── Layer 0：WP post meta ─────────────────────────────────────────────
         if ( $post_id > 0 ) {
             $meta_bgm = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+            if ( $meta_bgm <= 0 ) {
+                $meta_bgm = (int) get_post_meta( $post_id, 'bangumi_id', true );
+            }
             if ( $meta_bgm > 0 ) return $meta_bgm;
         }
 
@@ -285,6 +288,7 @@ class Anime_Sync_ID_Mapper {
     private function write_bgm_id( int $post_id, int $bgm_id ): void {
         if ( $post_id <= 0 || $bgm_id <= 0 ) return;
         update_post_meta( $post_id, 'anime_bangumi_id', $bgm_id );
+        update_post_meta( $post_id, 'bangumi_id', $bgm_id );
         delete_post_meta( $post_id, '_bangumi_id_pending' );
     }
 
@@ -558,22 +562,66 @@ class Anime_Sync_ID_Mapper {
      */
     private function search_bangumi_by_title( string $title, int $year, string $season = '', int $episodes = 0 ): ?int {
 
-        $normalized = $this->normalize_title( $title );
-
-        if ( $normalized !== '' ) {
-            $results = $this->query_bangumi_search( $normalized );
-            $best    = $this->match_best_result( $results, $normalized, $year, $season, $episodes );
+        foreach ( $this->build_search_variants( $title ) as $variant ) {
+            $results = $this->query_bangumi_search( $variant );
+            $best    = $this->match_best_result( $results, $variant, $year, $season, $episodes );
             if ( $best ) return $best;
         }
 
-        // ABC：第二次搜尋用原始標題（包含季號），處理 normalize 後關鍵詞被去除的情況
-        if ( $title !== $normalized && $title !== '' ) {
-            $results2 = $this->query_bangumi_search( $title );
-            $best2    = $this->match_best_result( $results2, $title, $year, $season, $episodes );
-            if ( $best2 ) return $best2;
+        return null;
+    }
+
+    /**
+     * 針對續作 / 分割放送 / 特別編集版等常見命名差異，產生多組 Bangumi 搜尋關鍵字。
+     * 目標是提高新番與續作命中率，同時避免對既有高可信度 Layer 造成干擾。
+     */
+    private function build_search_variants( string $title ): array {
+        $title = trim( $title );
+        if ( $title === '' ) return [];
+
+        $variants = [ $title ];
+
+        $normalized = $this->normalize_title( $title );
+        if ( $normalized !== '' ) {
+            $variants[] = $normalized;
         }
 
-        return null;
+        $without_brackets = preg_replace( '/[\(\（\[【].*?[\)\）\]】]/u', ' ', $title );
+        $without_brackets = preg_replace( '/\s+/u', ' ', (string) $without_brackets );
+        $without_brackets = trim( $without_brackets );
+        if ( $without_brackets !== '' ) {
+            $variants[] = $without_brackets;
+            $variants[] = $this->normalize_title( $without_brackets );
+        }
+
+        $base_title = preg_replace(
+            [
+                '/\b\d+(?:st|nd|rd|th)\s+season\b/ui',
+                '/\bseason\s*\d+\b/ui',
+                '/\bpart\s*\d+\b/ui',
+                '/\bcour\s*\d+\b/ui',
+                '/第\s*\d+\s*(?:期|季|部|クール)\b/u',
+                '/\b(?:special\s*edition|special\s*edit(?:ion)?|digest|compilation)\b/ui',
+                '/(?:特別編集版|特別編輯版|総集編|總集篇|总集篇|先行上映|先行上映版|劇場先行版)/u',
+            ],
+            ' ',
+            $title
+        );
+        $base_title = preg_replace( '/\s+/u', ' ', (string) $base_title );
+        $base_title = trim( $base_title );
+        if ( $base_title !== '' && $base_title !== $title ) {
+            $variants[] = $base_title;
+            $variants[] = $this->normalize_title( $base_title );
+        }
+
+        $cleaned = [];
+        foreach ( $variants as $variant ) {
+            $variant = trim( preg_replace( '/\s+/u', ' ', (string) $variant ) );
+            if ( $variant === '' ) continue;
+            $cleaned[ $variant ] = true;
+        }
+
+        return array_keys( $cleaned );
     }
 
     private function query_bangumi_search( string $keyword ): array {
