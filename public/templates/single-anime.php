@@ -16,7 +16,7 @@ wp_enqueue_style(
     'anime-sync-single',
     plugin_dir_url( dirname( __FILE__ ) ) . 'assets/css/anime-single.css',
     array(),
-    '18.1'
+    '18.5'
 );
 
 get_header();
