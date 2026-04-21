@@ -1541,6 +1541,153 @@ private function get_bgm_staff( int $bangumi_id ): array {
     set_transient( $cache_key, $result, 24 * HOUR_IN_SECONDS );
     return $result;
 }
+// =========================================================================
+// PRIVATE – Jikan 日文主題曲標題對照表
+// =========================================================================
+private function fetch_jikan_theme_natives( int $mal_id ): array {
+    $cache_key = 'anime_sync_jikan_themes_' . $mal_id;
+    $cached    = get_transient( $cache_key );
+    if ( $cached !== false ) return (array) $cached;
+
+    $this->rate_limiter->wait_if_needed( 'jikan' );
+    $response = wp_remote_get(
+        'https://api.jikan.moe/v4/anime/' . $mal_id . '/themes',
+        [ 'timeout' => 10, 'headers' => [ 'User-Agent' => self::USER_AGENT ] ]
+    );
+
+    if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+        set_transient( $cache_key, [], 6 * HOUR_IN_SECONDS );
+        return [];
+    }
+
+    $data = json_decode( wp_remote_retrieve_body( $response ), true );
+    $all  = array_merge(
+        $data['data']['openings'] ?? [],
+        $data['data']['endings']  ?? []
+    );
+
+    $map = [];
+    foreach ( $all as $entry ) {
+        // 格式通常是 "1: \"Gurenge (紅蓮華)\" by LiSA"
+        // 或直接 "Gurenge (紅蓮華)"
+        if ( ! is_string( $entry ) ) continue;
+
+        // 取出括號內的日文
+        if ( ! preg_match( '/\(([^)]+)\)/', $entry, $m ) ) continue;
+        $native = trim( $m[1] );
+
+        // 只保留含日文字元的括號內容
+        if ( ! preg_match( '/[\x{3000}-\x{9FFF}\x{F900}-\x{FAFF}]/u', $native ) ) continue;
+
+        // 取出 romaji 標題作為 key
+        // 先去掉 "1: " 前綴
+        $clean = preg_replace( '/^\d+:\s*/', '', $entry );
+        // 去掉引號
+        $clean = trim( $clean, " \t\n\r\0\x0B\"'" );
+        // 取括號前的部分
+        $romaji = trim( preg_replace( '/\s*\([^)]*\).*$/', '', $clean ) );
+
+        if ( $romaji !== '' && $native !== '' ) {
+            $map[ $this->normalize_title( $romaji ) ] = $native;
+        }
+    }
+
+    set_transient( $cache_key, $map, 24 * HOUR_IN_SECONDS );
+    return $map;
+}
+
+// =========================================================================
+// PRIVATE – 標題正規化（用於 AT ↔ Jikan 對照）
+// =========================================================================
+private function normalize_title( string $title ): string {
+    $title = mb_strtolower( trim( $title ) );
+
+    // 全形乘號 → x
+    $title = str_replace( '×', 'x', $title );
+
+    // Unicode 上標數字 → ASCII
+    $sup_map = [
+        '⁰'=>'0','¹'=>'1','²'=>'2','³'=>'3','⁴'=>'4',
+        '⁵'=>'5','⁶'=>'6','⁷'=>'7','⁸'=>'8','⁹'=>'9',
+    ];
+    $title = strtr( $title, $sup_map );
+
+    // 移除標點與空白
+    $title = preg_replace( '/[^\p{L}\p{N}]/u', '', $title );
+
+    return $title ?? '';
+}
+
+// =========================================================================
+// PRIVATE – MusicBrainz artist 查詢
+// 回傳 [ 'mbid' => '', 'name_native' => '', 'name_legal' => '' ]
+// WP options 永久快取，key: anime_sync_mb_artist_{md5(name)}
+// =========================================================================
+private function fetch_mb_artist( string $name ): array {
+    $cache_key = 'anime_sync_mb_artist_' . md5( $name );
+    $cached    = get_option( $cache_key );
+    if ( $cached !== false ) return (array) $cached;
+
+    sleep( 1 ); // MB rate limit 1 req/s
+
+    $url = add_query_arg( [
+        'query' => $name,
+        'fmt'   => 'json',
+        'limit' => 5,
+    ], 'https://musicbrainz.org/ws/2/artist' );
+
+    $response = wp_remote_get( $url, [
+        'timeout' => 10,
+        'headers' => [ 'User-Agent' => self::USER_AGENT ],
+    ] );
+
+    if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
+        $empty = [ 'mbid' => '', 'name_native' => '', 'name_legal' => '' ];
+        update_option( $cache_key, $empty, false );
+        return $empty;
+    }
+
+    $body    = json_decode( wp_remote_retrieve_body( $response ), true );
+    $artists = $body['artists'] ?? [];
+
+    if ( empty( $artists ) ) {
+        $empty = [ 'mbid' => '', 'name_native' => '', 'name_legal' => '' ];
+        update_option( $cache_key, $empty, false );
+        return $empty;
+    }
+
+    // score 門檻 70
+    $pick = null;
+    foreach ( $artists as $a ) {
+        if ( ( $a['score'] ?? 0 ) >= 70 ) {
+            $pick = $a;
+            break;
+        }
+    }
+    if ( ! $pick ) $pick = $artists[0];
+
+    $name_native = '';
+    $name_legal  = '';
+    foreach ( $pick['aliases'] ?? [] as $alias ) {
+        if ( ( $alias['locale'] ?? '' ) === 'ja'
+             && ( $alias['type'] ?? '' ) === 'Artist name'
+             && ! empty( $alias['primary'] ) ) {
+            $name_native = $alias['name'];
+        }
+        if ( ( $alias['type'] ?? '' ) === 'Legal name' && $name_legal === '' ) {
+            $name_legal = $alias['name'];
+        }
+    }
+
+    $result = [
+        'mbid'        => $pick['id']   ?? '',
+        'name_native' => $name_native,
+        'name_legal'  => $name_legal,
+    ];
+
+    update_option( $cache_key, $result, false );
+    return $result;
+}
 
     // =========================================================================
     // PRIVATE – 解析器
