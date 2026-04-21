@@ -218,12 +218,24 @@ class Anime_Sync_API_Handler {
 
 public function enrich_anime_data( int $post_id ): array|WP_Error {
 
-    $anilist_id    = (int)    get_post_meta( $post_id, 'anime_anilist_id',    true );
-    $bangumi_id    = (int)    get_post_meta( $post_id, 'anime_bangumi_id',    true );
+    $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
+
+    $bangumi_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+    if ( ! $bangumi_id ) {
+        $bangumi_id = (int) get_post_meta( $post_id, 'bangumi_id', true );
+        if ( $bangumi_id > 0 ) {
+            update_post_meta( $post_id, 'anime_bangumi_id', $bangumi_id );
+        }
+    }
+
     $mal_id = (int) get_post_meta( $post_id, 'anime_mal_id', true );
-if ( ! $mal_id ) {
-    $mal_id = (int) get_post_meta( $post_id, 'mal_id', true );
-}
+    if ( ! $mal_id ) {
+        $mal_id = (int) get_post_meta( $post_id, 'mal_id', true );
+        if ( $mal_id > 0 ) {
+            update_post_meta( $post_id, 'anime_mal_id', $mal_id );
+        }
+    }
+
         $title_chinese = (string) get_post_meta( $post_id, 'anime_title_chinese', true );
         $title_native  = (string) get_post_meta( $post_id, 'anime_title_native',  true );
         $title_romaji  = (string) get_post_meta( $post_id, 'anime_title_romaji',  true );
