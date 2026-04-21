@@ -374,6 +374,8 @@ class Anime_Sync_Admin {
             'anime_next_airing',
             'anime_sync_time',
             'anime_last_sync',
+            'anime_animethemes_id',
+            'anime_animethemes_slug',
             'animethemes_slug',
         ];
 
