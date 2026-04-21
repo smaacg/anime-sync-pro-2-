@@ -901,9 +901,6 @@ $badge_class = ( strpos( $t_type, 'OP' ) === 0 )
                         </span>
 
 <div class="asd-music-body">
-    <?php if ( $t_spoiler ) : ?>
-        <span class="asd-music-spoiler-badge">⚠ 劇透</span>
-    <?php endif; ?>
     <?php if ( $t_native ) : ?>
         <span class="asd-music-title"><?php echo esc_html( $t_native ); ?></span>
     <?php endif; ?>
