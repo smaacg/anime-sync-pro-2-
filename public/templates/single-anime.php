@@ -127,18 +127,23 @@ while ( have_posts() ) :
         'youtube'     => $get_meta( 'anime_tw_streaming_url_youtube' ),
     );
 
- $tw_dist_labels = array(
+$tw_dist_labels = array(
     'muse'      => '木棉花',
     'medialink' => '曼迪傳播',
     'linbang'   => '羚邦',
+    'tropic'    => '回歸線娛樂',
     'proware'   => '普威爾',
     'kadokawa'  => '台灣角川',
     'gungho'    => '群英社',
     'tien'      => '提恩傳媒',
     'garage'    => '車庫娛樂',
     'carsun'    => '采昌國際',
+    'jbf'       => '日本橋文化（JBF）',
+    'righttime' => '利得時代',
+    'aniplus'   => 'ANIPLUS Asia',
+    'tongli'    => '東立出版社',
+    'remow'     => 'REMOW',
     'gaga'      => 'GaGa OOLala',
-    'catchplay' => 'CatchPlay',
     'other'     => '',
 );
 
