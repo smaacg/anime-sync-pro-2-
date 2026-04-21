@@ -263,17 +263,18 @@ while ( have_posts() ) :
     }
     $news_items = $normalized_news;
 
-    /* ── Themes ── */
-    $seen = array(); $openings = array(); $endings = array();
-    foreach ( $themes_list as $t ) {
-        $type   = strtoupper( trim( isset( $t['type'] ) ? $t['type'] : '' ) );
-        $stitle = trim( isset( $t['song_title'] ) ? $t['song_title'] : ( isset( $t['title'] ) ? $t['title'] : '' ) );
-        $key    = $type . '||' . $stitle;
-        if ( isset( $seen[ $key ] ) ) continue;
-        $seen[ $key ] = true;
-        if ( $starts_with( $type, 'OP' ) ) $openings[] = $t;
-        elseif ( $starts_with( $type, 'ED' ) ) $endings[] = $t;
-    }
+/* ── Themes ── */
+$seen = array(); $openings = array(); $endings = array();
+foreach ( $themes_list as $t ) {
+    $type   = strtoupper( trim( isset( $t['type'] ) ? $t['type'] : '' ) );
+    $slug   = trim( isset( $t['slug'] ) ? $t['slug'] : '' );
+    $stitle = trim( isset( $t['song_title'] ) ? $t['song_title'] : ( isset( $t['title'] ) ? $t['title'] : '' ) );
+    $key    = $slug !== '' ? $slug : ( $type . '||' . $stitle );
+    if ( isset( $seen[ $key ] ) ) continue;
+    $seen[ $key ] = true;
+    if ( $starts_with( $type, 'OP' ) ) $openings[] = $t;
+    elseif ( $starts_with( $type, 'ED' ) ) $endings[] = $t;
+}
 
     /* ── Labels ── */
     $season_labels  = array( 'WINTER' => '冬季', 'SPRING' => '春季', 'SUMMER' => '夏季', 'FALL' => '秋季' );
