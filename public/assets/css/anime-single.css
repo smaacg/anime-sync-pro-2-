@@ -1,5 +1,5 @@
 /* =================================================================
-   Anime Sync Pro — anime-single.css  v18
+   Anime Sync Pro — anime-single.css  v18.5
    對應 single-anime.php v14.0
    深藍灰毛玻璃主題 / Hero 三欄 / 內容區 7:3
    2026-04-19
@@ -166,6 +166,7 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
   border-radius: 0 !important;
   border: none !important;
   background: transparent !important;
+  background-image: none !important; 
   box-shadow: none !important;
   overflow: visible !important;
 }
@@ -1332,60 +1333,6 @@ nav.asd-tabs a.asd-tab {
   font: inherit;
 }
 
-/* 10) Firefox 專用降級：保留玻璃感，但避免 backdrop-filter 造成跑版 */
-@-moz-document url-prefix() {
-  .asd-section,
-  .asd-side-section,
-  .asd-info-row,
-  .asd-staff-card-v2,
-  .asd-cast-card,
-  .asd-music-card-v2,
-  .asd-stream-region,
-  .asd-faq-item,
-  .asd-ext-link-card,
-  nav.asd-tabs,
-  .asd-wrap .asd-hero-new,
-  .asd-hside-block {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  /* 用更接近原風格的實色半透明背景取代 */
-  .asd-section,
-  .asd-side-section,
-  .asd-info-row,
-  .asd-staff-card-v2,
-  .asd-cast-card,
-  .asd-music-card-v2,
-  .asd-stream-region,
-  .asd-faq-item,
-  .asd-ext-link-card,
-  nav.asd-tabs,
-  .asd-hside-block {
-    background: rgba(36, 44, 53, 0.92) !important;
-  }
-
-  .asd-wrap .asd-hero-new {
-    background: linear-gradient(135deg, rgba(13,26,48,.96), rgba(17,31,58,.90)) !important;
-  }
-
-  /* 避免 Firefox 對 overflow 的裁切異常 */
-  .asd-tabs-wrap,
-  .asd-wrap .asd-hero-new {
-    overflow: visible !important;
-  }
-
-  /* 某些 Firefox 版本對 grid 內容寬度計算較嚴格 */
-  .asd-hero-body,
-  .asd-main,
-  .asd-sidebar,
-  .asd-cast-info,
-  .asd-staff-info,
-  .asd-mini-card__body {
-    min-width: 0 !important;
-  }
-}
-
 /* 11) 窄螢幕下 tabs 間距再柔和一點，避免換行過度擠壓 */
 @media (max-width: 768px) {
   nav.asd-tabs {
@@ -1406,5 +1353,34 @@ nav.asd-tabs a.asd-tab {
   .asd-hero-scores-new {
     gap: 8px;
   }
+}
+/* =================================================================
+   FF-FIX — Firefox 相容性修正
+   加在 anime-single.css 最底部
+   ================================================================= */
+
+/* Firefox backdrop-filter 降級 */
+@supports not (backdrop-filter: blur(1px)) {
+  .asd-section,
+  .asd-side-section,
+  .asd-info-row,
+  .asd-staff-card-v2,
+  .asd-cast-card,
+  .asd-music-card-v2,
+  .asd-stream-region,
+  .asd-faq-item,
+  .asd-ext-link-card,
+  nav.asd-tabs,
+  .asd-hside-block {
+    background: rgba(36, 44, 53, 0.88) !important;
+  }
+}
+
+/* 字型修正 */
+.asd-wrap, .asd-wrap * {
+  font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif !important;
+}
+.asd-wrap code, .asd-wrap pre {
+  font-family: 'Courier New', Courier, monospace !important;
 }
 
