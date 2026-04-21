@@ -568,83 +568,83 @@ if ( ! $is_update ) {
 	// PRIVATE – 解析 externalLinks 自動寫入台灣串流平台欄位
 	// =========================================================================
 
-	private function map_streaming_to_tw_fields( int $post_id, string $external_links_json ): void {
-		$links = json_decode( $external_links_json, true );
-		if ( ! is_array( $links ) || empty( $links ) ) return;
+private function map_streaming_to_tw_fields( int $post_id, string $external_links_json ): void {
+    $links = json_decode( $external_links_json, true );
+    if ( ! is_array( $links ) || empty( $links ) ) return;
 
-		$platform_map = [
-			'Crunchyroll'        => 'anime_tw_streaming_url_crunchyroll',
-			'Netflix'            => 'anime_tw_streaming_url_netflix',
-			'Disney Plus'        => 'anime_tw_streaming_url_disney',
-			'Disney+'            => 'anime_tw_streaming_url_disney',
-			'Amazon Prime Video' => 'anime_tw_streaming_url_amazon',
-			'Hulu'               => 'anime_tw_streaming_url_hulu',
-			'HIDIVE'             => 'anime_tw_streaming_url_hidive',
-			'Bilibili'           => 'anime_tw_streaming_url_bilibili',
-			'YouTube'            => 'anime_tw_streaming_url_youtube',
-			'WeTV'               => 'anime_tw_streaming_url_wetv',
-			'Viu'                => 'anime_tw_streaming_url_viu',
-			'Ani-One Asia'       => 'anime_tw_streaming_url_ani_one',
-			'Muse Asia'          => 'anime_tw_streaming_url_muse',
-		];
+    $platform_map = [
+        'Crunchyroll'        => 'anime_tw_streaming_url_crunchyroll',
+        'Netflix'            => 'anime_tw_streaming_url_netflix',
+        'Disney Plus'        => 'anime_tw_streaming_url_disney',
+        'Disney+'            => 'anime_tw_streaming_url_disney',
+        'Amazon Prime Video' => 'anime_tw_streaming_url_amazon',
+        'Hulu'               => 'anime_tw_streaming_url_hulu',
+        'HIDIVE'             => 'anime_tw_streaming_url_hidive',
+        'Bilibili'           => 'anime_tw_streaming_url_bilibili',
+        'YouTube'            => 'anime_tw_streaming_url_youtube',
+        'WeTV'               => 'anime_tw_streaming_url_wetv',
+        'Viu'                => 'anime_tw_streaming_url_viu',
+        'Ani-One Asia'       => 'anime_tw_streaming_url_ani_one',
+        'Muse Asia'          => 'anime_tw_streaming_url_muse',
+    ];
 
-		$platform_to_checkbox = [
-			'Crunchyroll'        => 'crunchyroll',
-			'Netflix'            => 'netflix',
-			'Disney Plus'        => 'disney',
-			'Disney+'            => 'disney',
-			'Amazon Prime Video' => 'amazon',
-			'Hulu'               => 'hulu',
-			'HIDIVE'             => 'hidive',
-			'Bilibili'           => 'bilibili',
-			'YouTube'            => 'youtube',
-			'WeTV'               => 'wetv',
-			'Viu'                => 'viu',
-			'Ani-One Asia'       => 'ani-one',
-			'Muse Asia'          => 'muse',
-		];
+    // 只勾選確定在台灣有服務的平台
+    $platform_to_checkbox = [
+        'Netflix'      => 'netflix',
+        'Disney Plus'  => 'disney',
+        'Disney+'      => 'disney',
+        'Crunchyroll'  => 'crunchyroll',
+        'Ani-One Asia' => 'ani-one',
+        'Muse Asia'    => 'muse',
+    ];
 
-		$checked_platforms = get_post_meta( $post_id, 'anime_tw_streaming', true );
-		if ( ! is_array( $checked_platforms ) ) {
-			$checked_platforms = [];
-		}
+    $checked_platforms = get_post_meta( $post_id, 'anime_tw_streaming', true );
+    if ( ! is_array( $checked_platforms ) ) {
+        $checked_platforms = [];
+    }
 
-		foreach ( $links as $link ) {
-			$site = $link['site'] ?? '';
-			$url  = $link['url']  ?? '';
-			$type = strtoupper( $link['type'] ?? '' );
+    // 已有手動設定過，勾選欄位就不自動覆蓋
+    $has_existing = ! empty( $checked_platforms );
 
-			if ( $site === '' || $url === '' ) continue;
-			if ( $type !== '' && $type !== 'STREAMING' ) continue;
+    foreach ( $links as $link ) {
+        $site = $link['site'] ?? '';
+        $url  = $link['url']  ?? '';
+        $type = strtoupper( $link['type'] ?? '' );
 
-			if ( $site === 'YouTube' ) {
-				if ( stripos( $url, 'AniOneAsia' ) !== false || stripos( $url, 'ani-one' ) !== false ) {
-					$site = 'Ani-One Asia';
-				} elseif ( stripos( $url, 'MuseAsia' ) !== false || stripos( $url, 'muse' ) !== false ) {
-					$site = 'Muse Asia';
-				}
-			}
+        if ( $site === '' || $url === '' ) continue;
+        if ( $type !== '' && $type !== 'STREAMING' ) continue;
 
-			if ( isset( $platform_map[ $site ] ) ) {
-				$meta_key = $platform_map[ $site ];
-				$existing = get_post_meta( $post_id, $meta_key, true );
-				if ( empty( $existing ) ) {
-					update_post_meta( $post_id, $meta_key, esc_url_raw( $url ) );
-				}
-			}
+        if ( $site === 'YouTube' ) {
+            if ( stripos( $url, 'AniOneAsia' ) !== false || stripos( $url, 'ani-one' ) !== false ) {
+                $site = 'Ani-One Asia';
+            } elseif ( stripos( $url, 'MuseAsia' ) !== false || stripos( $url, 'muse' ) !== false ) {
+                $site = 'Muse Asia';
+            }
+        }
 
-			if ( isset( $platform_to_checkbox[ $site ] ) ) {
-				$val = $platform_to_checkbox[ $site ];
-				if ( ! in_array( $val, $checked_platforms, true ) ) {
-					$checked_platforms[] = $val;
-				}
-			}
-		}
+        // URL 永遠存，但不覆蓋已填過的
+        if ( isset( $platform_map[ $site ] ) ) {
+            $meta_key = $platform_map[ $site ];
+            $existing = get_post_meta( $post_id, $meta_key, true );
+            if ( empty( $existing ) ) {
+                update_post_meta( $post_id, $meta_key, esc_url_raw( $url ) );
+            }
+        }
 
-		if ( ! empty( $checked_platforms ) ) {
-			update_post_meta( $post_id, 'anime_tw_streaming', array_values( $checked_platforms ) );
-		}
-	}
+        // 勾選只在第一次匯入時自動填
+        if ( ! $has_existing && isset( $platform_to_checkbox[ $site ] ) ) {
+            $val = $platform_to_checkbox[ $site ];
+            if ( ! in_array( $val, $checked_platforms, true ) ) {
+                $checked_platforms[] = $val;
+            }
+        }
+    }
+
+    // 只有第一次匯入才寫入勾選
+    if ( ! $has_existing && ! empty( $checked_platforms ) ) {
+        update_post_meta( $post_id, 'anime_tw_streaming', array_values( $checked_platforms ) );
+    }
+}
 
 	// =========================================================================
 	// PRIVATE – Tag helpers
