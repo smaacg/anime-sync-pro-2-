@@ -274,10 +274,23 @@ if ( ! $is_update ) {
 	// =========================================================================
 
 	private function save_post_meta( int $post_id, array $data ): void {
+		$animethemes_id   = isset( $data['anime_animethemes_id'] ) ? trim( (string) $data['anime_animethemes_id'] ) : '';
+		$animethemes_slug = isset( $data['anime_animethemes_slug'] )
+			? trim( (string) $data['anime_animethemes_slug'] )
+			: trim( (string) ( $data['animethemes_slug'] ?? '' ) );
+
+		// 相容舊資料：舊版曾把 slug 寫進 anime_animethemes_id。
+		if ( $animethemes_id !== '' && ! ctype_digit( $animethemes_id ) && $animethemes_slug === '' ) {
+			$animethemes_slug = $animethemes_id;
+			$animethemes_id   = '';
+		}
+
 		$meta_map = [
 			'anime_anilist_id'       => $data['anilist_id'] ?? 0,
 			'anime_mal_id'           => $data['mal_id'] ?? 0,
-			'animethemes_slug'       => $data['animethemes_slug'] ?? '',
+			'anime_animethemes_id'   => $animethemes_id,
+			'anime_animethemes_slug' => $animethemes_slug,
+			'animethemes_slug'       => $animethemes_slug,
 			'anime_title_chinese'    => $data['anime_title_chinese'] ?? '',
 			'anime_title_romaji'     => $data['anime_title_romaji'] ?? '',
 			'anime_title_english'    => $data['anime_title_english'] ?? '',
