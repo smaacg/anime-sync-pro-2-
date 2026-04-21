@@ -695,9 +695,11 @@ public function get_series_tree( int $anilist_id ): array|WP_Error {
         }
     }
 
-    // 9. 更新同步時間
-    update_post_meta( $post_id, 'anime_last_sync_time', current_time( 'mysql' ) );
-    $updated[] = 'anime_last_sync_time';
+// 9. 更新同步時間
+update_post_meta( $post_id, 'anime_last_sync_time', current_time( 'mysql' ) );
+// ★ 新增：同步更新「資料最後更新時間」ACF 欄位
+update_post_meta( $post_id, 'anime_last_sync',   current_time( 'mysql' ) );
+update_post_meta( $post_id, 'anime_last_updated', current_time( 'mysql' ) );
 
     // ★ 回傳同時包含 updated 與 skipped，方便前端顯示提示訊息
     return [
@@ -705,6 +707,7 @@ public function get_series_tree( int $anilist_id ): array|WP_Error {
         'skipped' => $skipped,
     ];
 }
+
     // =========================================================================
     // PRIVATE – 找系列根源
     // =========================================================================
