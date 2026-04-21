@@ -1570,97 +1570,61 @@ private function fetch_jikan_theme_natives( int $mal_id ): array {
 // =========================================================================
 
 private function fetch_mb_artist( string $name ): array {
-    if ( $name === '' ) return [];
-
-    // 永久快取（WP options）
-    $cache_key = 'anime_sync_mb_artist_' . md5( strtolower( $name ) );
+    $cache_key = 'anime_sync_mb_artist_' . md5( $name );
     $cached    = get_option( $cache_key );
-    if ( $cached !== false && is_array( $cached ) ) return $cached;
+    if ( $cached !== false ) return (array) $cached;
 
-    // MB rate limit: 1 req/s
-    sleep( 1 );
+    sleep( 1 ); // MB rate limit
 
-    $url = add_query_arg( [
-        'query' => 'artist:"' . rawurlencode( $name ) . '"',
+    // ✅ 不加引號，讓 MB 做模糊搜尋
+    $url = add_query_arg( array(
+        'query' => $name,   // 改這行，拿掉 artist:"..." 的包法
         'fmt'   => 'json',
-        'limit' => '3',
-    ], 'https://musicbrainz.org/ws/2/artist' );
+        'limit' => 5,
+    ), 'https://musicbrainz.org/ws/2/artist' );
 
-    $response = wp_remote_get( $url, [
+    $response = wp_remote_get( $url, array(
         'timeout' => 10,
-        'headers' => [
-            'User-Agent' => self::USER_AGENT . ' (musicbrainz-lookup)',
-            'Accept'     => 'application/json',
-        ],
-    ] );
+        'headers' => array( 'User-Agent' => self::USER_AGENT ),
+    ) );
 
     if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) {
-        // 查詢失敗，存空結果避免重複打
-        $empty = [ 'mbid' => '', 'name_native' => '', 'name_legal' => '' ];
-        update_option( $cache_key, $empty, false );
-        return $empty;
+        return array( 'mbid' => '', 'name_native' => '', 'name_legal' => '' );
     }
 
     $body    = json_decode( wp_remote_retrieve_body( $response ), true );
-    $artists = $body['artists'] ?? [];
-
+    $artists = $body['artists'] ?? array();
     if ( empty( $artists ) ) {
-        $empty = [ 'mbid' => '', 'name_native' => '', 'name_legal' => '' ];
-        update_option( $cache_key, $empty, false );
-        return $empty;
+        return array( 'mbid' => '', 'name_native' => '', 'name_legal' => '' );
     }
 
-    // 取 score 最高的一筆（通常是第一筆）
-    $best = null;
+    // score 門檻降到 70（因為主名是日文，romaji 搜尋分數不會到 100）
+    $pick = null;
     foreach ( $artists as $a ) {
-        if ( $a['score'] >= 90 ) {
-            $best = $a;
+        if ( ( $a['score'] ?? 0 ) >= 70 ) {
+            $pick = $a;
             break;
         }
     }
-    // score 都不到 90，取第一筆（最接近的）
-    if ( ! $best ) $best = $artists[0];
+    if ( ! $pick ) $pick = $artists[0];
 
-    $mbid        = $best['id']   ?? '';
     $name_native = '';
     $name_legal  = '';
-
-    foreach ( $best['aliases'] ?? [] as $alias ) {
-        $locale    = $alias['locale']    ?? '';
-        $type      = $alias['type']      ?? '';
-        $alias_name = $alias['name']     ?? '';
-        $is_primary = $alias['primary']  ?? null;
-
-        // 日文藝名（優先取 primary=true）
-        if (
-            $locale === 'ja' &&
-            $type === 'Artist name' &&
-            $name_native === ''
-        ) {
-            $name_native = $alias_name;
+    foreach ( $pick['aliases'] ?? array() as $alias ) {
+        if ( ( $alias['locale'] ?? '' ) === 'ja' && ( $alias['type'] ?? '' ) === 'Artist name' && ! empty( $alias['primary'] ) ) {
+            $name_native = $alias['name'];
         }
-        // primary 覆蓋非 primary
-        if (
-            $locale === 'ja' &&
-            $type === 'Artist name' &&
-            $is_primary === true
-        ) {
-            $name_native = $alias_name;
-        }
-
-        // 法定名（不限 locale）
-        if ( $type === 'Legal name' && $name_legal === '' ) {
-            $name_legal = $alias_name;
+        if ( ( $alias['type'] ?? '' ) === 'Legal name' && $name_legal === '' ) {
+            $name_legal = $alias['name'];
         }
     }
 
-    $result = [
-        'mbid'        => $mbid,
+    $result = array(
+        'mbid'        => $pick['id']   ?? '',
         'name_native' => $name_native,
         'name_legal'  => $name_legal,
-    ];
+    );
 
-    // 永久存進 WP options（autoload=false）
     update_option( $cache_key, $result, false );
     return $result;
 }
