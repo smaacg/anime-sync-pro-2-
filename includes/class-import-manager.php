@@ -96,18 +96,19 @@ class Anime_Sync_Import_Manager {
 			$post_id = wp_insert_post( $post_data, true );
 		}
 
-		if ( is_wp_error( $post_id ) ) {
-			return [
-				'success' => false,
-				'message' => '文章建立失敗：' . $post_id->get_error_message(),
-			];
-		}
+	if ( is_wp_error( $post_id ) ) {
+    return [
+        'success' => false,
+        'message' => '文章建立失敗：' . $post_id->get_error_message(),
+    ];
+}
 
-		$this->save_post_meta( $post_id, $anime_data );
+$this->save_post_meta( $post_id, $anime_data );
+update_post_meta( $post_id, 'anime_last_updated', current_time( 'mysql' ) ); // ★ 新增
 
-		if ( ! $is_update ) {
-			$this->apply_first_import_locks( $post_id, $anime_data );
-		}
+if ( ! $is_update ) {
+    $this->apply_first_import_locks( $post_id, $anime_data );
+}
 
 		if ( ! empty( $anime_data['anime_cover_image'] ) ) {
 			$this->set_featured_image( $post_id, $anime_data['anime_cover_image'], $post_title );
