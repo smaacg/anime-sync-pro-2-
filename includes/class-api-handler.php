@@ -598,23 +598,39 @@ public function get_series_tree( int $anilist_id ): array|WP_Error {
 
     public function ajax_resync_bangumi( int $post_id, int $bangumi_id ): array|WP_Error {
 
-        // 1. 取得 Bangumi 基本資料
-        $this->rate_limiter->wait_if_needed( 'bangumi' );
-        $bgm_data = $this->get_bangumi_data( $bangumi_id );
-        if ( is_wp_error( $bgm_data ) ) return $bgm_data;
+    // 1. 取得 Bangumi 基本資料
+    $this->rate_limiter->wait_if_needed( 'bangumi' );
+    $bgm_data = $this->get_bangumi_data( $bangumi_id );
+    if ( is_wp_error( $bgm_data ) ) return $bgm_data;
 
-        $updated = [];
+    $updated = [];
+    $skipped = [];
 
-        // 2. 中文標題
-        $title_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
-        if ( $title_raw !== '' ) {
-            $title_chinese = Anime_Sync_CN_Converter::static_convert( $title_raw );
+    // ★ 新增：讀取鎖定欄位設定（與 cron 使用相同 meta key）
+    $locked_fields = (array) get_post_meta( $post_id, '_anime_locked_fields', true );
+
+    // 輔助函式：判斷某 meta key 是否已鎖定
+    $is_locked = static function ( string $key ) use ( $locked_fields ): bool {
+        return in_array( $key, $locked_fields, true );
+    };
+
+    // 2. 中文標題
+    $title_raw = $bgm_data['name_cn'] ?? $bgm_data['name'] ?? '';
+    if ( $title_raw !== '' ) {
+        if ( $is_locked( 'anime_title_chinese' ) ) {
+            $skipped[] = 'anime_title_chinese';
+        } else {
+            $title_chinese = (string) $title_raw; // ★ 不再經 OpenCC，保留原始繁體
             update_post_meta( $post_id, 'anime_title_chinese', $title_chinese );
             $updated[] = 'anime_title_chinese';
         }
+    }
 
-        // 3. 中文簡介
-        if ( ! empty( $bgm_data['summary'] ) ) {
+    // 3. 中文簡介
+    if ( ! empty( $bgm_data['summary'] ) ) {
+        if ( $is_locked( 'anime_synopsis_chinese' ) ) {
+            $skipped[] = 'anime_synopsis_chinese';
+        } else {
             $synopsis = $this->clean_synopsis( $bgm_data['summary'] );
             if ( $synopsis !== '' ) {
                 $synopsis = Anime_Sync_CN_Converter::static_convert( $synopsis );
@@ -622,53 +638,73 @@ public function get_series_tree( int $anilist_id ): array|WP_Error {
             update_post_meta( $post_id, 'anime_synopsis_chinese', $synopsis );
             $updated[] = 'anime_synopsis_chinese';
         }
+    }
 
-        // 4. 封面圖（Bangumi 有較高品質則覆蓋）
-        $bgm_cover = $bgm_data['images']['large'] ?? $bgm_data['images']['medium'] ?? '';
-        if ( $bgm_cover !== '' ) {
+    // 4. 封面圖
+    $bgm_cover = $bgm_data['images']['large'] ?? $bgm_data['images']['medium'] ?? '';
+    if ( $bgm_cover !== '' ) {
+        if ( $is_locked( 'anime_cover_image' ) ) {
+            $skipped[] = 'anime_cover_image';
+        } else {
             update_post_meta( $post_id, 'anime_cover_image', $bgm_cover );
             $updated[] = 'anime_cover_image';
         }
+    }
 
-        // 5. Bangumi 評分
-        $raw_score = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
-        if ( $raw_score !== null ) {
-            $score_bangumi = (int) round( (float) $raw_score * 10 );
-            update_post_meta( $post_id, 'anime_score_bangumi', $score_bangumi );
-            $updated[] = 'anime_score_bangumi';
-        }
+    // 5. Bangumi 評分（評分不設鎖定，永遠更新）
+    $raw_score = $bgm_data['rating']['score'] ?? $bgm_data['score'] ?? null;
+    if ( $raw_score !== null ) {
+        $score_bangumi = (int) round( (float) $raw_score * 10 );
+        update_post_meta( $post_id, 'anime_score_bangumi', $score_bangumi );
+        $updated[] = 'anime_score_bangumi';
+    }
 
-        // 6. 工作人員
-        $this->rate_limiter->wait_if_needed( 'bangumi' );
-        $bgm_staff = $this->get_bgm_staff( $bangumi_id );
-        if ( ! empty( $bgm_staff ) ) {
+    // 6. 工作人員
+    $this->rate_limiter->wait_if_needed( 'bangumi' );
+    $bgm_staff = $this->get_bgm_staff( $bangumi_id );
+    if ( ! empty( $bgm_staff ) ) {
+        if ( $is_locked( 'anime_staff_json' ) ) {
+            $skipped[] = 'anime_staff_json';
+        } else {
             update_post_meta( $post_id, 'anime_staff_json', wp_json_encode( $bgm_staff, JSON_UNESCAPED_UNICODE ) );
             $updated[] = 'anime_staff_json';
         }
+    }
 
-        // 7. 角色
-        $this->rate_limiter->wait_if_needed( 'bangumi' );
-        $bgm_chars = $this->get_bgm_chars( $bangumi_id );
-        if ( ! empty( $bgm_chars ) ) {
+    // 7. 角色
+    $this->rate_limiter->wait_if_needed( 'bangumi' );
+    $bgm_chars = $this->get_bgm_chars( $bangumi_id );
+    if ( ! empty( $bgm_chars ) ) {
+        if ( $is_locked( 'anime_cast_json' ) ) {
+            $skipped[] = 'anime_cast_json';
+        } else {
             update_post_meta( $post_id, 'anime_cast_json', wp_json_encode( $bgm_chars, JSON_UNESCAPED_UNICODE ) );
             $updated[] = 'anime_cast_json';
         }
+    }
 
-        // 8. 集數
-        $this->rate_limiter->wait_if_needed( 'bangumi' );
-        $bgm_episodes = $this->fetch_bgm_episodes( $bangumi_id );
-        if ( ! empty( $bgm_episodes ) ) {
+    // 8. 集數
+    $this->rate_limiter->wait_if_needed( 'bangumi' );
+    $bgm_episodes = $this->fetch_bgm_episodes( $bangumi_id );
+    if ( ! empty( $bgm_episodes ) ) {
+        if ( $is_locked( 'anime_episodes_json' ) ) {
+            $skipped[] = 'anime_episodes_json';
+        } else {
             update_post_meta( $post_id, 'anime_episodes_json', wp_json_encode( $bgm_episodes, JSON_UNESCAPED_UNICODE ) );
             $updated[] = 'anime_episodes_json';
         }
-
-        // 9. 更新同步時間
-        update_post_meta( $post_id, 'anime_last_sync_time', current_time( 'mysql' ) );
-        $updated[] = 'anime_last_sync_time';
-
-        return $updated;
     }
 
+    // 9. 更新同步時間
+    update_post_meta( $post_id, 'anime_last_sync_time', current_time( 'mysql' ) );
+    $updated[] = 'anime_last_sync_time';
+
+    // ★ 回傳同時包含 updated 與 skipped，方便前端顯示提示訊息
+    return [
+        'updated' => $updated,
+        'skipped' => $skipped,
+    ];
+}
     // =========================================================================
     // PRIVATE – 找系列根源
     // =========================================================================
@@ -1207,7 +1243,7 @@ private function get_bgm_staff( int $bangumi_id ): array {
         '主题歌演出', // OP/ED 演出
         '主题歌作词', // OP/ED 作詞
         '主题歌作曲', // OP/ED 作曲
-        '动画制作',   // 動漫製作公司
+        '动画制作',   // 動畫製作公司
     ];
 
     $staff = [];
