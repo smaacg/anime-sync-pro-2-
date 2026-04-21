@@ -35,7 +35,21 @@ class Anime_Sync_Import_Manager {
 
 	public function import_single( int $anilist_id, ?int $bangumi_id = null, string $source = 'manual' ): array {
 
-		$anime_data = $this->api_handler->get_core_anime_data( $anilist_id, 0, $bangumi_id );
+		$existing_id = $this->find_existing( $anilist_id );
+		$is_update   = (bool) $existing_id;
+
+		// 先重用既有文章已保存的 Bangumi ID，讓 API Handler / ID Mapper 的 Layer 0 真正生效。
+		if ( ( ! $bangumi_id || $bangumi_id <= 0 ) && $existing_id > 0 ) {
+			$stored_bangumi_id = (int) get_post_meta( $existing_id, 'anime_bangumi_id', true );
+			if ( $stored_bangumi_id <= 0 ) {
+				$stored_bangumi_id = (int) get_post_meta( $existing_id, 'bangumi_id', true );
+			}
+			if ( $stored_bangumi_id > 0 ) {
+				$bangumi_id = $stored_bangumi_id;
+			}
+		}
+
+		$anime_data = $this->api_handler->get_core_anime_data( $anilist_id, $existing_id, $bangumi_id );
 
 		if ( is_wp_error( $anime_data ) ) {
 			return [
@@ -65,9 +79,6 @@ class Anime_Sync_Import_Manager {
 			$has_streaming ? '✅ 串流'     : null,
 			'⏳ 待補抓：聲優/主題曲/Wikipedia',
 		] ) );
-
-		$existing_id = $this->find_existing( $anilist_id );
-		$is_update   = (bool) $existing_id;
 
 		// ★ 修改1：移除 cn_converter->convert()，直接使用原始標題，避免 OpenCC 把繁體「迴」誤轉成「回」
 		$post_title = ! empty( $anime_data['anime_title_chinese'] )
@@ -311,18 +322,27 @@ if ( ! $is_update ) {
 		// 自動解析 externalLinks 寫入台灣串流平台欄位
 		$this->map_streaming_to_tw_fields( $post_id, $data['anime_external_links'] ?? '[]' );
 
-		$bgm_id_raw   = $data['bangumi_id'] ?? null;
-		$bgm_id       = $bgm_id_raw !== null ? abs( intval( $bgm_id_raw ) ) : 0;
-		$manually_set = (bool) get_post_meta( $post_id, '_bangumi_id_manually_set', true );
+		$bgm_id_raw        = $data['bangumi_id'] ?? null;
+		$bgm_id            = $bgm_id_raw !== null ? abs( intval( $bgm_id_raw ) ) : 0;
+		$manually_set      = (bool) get_post_meta( $post_id, '_bangumi_id_manually_set', true );
+		$existing_bgm_id   = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+		$existing_bangumi  = $existing_bgm_id > 0 ? $existing_bgm_id : (int) get_post_meta( $post_id, 'bangumi_id', true );
 
 		if ( $bgm_id > 0 && ! $manually_set ) {
 			update_post_meta( $post_id, 'anime_bangumi_id', $bgm_id );
 			update_post_meta( $post_id, 'bangumi_id', $bgm_id );
 			delete_post_meta( $post_id, '_bangumi_id_pending' );
-		} elseif ( $bgm_id <= 0 && ! $manually_set ) {
-			delete_post_meta( $post_id, 'anime_bangumi_id' );
-			delete_post_meta( $post_id, 'bangumi_id' );
-			update_post_meta( $post_id, '_bangumi_id_pending', 1 );
+		} elseif ( ! $manually_set ) {
+			if ( $existing_bangumi > 0 ) {
+				// 本次查詢失敗時保留舊的 Bangumi ID，避免 refetch 把已配對資料洗掉。
+				update_post_meta( $post_id, 'anime_bangumi_id', $existing_bangumi );
+				update_post_meta( $post_id, 'bangumi_id', $existing_bangumi );
+				delete_post_meta( $post_id, '_bangumi_id_pending' );
+			} else {
+				delete_post_meta( $post_id, 'anime_bangumi_id' );
+				delete_post_meta( $post_id, 'bangumi_id' );
+				update_post_meta( $post_id, '_bangumi_id_pending', 1 );
+			}
 		}
 
 		if ( ! empty( $data['_needs_enrich'] ) ) {
