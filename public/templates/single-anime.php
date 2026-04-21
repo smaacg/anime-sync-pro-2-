@@ -901,19 +901,15 @@ $badge_class = ( strpos( $t_type, 'OP' ) === 0 )
                         </span>
 
 <div class="asd-music-body">
-
     <?php if ( $t_spoiler ) : ?>
-        <span class="asd-music-spoiler-badge">⚠ 雷</span>
+        <span class="asd-music-spoiler-badge">⚠ 劇透</span>
     <?php endif; ?>
-
-    <?php if ( $t_title ) : ?>
-        <span class="asd-music-title"><?php echo esc_html( $t_title ); ?></span>
+    <?php if ( $t_native ) : ?>
+        <span class="asd-music-title"><?php echo esc_html( $t_native ); ?></span>
     <?php endif; ?>
-
-    <?php if ( $t_native !== '' && $t_native !== $t_title ) : ?>
-        <span class="asd-music-native"><?php echo esc_html( $t_native ); ?></span>
+    <?php if ( $t_title && $t_title !== $t_native ) : ?>
+        <span class="asd-music-native"><?php echo esc_html( $t_title ); ?></span>
     <?php endif; ?>
-
     <?php if ( $t_artist !== '' ) : ?>
         <span class="asd-music-artist">
             by <?php echo esc_html( $t_artist ); ?>
@@ -924,7 +920,6 @@ $badge_class = ( strpos( $t_type, 'OP' ) === 0 )
     <?php elseif ( $t_artist_romaji !== '' ) : ?>
         <span class="asd-music-artist">by <?php echo esc_html( $t_artist_romaji ); ?></span>
     <?php endif; ?>
-
 </div>
 
 
