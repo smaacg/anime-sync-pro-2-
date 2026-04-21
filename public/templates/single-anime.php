@@ -127,20 +127,20 @@ while ( have_posts() ) :
         'youtube'     => $get_meta( 'anime_tw_streaming_url_youtube' ),
     );
 
-    $tw_dist_labels = array(
-        'muse'        => 'Muse',
-        'medialink'   => 'Medialink',
-        'jbf'         => 'JBF',
-        'righttime'   => '',
-        'gaga'        => 'GaGa OOLala',
-        'catchplay'   => 'CatchPlay',
-        'netflix'     => 'Netflix',
-        'disney'      => 'Disney+',
-        'kktv'        => 'KKTV',
-        'crunchyroll' => 'Crunchyroll',
-        'ani-one'     => 'Ani-One Asia',
-        'other'       => '',
-    );
+ $tw_dist_labels = array(
+    'muse'      => '木棉花',
+    'medialink' => '曼迪傳播',
+    'linbang'   => '羚邦',
+    'proware'   => '普威爾',
+    'kadokawa'  => '台灣角川',
+    'gungho'    => '群英社',
+    'tien'      => '提恩傳媒',
+    'garage'    => '車庫娛樂',
+    'carsun'    => '采昌國際',
+    'gaga'      => 'GaGa OOLala',
+    'catchplay' => 'CatchPlay',
+    'other'     => '',
+);
 
     $tw_dist_display = '';
     if ( $tw_distributor === 'other' ) {
