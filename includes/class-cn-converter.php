@@ -148,7 +148,8 @@ class Anime_Sync_CN_Converter {
             require_once $autoload;
         }
 
-        self::$opencc_available = class_exists( 'Overtrue\PHPOpenCC\OpenCC', false );
+        // ★ 修正：false → true，允許 autoload 觸發類別偵測
+        self::$opencc_available = class_exists( 'Overtrue\PHPOpenCC\OpenCC', true );
         return self::$opencc_available;
     }
 
