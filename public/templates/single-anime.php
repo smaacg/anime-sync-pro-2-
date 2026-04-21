@@ -761,7 +761,7 @@ foreach ( $cast_list as $c ) {
                 $s_native = isset( $s['native'] ) ? trim( $s['native'] ) : '';
                 $s_role   = isset( $s['role'] )   ? trim( $s['role'] )   : '';
             ?>
-                <div class="asd-staff-card-v2<?php echo $i >= 6 ? ' asd-staff-hidden' : ''; ?>">
+                <div class="asd-staff-card-v2<?php echo $i >= 10 ? ' asd-staff-hidden' : ''; ?>">
                     <div class="asd-staff-info">
                         <span class="asd-staff-role"><?php echo esc_html( $s_role ); ?></span>
                         <span class="asd-staff-name"><?php echo esc_html( $s_name ); ?></span>
@@ -772,7 +772,7 @@ foreach ( $cast_list as $c ) {
                 </div>
             <?php endforeach; ?>
         </div>
-        <?php if ( count( $staff_list ) > 6 ) : ?>
+        <?php if ( count( $staff_list ) > 10 ) : ?>
             <div style="display:flex;justify-content:center;margin-top:12px;">
                 <button class="asd-staff-toggle" id="asd-staff-toggle" type="button">
                     顯示全部 <?php echo count( $staff_list ); ?> 人 ▼
