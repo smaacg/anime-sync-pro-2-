@@ -1132,9 +1132,6 @@ update_post_meta( $post_id, 'anime_last_updated', current_time( 'mysql' ) );
         return $decoded;
     }
 
-// =========================================================================
-// PRIVATE – MAL 評分（ACG：統一 User-Agent）
-// =========================================================================
 
 // =========================================================================
 // PRIVATE – MAL 評分（ACH：改用 cURL 繞過 Hostinger wp_remote_get 504）
@@ -1181,7 +1178,6 @@ private function fetch_mal_score( ?int $mal_id ): int {
     set_transient( $cache_key, $score, 12 * HOUR_IN_SECONDS );
     return $score;
 }
-
 
     // =========================================================================
     // PRIVATE – Wikipedia URL
@@ -1264,7 +1260,6 @@ private function fetch_mal_score( ?int $mal_id ): int {
         }
         return false;
     }
-
 
     // =========================================================================
     // PRIVATE – Bangumi 資料（ACG：統一 User-Agent）
@@ -1435,69 +1430,117 @@ private function get_bgm_staff( int $bangumi_id ): array {
     //           ACG：統一 User-Agent
     // =========================================================================
 
-    private function fetch_animethemes( ?int $mal_id ): array {
-        if ( ! $mal_id || $mal_id <= 0 ) return [];
+  private function fetch_animethemes( ?int $mal_id ): array {
+    if ( ! $mal_id || $mal_id <= 0 ) return [];
 
-        $cache_key = 'anime_sync_themes_' . $mal_id;
-        $cached    = get_transient( $cache_key );
-        if ( $cached !== false ) return (array) $cached;
+    $cache_key = 'anime_sync_themes_' . $mal_id;
+    $cached    = get_transient( $cache_key );
+    if ( $cached !== false ) return (array) $cached;
 
-        $this->rate_limiter->wait_if_needed( 'animethemes' );
-        $response = wp_remote_get( add_query_arg( [
-            'filter[has]'         => 'resources',
-            'filter[site]'        => 'MyAnimeList',
-            'filter[external_id]' => $mal_id,
-            'include'             => 'animethemes.animethemeentries.videos.audio,animethemes.song.artists',
-            'fields[anime]'       => 'id,slug',
-            'fields[animetheme]'  => 'type,sequence,slug',
-            'fields[song]'        => 'title',
-            'fields[artist]'      => 'name',
-            'fields[video]'       => 'link,resolution',
-            'fields[audio]'       => 'link',
-        ], self::ANIMETHEMES_URL ), [
-            'timeout' => 8,
-            'headers' => [ 'User-Agent' => self::USER_AGENT ],
-        ] );
+    $this->rate_limiter->wait_if_needed( 'animethemes' );
+    $response = wp_remote_get( add_query_arg( [
+        'filter[has]'         => 'resources',
+        'filter[site]'        => 'MyAnimeList',
+        'filter[external_id]' => $mal_id,
+        'include'             => 'animethemes.animethemeentries.videos.audio,animethemes.song.artists',
+        'fields[anime]'       => 'slug',
+        'fields[animetheme]'  => 'type,sequence,slug',
+        'fields[song]'        => 'title',
+        'fields[artist]'      => 'name',
+        'fields[video]'       => 'link,resolution',
+        'fields[audio]'       => 'link',
+    ], self::ANIMETHEMES_URL ), [
+        'timeout' => 8,
+        'headers' => [ 'User-Agent' => self::USER_AGENT ],
+    ] );
 
-        if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
+    if ( is_wp_error( $response ) || (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
 
-        $body      = json_decode( wp_remote_retrieve_body( $response ), true );
-        $anime_arr = $body['anime'] ?? [];
-        if ( empty( $anime_arr ) ) return [];
+    $body      = json_decode( wp_remote_retrieve_body( $response ), true );
+    $anime_arr = $body['anime'] ?? [];
+    if ( empty( $anime_arr ) ) return [];
 
-        $anime_obj = $anime_arr[0];
-        $id        = isset( $anime_obj['id'] ) && $anime_obj['id'] !== null ? (string) (int) $anime_obj['id'] : '';
-        $slug      = $anime_obj['slug'] ?? '';
-        $themes    = [];
+    // ── Jikan 日文標題對照表 ──
+    $mal_id_int     = (int) $mal_id;
+    $jikan_map      = $this->fetch_jikan_theme_natives( $mal_id_int );
+
+    $slug_blacklist = [ '-EN', '-EN4Kids', '-YorinukiGintamaSan', '-Lyrics', '-Subbed', '-NCBDv2' ];
+
+    $slug   = '';
+    $themes = [];
+
+    foreach ( $anime_arr as $anime_obj ) {
+        if ( $slug === '' ) $slug = $anime_obj['slug'] ?? '';
 
         foreach ( $anime_obj['animethemes'] ?? [] as $theme ) {
-            $entry     = $theme['animethemeentries'][0] ?? [];
-            $videos    = $entry['videos']               ?? [];
-            $video     = ! empty( $videos ) ? $videos[0] : [];
-            $audio_url = $video['audio']['link']        ?? '';
-            $video_url = $video['link']                 ?? '';
 
-         $artists = [];
-foreach ( $theme['song']['artists'] ?? [] as $a ) {
-    $artists[] = $a['name'] ?? '';
-}
+            // slug 黑名單過濾
+            $theme_slug    = $theme['slug'] ?? '';
+            $is_blacklisted = false;
+            foreach ( $slug_blacklist as $suffix ) {
+                if ( str_contains( $theme_slug, $suffix ) ) {
+                    $is_blacklisted = true;
+                    break;
+                }
+            }
+            if ( $is_blacklisted ) continue;
 
-$themes[] = [
-    'type'       => $theme['type']          ?? '',
-    'sequence'   => $theme['sequence']      ?? 1,
-    'slug'       => $theme['slug']          ?? '',
-    'song_title' => $theme['song']['title'] ?? '',
-    'artist'     => implode( ', ', $artists ),
-    'audio_url'  => $audio_url,
-    'video_url'  => $video_url,
-    'resolution' => $video['resolution']    ?? '',
-];
+            // 選最高解析度 video
+            $entries   = $theme['animethemeentries'] ?? [];
+            $entry     = ! empty( $entries ) ? $entries[0] : [];
+            $videos    = $entry['videos'] ?? [];
+            $best_video = [];
+            $best_res   = 0;
+            foreach ( $videos as $v ) {
+                $res = (int) ( $v['resolution'] ?? 0 );
+                if ( $res > $best_res ) {
+                    $best_res   = $res;
+                    $best_video = $v;
+                }
+            }
+            if ( empty( $best_video ) && ! empty( $videos ) ) $best_video = $videos[0];
+
+            $audio_url = $best_video['audio']['link'] ?? '';
+            $video_url = $best_video['link']          ?? '';
+
+            // 歌曲標題
+            $song_title   = $theme['song']['title'] ?? '';
+            $title_native = $jikan_map[ $this->normalize_title( $song_title ) ] ?? '';
+
+            // 歌手 — 從 MB 取日文原名
+            $artists = [];
+            foreach ( $theme['song']['artists'] ?? [] as $a ) {
+                $name = trim( $a['name'] ?? '' );
+                if ( $name === '' ) continue;
+                $mb   = $this->fetch_mb_artist( $name );
+                $artists[] = [
+                    'name'        => $name,
+                    'name_native' => $mb['name_native'] ?? '',
+                    'name_legal'  => $mb['name_legal']  ?? '',
+                    'mbid'        => $mb['mbid']         ?? '',
+                ];
+            }
+
+            $themes[] = [
+                'type'         => $theme['type']     ?? '',
+                'sequence'     => $theme['sequence'] ?? null,
+                'slug'         => $theme_slug,
+                'title'        => $song_title,
+                'title_native' => $title_native,
+                'artists'      => $artists,
+                'audio_url'    => $audio_url,
+                'video_url'    => $video_url,
+                'resolution'   => $best_video['resolution'] ?? '',
+                'spoiler'      => ! empty( $entry['spoiler'] ),
+                'nsfw'         => ! empty( $entry['nsfw'] ),
+            ];
         }
-
-        $result = [ 'id' => $id, 'slug' => $slug, 'themes' => $themes ];
-        set_transient( $cache_key, $result, 24 * HOUR_IN_SECONDS );
-        return $result;
     }
+
+    $result = [ 'slug' => $slug, 'themes' => $themes ];
+    set_transient( $cache_key, $result, 24 * HOUR_IN_SECONDS );
+    return $result;
+}
 
     // =========================================================================
     // PRIVATE – 解析器
