@@ -16,6 +16,9 @@
  *          load_single_template() 加入系列頁路由 → archive-series.php
  *          新增 pre_get_posts hook → sort_series_archive()
  *          sort_series_archive() 使用 $query->is_tax() 避免全域污染（Bug #6 修正）
+ * ACN – filter_anime_search() 改用 posts_join + posts_where + posts_distinct
+ *       取代原本 preg_replace 改 SQL 的脆弱寫法，
+ *       避免與其他外掛的 posts_search hook 互相干擾造成搜尋壞掉
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -32,22 +35,28 @@ class Anime_Sync_Frontend {
         add_shortcode( 'anime_streaming', [ $this, 'shortcode_streaming' ] );
         add_shortcode( 'anime_themes',    [ $this, 'shortcode_themes' ] );
         add_action( 'rest_api_init',      [ $this, 'register_rest_routes' ] );
-        add_filter( 'posts_search',       [ $this, 'filter_anime_search' ], 10, 2 );
         add_action( 'pre_get_posts',      [ $this, 'sort_series_archive' ] );
+
+        // ✅ ACN：改用 join + where + distinct 取代 preg_replace 改 SQL
+        add_filter( 'posts_search',   [ $this, 'filter_anime_search' ],          10, 2 );
+        add_filter( 'posts_join',     [ $this, 'filter_anime_search_join' ],      10, 2 );
+        add_filter( 'posts_where',    [ $this, 'filter_anime_search_where' ],     10, 2 );
+        add_filter( 'posts_distinct', [ $this, 'filter_anime_search_distinct' ],  10, 2 );
     }
 
     // =========================================================
     // 資源載入
     // =========================================================
+
     public function enqueue_assets(): void {
 
         $is_anime_single  = is_singular( 'anime' );
         $is_anime_archive = is_post_type_archive( 'anime' );
-        $is_anime_tax = is_tax( 'genre' )
-    || is_tax( 'anime_season_tax' )
-    || is_tax( 'anime_format_tax' )
-    || is_tax( 'anime_series_tax' )
-    || is_tax( 'anime_studio_tax' );
+        $is_anime_tax     = is_tax( 'genre' )
+                         || is_tax( 'anime_season_tax' )
+                         || is_tax( 'anime_format_tax' )
+                         || is_tax( 'anime_series_tax' )
+                         || is_tax( 'anime_studio_tax' );
         $is_anime_search  = is_search() && get_query_var( 'post_type' ) === 'anime';
 
         if ( ! $is_anime_single && ! $is_anime_archive && ! $is_anime_tax && ! $is_anime_search ) {
@@ -100,6 +109,7 @@ class Anime_Sync_Frontend {
     // =========================================================
     // 模板覆蓋
     // =========================================================
+
     public function load_single_template( string $template ): string {
 
         // 強制 anime 單篇使用外掛模板，避免被主題 single-anime.php 攔截
@@ -122,16 +132,15 @@ class Anime_Sync_Frontend {
         // anime 搜尋結果頁套用 archive 模板
         $is_anime_search = is_search() && get_query_var( 'post_type' ) === 'anime';
 
-       if (
-    is_post_type_archive( 'anime' )
-    || is_tax( 'genre' )
-    || is_tax( 'anime_season_tax' )
-    || is_tax( 'anime_format_tax' )
-    || is_tax( 'anime_series_tax' )
-    || is_tax( 'anime_studio_tax' )
-    || $is_anime_search
-) {
-    
+        if (
+            is_post_type_archive( 'anime' )
+            || is_tax( 'genre' )
+            || is_tax( 'anime_season_tax' )
+            || is_tax( 'anime_format_tax' )
+            || is_tax( 'anime_series_tax' )
+            || is_tax( 'anime_studio_tax' )
+            || $is_anime_search
+        ) {
             $theme = locate_template( 'archive-anime.php' );
             if ( $theme ) return $theme;
 
@@ -147,8 +156,8 @@ class Anime_Sync_Frontend {
     // Bug #6 修正：使用 $query->is_tax() 而非全域 is_tax()
     // 排序：anime_season_year ASC
     // =========================================================
-    public function sort_series_archive( \WP_Query $query ): void {
 
+    public function sort_series_archive( \WP_Query $query ): void {
         if ( is_admin() ) return;
         if ( ! $query->is_main_query() ) return;
         if ( ! $query->is_tax( 'anime_series_tax' ) ) return;
@@ -161,42 +170,107 @@ class Anime_Sync_Frontend {
 
     // =========================================================
     // 搜尋 meta 欄位擴展
+    // ACN – 改用 posts_join + posts_where + posts_distinct
+    //       取代原本 preg_replace 改 SQL 的脆弱寫法
     // =========================================================
+
+    /**
+     * 判斷是否為 anime 自訂搜尋，供四個 filter 共用
+     */
+    private function is_anime_search_query( \WP_Query $query ): bool {
+        if ( is_admin() ) return false;
+        if ( ! $query->is_main_query() ) return false;
+        if ( ! $query->is_search() ) return false;
+        if ( $query->get( 'post_type' ) !== 'anime' ) return false;
+        if ( empty( $query->get( 's' ) ) ) return false;
+        return true;
+    }
+
+    /**
+     * posts_search：保留 WordPress 原生 title/content 搜尋不動
+     * meta 條件改由 filter_anime_search_join / filter_anime_search_where 處理
+     */
     public function filter_anime_search( string $search, \WP_Query $query ): string {
+        // ✅ ACN：不再用 preg_replace 改 SQL，直接回傳原始 $search 不動
+        return $search;
+    }
 
-        if ( is_admin() ) return $search;
-        if ( ! $query->is_main_query() ) return $search;
-        if ( ! $query->is_search() ) return $search;
-        if ( $query->get( 'post_type' ) !== 'anime' ) return $search;
-        if ( empty( $search ) ) return $search;
-
-        $term = $query->get( 's' );
-        if ( empty( $term ) ) return $search;
+    /**
+     * posts_join：LEFT JOIN postmeta，讓 WHERE 可以查 meta 欄位
+     */
+    public function filter_anime_search_join( string $join, \WP_Query $query ): string {
+        if ( ! $this->is_anime_search_query( $query ) ) return $join;
 
         global $wpdb;
+
+        // 避免重複 JOIN
+        if ( strpos( $join, 'anime_meta_search' ) !== false ) return $join;
+
+        $join .= " LEFT JOIN {$wpdb->postmeta} AS anime_meta_search
+                   ON ( {$wpdb->posts}.ID = anime_meta_search.post_id
+                        AND anime_meta_search.meta_key IN (
+                            'anime_title_romaji',
+                            'anime_title_english'
+                        ) ) ";
+
+        return $join;
+    }
+
+    /**
+     * posts_where：把 meta_value LIKE 條件 OR 進去原始搜尋條件
+     */
+    public function filter_anime_search_where( string $where, \WP_Query $query ): string {
+        if ( ! $this->is_anime_search_query( $query ) ) return $where;
+
+        global $wpdb;
+
+        $term = $query->get( 's' );
+        if ( empty( $term ) ) return $where;
+
         $like = '%' . $wpdb->esc_like( $term ) . '%';
 
-        $meta_search = $wpdb->prepare(
-            " OR ( {$wpdb->posts}.ID IN (
-                SELECT post_id FROM {$wpdb->postmeta}
-                WHERE (
-                    ( meta_key = 'anime_title_romaji' AND meta_value LIKE %s )
-                    OR
-                    ( meta_key = 'anime_title_english' AND meta_value LIKE %s )
-                )
-            ) )",
-            $like,
+        // ✅ ACN：尋找 WP 產生的搜尋括號群組
+        // WP 原生搜尋 WHERE 結構為：
+        //   ((posts.post_title LIKE x) OR (posts.post_content LIKE x))
+        // 目標：在群組結尾 )) 前插入 OR (anime_meta_search.meta_value LIKE x)
+        $meta_condition = $wpdb->prepare(
+            " OR ( anime_meta_search.meta_value LIKE %s ) ",
             $like
         );
 
-        $search = preg_replace( '/\)$/', $meta_search . ')', $search );
+        $posts_table = preg_quote( $wpdb->posts, '/' );
 
-        return $search;
+        // 嘗試在 WP 搜尋群組結尾插入
+        $new_where = preg_replace(
+            '/(\(\s*\(\s*' . $posts_table . '\.post_title\s+LIKE\s+[\'"]%.*?%[\'"].*?\)\s*\))/s',
+            '$1' . $meta_condition,
+            $where,
+            1
+        );
+
+        // 如果 preg_replace 成功（有實際替換），使用新結果
+        if ( $new_where !== null && $new_where !== $where ) {
+            return $new_where;
+        }
+
+        // fallback：直接 OR 附加到整個 WHERE（最安全，不改動既有結構）
+        $where .= ' OR ( anime_meta_search.meta_value LIKE ' . $wpdb->prepare( '%s', $like ) . ' ) ';
+
+        return $where;
+    }
+
+    /**
+     * posts_distinct：避免 LEFT JOIN 造成同一篇文章重複出現在結果
+     */
+    public function filter_anime_search_distinct( string $distinct, \WP_Query $query ): string {
+        if ( ! $this->is_anime_search_query( $query ) ) return $distinct;
+        return 'DISTINCT';
     }
 
     // =========================================================
     // SEO Meta（有 RankMath / Yoast 時跳過）
     // =========================================================
+
     public function output_seo_meta(): void {
         if ( ! is_singular( 'anime' ) ) return;
         if ( defined( 'WPSEO_VERSION' ) || defined( 'RANK_MATH_VERSION' ) || class_exists( 'All_in_One_SEO_Pack' ) ) return;
@@ -230,6 +304,7 @@ class Anime_Sync_Frontend {
     // =========================================================
     // 標題過濾
     // =========================================================
+
     public function filter_title( string $title, int $post_id = 0 ): string {
         if ( ! $post_id || get_post_type( $post_id ) !== 'anime' ) return $title;
         return get_post_meta( $post_id, 'anime_title_chinese', true ) ?: $title;
@@ -238,6 +313,7 @@ class Anime_Sync_Frontend {
     // =========================================================
     // Body Classes
     // =========================================================
+
     public function add_body_classes( array $classes ): array {
         if ( is_singular( 'anime' ) ) {
             global $post;
@@ -260,9 +336,10 @@ class Anime_Sync_Frontend {
     // =========================================================
     // Shortcodes
     // =========================================================
+
     public function shortcode_score( array $atts ): string {
-        $atts    = shortcode_atts( [ 'post_id' => get_the_ID() ], $atts );
-        $pid     = (int) $atts['post_id'];
+        $atts = shortcode_atts( [ 'post_id' => get_the_ID() ], $atts );
+        $pid  = (int) $atts['post_id'];
         if ( ! $pid ) return '';
 
         $anilist = get_post_meta( $pid, 'anime_score_anilist', true );
@@ -390,6 +467,7 @@ class Anime_Sync_Frontend {
     // =========================================================
     // REST API
     // =========================================================
+
     public function register_rest_routes(): void {
         register_rest_route( 'anime-sync/v1', '/anime/(?P<id>\d+)', [
             'methods'             => \WP_REST_Server::READABLE,
