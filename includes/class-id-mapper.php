@@ -18,6 +18,9 @@
  *         修正 $map 冗餘賦值，DEBUG_LOG 預設改 false，$ext_links 型別防護強化
  *   ACA – 成功寫入 bangumi_id 後自動清除 _bangumi_id_pending meta
  *         補全 season_to_quarter() / get_bangumi_quarter() 完整實作
+ *   ACB – MAP_SOURCE_URL 更新為 GitHub Releases 路徑
+ *         download_and_cache_map() 第一段改用 cURL 串流寫檔，
+ *         避免 wp_remote_get body size 限制與記憶體爆炸（58MB JSON）
  *
  * @package Anime_Sync_Pro
  */
@@ -40,13 +43,15 @@ class Anime_Sync_ID_Mapper {
     const NAME_CACHE_FILE  = 'name_cache.json';
     const META_FILE        = 'anime_map_meta.json';
     const AL_INDEX_FILE    = 'al_index.json';
-    const MAP_SOURCE_URL   = 'https://raw.githubusercontent.com/manami-project/anime-offline-database/master/anime-offline-database-minified.json';
+
+    // ✅ ACB：更新為 GitHub Releases 路徑（master 分支已不存在）
+    const MAP_SOURCE_URL   = 'https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json';
 
     // BangumiExtLinker 相關（ABZ）
     const BGM_EXT_SOURCE_URL       = 'https://raw.githubusercontent.com/Rhilip/BangumiExtLinker/master/data/anime_map.json';
-    const BGM_EXT_MAL_INDEX_FILE   = 'bgm_ext_mal_index.json';   // mal_id  → { bgm_id, date, name }
-    const BGM_EXT_NAME_INDEX_FILE  = 'bgm_ext_name_index.json';  // name_lc → { bgm_id, date }
-    const BGM_EXT_ANIDB_INDEX_FILE = 'bgm_ext_anidb_index.json'; // anidb_id → bgm_id
+    const BGM_EXT_MAL_INDEX_FILE   = 'bgm_ext_mal_index.json';
+    const BGM_EXT_NAME_INDEX_FILE  = 'bgm_ext_name_index.json';
+    const BGM_EXT_ANIDB_INDEX_FILE = 'bgm_ext_anidb_index.json';
     const BGM_EXT_META_FILE        = 'bgm_ext_meta.json';
 
     // Bangumi API
@@ -61,12 +66,10 @@ class Anime_Sync_ID_Mapper {
 
     // -------------------------------------------------------------------------
     // 靜態對照表（Layer -1）
-    // ABZ：已知無法自動匹配的特殊案例，anilist_id => bgm_id
     // -------------------------------------------------------------------------
 
     private const STATIC_BGM_MAP = [
         // 範例：153518 => 328609,
-        // 在此新增已知特殊案例
     ];
 
     // -------------------------------------------------------------------------
@@ -77,9 +80,9 @@ class Anime_Sync_ID_Mapper {
     private ?array  $mal_index           = null;
     private ?array  $al_index            = null;
     private ?array  $name_cache          = null;
-    private ?array  $bgm_ext_mal_index   = null;  // ABZ
-    private ?array  $bgm_ext_name_index  = null;  // ABZ
-    private ?array  $bgm_ext_anidb_index = null;  // ABZ
+    private ?array  $bgm_ext_mal_index   = null;
+    private ?array  $bgm_ext_name_index  = null;
+    private ?array  $bgm_ext_anidb_index = null;
     private ?string $last_error          = null;
     private string  $upload_dir;
 
@@ -96,22 +99,6 @@ class Anime_Sync_ID_Mapper {
     // PUBLIC – 主要對照查詢
     // =========================================================================
 
-    /**
-     * 多層查詢邏輯，回傳 Bangumi subject ID 或 null。
-     *
-     * Layer 0   – WP post meta（100% 準確）
-     * Layer -1  – 靜態 STATIC_BGM_MAP（100% 準確，已知特殊案例）
-     * Layer 0.5 – al_index（AniList ID，anime-offline-database）
-     * Layer 1   – mal_index（MAL ID，anime-offline-database）
-     * Layer 1.5 – BangumiExtLinker mal_id 精確查表 + 年份驗證
-     * Layer 1.6 – BangumiExtLinker 日文名精確查表 + 年份驗證
-     * Layer 1.7 – Jikan API external links（MAL → bgm.tv URL）
-     * Layer 1.8 – AniDB 橋接（AniList externalLinks → anidb_id → bgm_id）
-     * Layer 2   – AniList externalLinks 直接含 bgm.tv / bangumi.tv URL
-     * Layer 3   – Bangumi API 搜尋 + 日文原名 + 季度 + 集數驗證
-     * Layer 4   – Bangumi API 搜尋 + 中文 / Romaji + 季度 + 集數驗證
-     * Layer 5   – 設定 _bangumi_id_pending flag，回傳 null
-     */
     public function get_bangumi_id( array $anime_data ): ?int {
 
         $anilist_id    = (int)    ( $anime_data['anilist_id']    ?? 0  );
@@ -122,9 +109,8 @@ class Anime_Sync_ID_Mapper {
         $title_romaji  = (string) ( $anime_data['title_romaji']  ?? '' );
         $title_chinese = (string) ( $anime_data['title_chinese'] ?? '' );
         $season_year   = (int)    ( $anime_data['season_year']   ?? 0  );
-        $season        = strtoupper( (string) ( $anime_data['season'] ?? '' ) ); // ABZ
-        $episodes      = (int)    ( $anime_data['episodes']      ?? 0  );        // ABZ
-        // ABZ：型別防護，確保是陣列
+        $season        = strtoupper( (string) ( $anime_data['season'] ?? '' ) );
+        $episodes      = (int)    ( $anime_data['episodes']      ?? 0  );
         $ext_links     = (array)  ( $anime_data['external_links'] ?? [] );
 
         // ── Layer 0：WP post meta ─────────────────────────────────────────────
@@ -136,7 +122,7 @@ class Anime_Sync_ID_Mapper {
             if ( $meta_bgm > 0 ) return $meta_bgm;
         }
 
-        // ── Layer -1：靜態對照表（ABZ）────────────────────────────────────────
+        // ── Layer -1：靜態對照表 ──────────────────────────────────────────────
         if ( $anilist_id > 0 && isset( self::STATIC_BGM_MAP[ $anilist_id ] ) ) {
             $bgm_id = (int) self::STATIC_BGM_MAP[ $anilist_id ];
             if ( $bgm_id > 0 ) {
@@ -145,7 +131,7 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 0.5：al_index（AniList ID → Bangumi ID）────────────────────
+        // ── Layer 0.5：al_index ───────────────────────────────────────────────
         if ( $anilist_id > 0 ) {
             $this->load_al_index();
             $bgm_id = $this->al_index[ $anilist_id ] ?? null;
@@ -156,7 +142,7 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 1：mal_index（MAL ID → Bangumi ID）─────────────────────────
+        // ── Layer 1：mal_index ────────────────────────────────────────────────
         if ( $mal_id && $mal_id > 0 ) {
             $this->load_mal_index();
             $bgm_id = $this->mal_index[ $mal_id ] ?? null;
@@ -169,14 +155,13 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 1.5：BangumiExtLinker mal_id 查表（ABZ）────────────────────
+        // ── Layer 1.5：BangumiExtLinker mal_id ───────────────────────────────
         if ( $mal_id && $mal_id > 0 ) {
             $this->load_bgm_ext_mal_index();
             $entry = $this->bgm_ext_mal_index[ $mal_id ] ?? null;
             if ( $entry ) {
                 $bgm_id   = (int) ( $entry['bgm_id'] ?? 0 );
                 $ext_year = (int) substr( $entry['date'] ?? '', 0, 4 );
-                // 年份驗證 ±1（BangumiExtLinker 資料精準，不需 ±2）
                 if ( $bgm_id > 0 && ( $season_year === 0 || $ext_year === 0 || abs( $ext_year - $season_year ) <= 1 ) ) {
                     $this->write_bgm_id( $post_id, $bgm_id );
                     return $bgm_id;
@@ -184,7 +169,7 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 1.6：BangumiExtLinker 日文名查表（ABZ）─────────────────────
+        // ── Layer 1.6：BangumiExtLinker 日文名 ───────────────────────────────
         if ( $title_native !== '' ) {
             $this->load_bgm_ext_name_index();
             $key   = $this->normalize_name_light( $title_native );
@@ -199,7 +184,7 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 1.7：Jikan external links（ABZ）────────────────────────────
+        // ── Layer 1.7：Jikan external links ──────────────────────────────────
         if ( $mal_id && $mal_id > 0 ) {
             $bgm_id = $this->fetch_jikan_bgm_url( $mal_id );
             if ( $bgm_id > 0 ) {
@@ -208,8 +193,7 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 1.8：AniDB 橋接（ABZ）──────────────────────────────────────
-        // 從 AniList externalLinks 中解析 AniDB URL → anidb_id → bgm_id
+        // ── Layer 1.8：AniDB 橋接 ─────────────────────────────────────────────
         foreach ( $ext_links as $link ) {
             if ( ! is_array( $link ) ) continue;
             $url = $link['url'] ?? '';
@@ -224,7 +208,7 @@ class Anime_Sync_ID_Mapper {
                         return $bgm_id;
                     }
                 }
-                break; // AniDB 連結最多一個，找到就不再繼續
+                break;
             }
         }
 
@@ -241,7 +225,7 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 3：Bangumi 搜尋 + 日文原名 + 季度 + 集數（ABZ）────────────
+        // ── Layer 3：Bangumi 搜尋 + 日文原名 ─────────────────────────────────
         if ( $title_native !== '' ) {
             $bgm_id = $this->search_bangumi_by_title( $title_native, $season_year, $season, $episodes );
             if ( $bgm_id ) {
@@ -250,7 +234,7 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 4a：Bangumi 搜尋 + 中文標題 + 季度 + 集數（ABZ）───────────
+        // ── Layer 4a：Bangumi 搜尋 + 中文標題 ────────────────────────────────
         if ( $title_chinese !== '' ) {
             $bgm_id = $this->search_bangumi_by_title( $title_chinese, $season_year, $season, $episodes );
             if ( $bgm_id ) {
@@ -259,7 +243,7 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 4b：Bangumi 搜尋 + Romaji 標題 + 季度 + 集數（ABZ）────────
+        // ── Layer 4b：Bangumi 搜尋 + Romaji ──────────────────────────────────
         if ( $title_romaji !== '' && $title_romaji !== $title_native ) {
             $bgm_id = $this->search_bangumi_by_title( $title_romaji, $season_year, $season, $episodes );
             if ( $bgm_id ) {
@@ -277,14 +261,9 @@ class Anime_Sync_ID_Mapper {
     }
 
     // =========================================================================
-    // PRIVATE – 統一寫入 bgm_id 並清除 pending（ACA）
+    // PRIVATE – 統一寫入 bgm_id
     // =========================================================================
 
-    /**
-     * 成功找到 bgm_id 後統一呼叫此方法：
-     * 1. 寫入 anime_bangumi_id post meta
-     * 2. 清除 _bangumi_id_pending flag
-     */
     private function write_bgm_id( int $post_id, int $bgm_id ): void {
         if ( $post_id <= 0 || $bgm_id <= 0 ) return;
         update_post_meta( $post_id, 'anime_bangumi_id', $bgm_id );
@@ -360,24 +339,45 @@ class Anime_Sync_ID_Mapper {
         }
 
         // ── 第一段：anime-offline-database ───────────────────────────────────
-        $response = wp_remote_get( self::MAP_SOURCE_URL, [
-            'timeout'    => 120,
-            'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
-            'headers'    => [ 'Accept' => 'application/json' ],
+        // ✅ ACB：改用 cURL 串流寫檔，避免 wp_remote_get body size 限制（58MB）
+        $tmp_file = $this->get_file_path( 'anime_map_tmp.json' );
+
+        $fp = fopen( $tmp_file, 'wb' );
+        if ( ! $fp ) {
+            $this->last_error = '無法建立暫存檔：' . $tmp_file;
+            return false;
+        }
+
+        $ch = curl_init( self::MAP_SOURCE_URL );
+        curl_setopt_array( $ch, [
+            CURLOPT_FILE           => $fp,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT        => 180,
+            CURLOPT_USERAGENT      => 'AnimeSync-Pro/1.0 (WordPress)',
+            CURLOPT_SSL_VERIFYPEER => true,
         ] );
+        $ok        = curl_exec( $ch );
+        $http_code = (int) curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+        $curl_err  = curl_error( $ch );
+        curl_close( $ch );
+        fclose( $fp );
 
-        if ( is_wp_error( $response ) ) {
-            $this->last_error = $response->get_error_message();
+        if ( ! $ok || $http_code !== 200 ) {
+            @unlink( $tmp_file );
+            $this->last_error = "下載失敗：HTTP {$http_code}，{$curl_err}";
             return false;
         }
 
-        $code = (int) wp_remote_retrieve_response_code( $response );
-        if ( $code !== 200 ) {
-            $this->last_error = "HTTP {$code} fetching anime-offline-database.";
+        $body = file_get_contents( $tmp_file );
+        @unlink( $tmp_file );
+
+        if ( ! $body ) {
+            $this->last_error = '暫存檔讀取失敗';
             return false;
         }
 
-        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        $data = json_decode( $body, true );
+        unset( $body ); // ✅ 立刻釋放 58MB 記憶體
 
         if ( ! isset( $data['data'] ) || ! is_array( $data['data'] ) ) {
             $this->last_error = 'Invalid anime-offline-database JSON structure.';
@@ -403,7 +403,6 @@ class Anime_Sync_ID_Mapper {
                     $bgm_id = (int) $m[1];
             }
 
-            // ABZ：修正冗餘，統一只寫 $al_index（$map 與 $al_index 用途相同）
             if ( $al_id  && $bgm_id ) $al_index[ $al_id ]  = $bgm_id;
             if ( $mal_id && $bgm_id ) $mal_index[ $mal_id ] = $bgm_id;
 
@@ -427,18 +426,19 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        $this->write_json( self::MAP_FILE,        $al_index );  // 保留相容舊邏輯
+        unset( $data ); // ✅ 解析完立刻釋放
+
+        $this->write_json( self::MAP_FILE,        $al_index );
         $this->write_json( self::MAL_INDEX_FILE,  $mal_index );
         $this->write_json( self::AL_INDEX_FILE,   $al_index );
         $this->write_json( self::NAME_CACHE_FILE, $name_cache );
         $this->write_json( self::META_FILE, [
             'source_url'   => self::MAP_SOURCE_URL,
-            'version'      => $data['license']['url'] ?? '1.0',
+            'version'      => '1.0',
             'entry_count'  => count( $al_index ),
             'mal_count'    => count( $mal_index ),
             'al_count'     => count( $al_index ),
             'generated_at' => gmdate( 'Y-m-d H:i:s' ),
-            'etag'         => wp_remote_retrieve_header( $response, 'etag' ),
         ] );
 
         $this->al_index   = $al_index;
@@ -454,7 +454,7 @@ class Anime_Sync_ID_Mapper {
 
         if ( is_wp_error( $ext_response ) ) {
             $this->last_error = 'BangumiExtLinker download failed: ' . $ext_response->get_error_message();
-            return true; // 第一段成功，不影響主流程
+            return true;
         }
 
         $ext_code = (int) wp_remote_retrieve_response_code( $ext_response );
@@ -497,7 +497,6 @@ class Anime_Sync_ID_Mapper {
             if ( $name !== '' ) {
                 $key = $this->normalize_name_light( $name );
                 if ( $key !== '' ) {
-                    // 若有多筆相同名字，保留較新的（date 較大者）
                     $existing_date = $bgm_ext_name_index[ $key ]['date'] ?? '';
                     if ( ! isset( $bgm_ext_name_index[ $key ] ) || $date > $existing_date ) {
                         $bgm_ext_name_index[ $key ] = [
@@ -535,7 +534,6 @@ class Anime_Sync_ID_Mapper {
             return false;
         }
 
-        // 重置所有快取，強制從磁碟重新載入
         $this->mal_index           = null;
         $this->al_index            = null;
         $this->name_cache          = null;
@@ -557,24 +555,15 @@ class Anime_Sync_ID_Mapper {
     // PRIVATE – Bangumi 搜尋
     // =========================================================================
 
-    /**
-     * ABZ：新增 $season 和 $episodes 參數，傳遞給 match_best_result()。
-     */
     private function search_bangumi_by_title( string $title, int $year, string $season = '', int $episodes = 0 ): ?int {
-
         foreach ( $this->build_search_variants( $title ) as $variant ) {
             $results = $this->query_bangumi_search( $variant );
             $best    = $this->match_best_result( $results, $variant, $year, $season, $episodes );
             if ( $best ) return $best;
         }
-
         return null;
     }
 
-    /**
-     * 針對續作 / 分割放送 / 特別編集版等常見命名差異，產生多組 Bangumi 搜尋關鍵字。
-     * 目標是提高新番與續作命中率，同時避免對既有高可信度 Layer 造成干擾。
-     */
     private function build_search_variants( string $title ): array {
         $title = trim( $title );
         if ( $title === '' ) return [];
@@ -626,7 +615,7 @@ class Anime_Sync_ID_Mapper {
 
     private function query_bangumi_search( string $keyword ): array {
         $url = add_query_arg( [
-            'limit'  => 25,  // ABT：從 10 提升至 25
+            'limit'  => 25,
             'offset' => 0,
         ], self::BGM_SEARCH_URL );
 
@@ -652,24 +641,12 @@ class Anime_Sync_ID_Mapper {
         return $data['data'] ?? [];
     }
 
-    /**
-     * ABZ：加入季度篩選與集數驗證。
-     *
-     * 選取優先順序（由高到低）：
-     *   P1 – 年份差 ≤1 + 同季（或無季度資訊）+ 集數吻合（或無集數資訊）
-     *   P2 – 年份差 ≤1 + 季度差 1（相鄰季）+ 集數吻合
-     *   P3 – 年份差 ≤1（不管季度），集數吻合
-     *   P4 – 年份差 ≤1，集數不吻合但差距 ≤ 6
-     *   P5 – 年份差 2–3
-     *   P6 – 無年份資訊，相似度 ≥ 80%
-     *   fallback – 全部候選中相似度 ≥ 65%
-     */
     private function match_best_result( array $results, string $title, int $year, string $season = '', int $episodes = 0 ): ?int {
 
         if ( empty( $results ) ) return null;
 
         $normalized_input = $this->normalize_title( $title );
-        $input_quarter    = $this->season_to_quarter( $season ); // ABZ
+        $input_quarter    = $this->season_to_quarter( $season );
 
         $p1 = $p2 = $p3 = $p4 = [];
         $candidates_secondary = [];
@@ -700,18 +677,16 @@ class Anime_Sync_ID_Mapper {
                 ) );
             }
 
-            if ( $sim < 45.0 ) continue; // ABS：門檻 45%
+            if ( $sim < 45.0 ) continue;
 
             $bgm_year  = $this->get_bangumi_year( $subject );
             $year_diff = ( $year > 0 && $bgm_year > 0 ) ? abs( $bgm_year - $year ) : 999;
 
-            // ABZ：季度比對
             $bgm_quarter  = $this->get_bangumi_quarter( $subject );
             $quarter_diff = ( $input_quarter > 0 && $bgm_quarter > 0 )
                             ? abs( $input_quarter - $bgm_quarter )
-                            : 999;  // 999 = 無法比對
+                            : 999;
 
-            // ABZ：集數比對（差距 ≤3 或無資訊視為吻合）
             $bgm_eps  = (int) ( $subject['eps'] ?? 0 );
             $eps_diff = ( $episodes > 0 && $bgm_eps > 0 ) ? abs( $bgm_eps - $episodes ) : 999;
             $eps_ok   = ( $eps_diff === 999 || $eps_diff <= 3 );
@@ -730,22 +705,20 @@ class Anime_Sync_ID_Mapper {
                 $candidates_no_year[] = $candidate;
             } elseif ( $year_diff <= 1 ) {
                 if ( ( $quarter_diff === 999 || $quarter_diff === 0 ) && $eps_ok ) {
-                    $p1[] = $candidate; // P1：同年 + 同季 + 集數吻合
+                    $p1[] = $candidate;
                 } elseif ( $quarter_diff === 1 && $eps_ok ) {
-                    $p2[] = $candidate; // P2：同年 + 相鄰季 + 集數吻合
+                    $p2[] = $candidate;
                 } elseif ( $eps_ok ) {
-                    $p3[] = $candidate; // P3：同年 + 集數吻合（季不限）
+                    $p3[] = $candidate;
                 } elseif ( $eps_diff <= 6 ) {
-                    $p4[] = $candidate; // P4：同年 + 集數差距 ≤6
+                    $p4[] = $candidate;
                 } else {
-                    $candidates_secondary[] = $candidate; // 集數差太大，降級
+                    $candidates_secondary[] = $candidate;
                 }
             } else {
                 $candidates_secondary[] = $candidate;
             }
         }
-
-        // ── 選取策略（P1 → P2 → P3 → P4 → P5 → P6 → fallback）─────────────
 
         foreach ( [ $p1, $p2, $p3, $p4 ] as $pool ) {
             if ( ! empty( $pool ) ) {
@@ -757,7 +730,6 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // P5：年份差 2–3
         if ( ! empty( $candidates_secondary ) ) {
             usort( $candidates_secondary, function ( $a, $b ) {
                 if ( $a['year_diff'] !== $b['year_diff'] )
@@ -769,14 +741,12 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // P6：無年份資訊，相似度 ≥ 80%
         if ( ! empty( $candidates_no_year ) ) {
             usort( $candidates_no_year, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
             if ( $candidates_no_year[0]['sim'] >= 80.0 )
                 return $candidates_no_year[0]['id'];
         }
 
-        // fallback：相似度 ≥ 65%（ABS fallback 保留）
         if ( ! empty( $all_candidates ) ) {
             usort( $all_candidates, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
             if ( $all_candidates[0]['sim'] >= 65.0 ) {
@@ -795,10 +765,6 @@ class Anime_Sync_ID_Mapper {
     // PRIVATE – Layer 1.7：Jikan external links
     // =========================================================================
 
-    /**
-     * ABZ：打 Jikan /anime/{mal_id}/external，解析 bgm.tv / bangumi.tv URL。
-     * 結果快取 7 天（同一部作品不重複打）。
-     */
     private function fetch_jikan_bgm_url( int $mal_id ): int {
         $cache_key = 'anime_sync_jikan_ext_' . $mal_id;
         $cached    = get_transient( $cache_key );
@@ -838,11 +804,10 @@ class Anime_Sync_ID_Mapper {
     // =========================================================================
 
     private function normalize_title( string $title ): string {
-        if ( $title === '' ) return ''; // ABR：null 防護
+        if ( $title === '' ) return '';
 
         $title = mb_strtolower( $title );
 
-        // 全形羅馬數字轉阿拉伯數字
         $roman_map = [
             'ⅻ' => '12', 'ⅺ' => '11', 'ⅹ' => '10',
             'ⅸ' => '9',  'ⅷ' => '8',  'ⅶ' => '7',
@@ -851,7 +816,6 @@ class Anime_Sync_ID_Mapper {
         ];
         $title = str_replace( array_keys( $roman_map ), array_values( $roman_map ), $title );
 
-        // 去除括號內容、Season/Part 標記、日文期/季/クール、年份、非文字字元
         $title = preg_replace( '/[\(\（][^\)\）]*[\)\）]/', '', $title );
         $title = preg_replace( '/[\[【][^\]】]*[\]】]/',   '', $title );
         $title = preg_replace( '/\b(?:season|part|cour|chapter|arc)\s*\d+\b/i', '', $title );
@@ -865,29 +829,17 @@ class Anime_Sync_ID_Mapper {
         return trim( $title );
     }
 
-    /**
-     * ABZ：輕量正規化，僅用於 Layer 1.6 日文名查表。
-     * 只做 lowercase + 統一半形空格 + trim，保留所有有意義字元。
-     */
     private function normalize_name_light( string $name ): string {
         if ( $name === '' ) return '';
-        $name = str_replace( '　', ' ', $name ); // 全形空格 → 半形
+        $name = str_replace( '　', ' ', $name );
         $name = mb_strtolower( $name );
         return trim( $name );
     }
 
     // =========================================================================
-    // PRIVATE – 季度工具（ABZ + ACA 補全）
+    // PRIVATE – 季度工具
     // =========================================================================
 
-    /**
-     * AniList season 字串 → 季度數字
-     * 1 = 冬（WINTER, 1–3月）
-     * 2 = 春（SPRING, 4–6月）
-     * 3 = 夏（SUMMER, 7–9月）
-     * 4 = 秋（FALL, 10–12月）
-     * 0 = 未知
-     */
     private function season_to_quarter( string $season ): int {
         return match( strtoupper( $season ) ) {
             'WINTER' => 1,
@@ -898,23 +850,18 @@ class Anime_Sync_ID_Mapper {
         };
     }
 
-    /**
-     * ACA：從 Bangumi subject 的 date 欄位推算季度（1–4）。
-     * Bangumi date 格式：YYYY-MM-DD 或 YYYY-MM。
-     */
     private function get_bangumi_quarter( array $subject ): int {
         $date = $subject['date'] ?? '';
         if ( $date === '' ) return 0;
 
-        // 取月份（date 格式 YYYY-MM-DD 或 YYYY-MM）
         $parts = explode( '-', $date );
         $month = isset( $parts[1] ) ? (int) $parts[1] : 0;
         if ( $month <= 0 ) return 0;
 
-        if ( $month >= 1  && $month <= 3  ) return 1; // 冬
-        if ( $month >= 4  && $month <= 6  ) return 2; // 春
-        if ( $month >= 7  && $month <= 9  ) return 3; // 夏
-        if ( $month >= 10 && $month <= 12 ) return 4; // 秋
+        if ( $month >= 1  && $month <= 3  ) return 1;
+        if ( $month >= 4  && $month <= 6  ) return 2;
+        if ( $month >= 7  && $month <= 9  ) return 3;
+        if ( $month >= 10 && $month <= 12 ) return 4;
 
         return 0;
     }
@@ -924,14 +871,12 @@ class Anime_Sync_ID_Mapper {
     // =========================================================================
 
     private function get_bangumi_year( array $subject ): int {
-        // 優先使用 date 欄位（精確）
         $date = $subject['date'] ?? '';
         if ( $date !== '' ) {
             $year = (int) substr( $date, 0, 4 );
             if ( $year > 1900 ) return $year;
         }
 
-        // 退而使用 air_date（舊格式相容）
         $air_date = $subject['air_date'] ?? '';
         if ( $air_date !== '' ) {
             $year = (int) substr( $air_date, 0, 4 );
@@ -945,10 +890,6 @@ class Anime_Sync_ID_Mapper {
     // PRIVATE – Bangumi ID 驗證
     // =========================================================================
 
-    /**
-     * ABU：年份差放寬至 2，相似度門檻降至 30%。
-     * 用於 Layer 1 mal_index 命中後的二次確認。
-     */
     private function validate_bangumi_id( int $bgm_id, string $title, int $year ): ?int {
         $cache_key = 'anime_sync_bgm_validate_' . $bgm_id;
         $cached    = get_transient( $cache_key );
@@ -971,14 +912,12 @@ class Anime_Sync_ID_Mapper {
             return null;
         }
 
-        // 年份驗證 ±2（ABU）
         $bgm_year = $this->get_bangumi_year( $subject );
         if ( $year > 0 && $bgm_year > 0 && abs( $bgm_year - $year ) > 2 ) {
             set_transient( $cache_key, 0, DAY_IN_SECONDS );
             return null;
         }
 
-        // 標題相似度 ≥ 30%（ABU）
         $bgm_title = $subject['name'] ?? '';
         $sim       = 0.0;
         similar_text(
