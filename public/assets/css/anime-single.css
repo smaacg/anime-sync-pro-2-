@@ -372,6 +372,10 @@ body:has(.asd-wrap) .entry-content > *:not(.asd-wrap) {
   background: rgba(255,255,255,.06);
   border: 1px solid var(--asd-border);
   margin: 0 !important;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  word-break: break-word;
 }
 .asd-hside-title {
   font-size: 13px;
@@ -1383,4 +1387,285 @@ nav.asd-tabs a.asd-tab {
 .asd-wrap code, .asd-wrap pre {
   font-family: 'Courier New', Courier, monospace !important;
 }
+/* ── 留言區對齊修正 ── */
+.asd-comments {
+  width: 100%;
+  box-sizing: border-box;
+}
+.asd-comments-inner {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.asd-comments #comments,
+.asd-comments .comments-area {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+  border: none !important;
+}
+.asd-comments .comment-list {
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 0 16px 0 !important;
+  list-style: none !important;
+}
+.asd-comments #respond,
+.asd-comments .comment-respond {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+  border: none !important;
+}
+.asd-comments .wpd-thread-list,
+.asd-comments .wpd-primary,
+.asd-comments #wpcomm {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+.asd-comments #disqus_thread {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
 
+/* ================================================================
+   21. WeixiaoACG+ 評分系統
+   ================================================================ */
+
+/* 分隔線 */
+.wacg-rating-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--asd-border);
+  margin: 10px 0;
+}
+
+/* WeixiaoACG+ 圓點顏色 */
+.wacg-dot-site {
+  background: #34D399;
+  box-shadow: 0 0 4px 1px rgba(52,211,153,.60), 0 0 8px 2px rgba(52,211,153,.30);
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* 統計區塊 */
+.wacg-rating-stats {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 總分列 */
+.wacg-score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+/* 評分人數 */
+.wacg-vote-count {
+  font-size: 11px;
+  color: var(--asd-text-dim);
+  padding: 2px 0 6px 0;
+  text-align: center;
+}
+
+/* 四項分類 */
+.wacg-cats {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0;
+}
+.wacg-cat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+.wacg-cat-label {
+  font-size: 11px;
+  color: var(--asd-text-dim);
+}
+.wacg-cat-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--asd-text);
+}
+
+/* 分布圖 */
+.wacg-dist-bars {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 8px 0 6px 0;
+}
+.wacg-dist-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.wacg-dist-label {
+  font-size: 10px;
+  color: var(--asd-text-dim);
+  width: 10px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.wacg-dist-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.08);
+  overflow: hidden;
+}
+.wacg-dist-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #34D399, #63A8FF);
+  transition: width .4s ease;
+}
+.wacg-dist-cnt {
+  font-size: 10px;
+  color: var(--asd-text-dim);
+  width: 16px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* 評分表單 */
+.wacg-rating-form {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--asd-border);
+}
+.wacg-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.wacg-slider-label {
+  font-size: 11px;
+  color: var(--asd-text-dim);
+  width: 28px;
+  flex-shrink: 0;
+}
+.wacg-slider {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,.12);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+.wacg-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #34D399;
+  box-shadow: 0 0 4px rgba(52,211,153,.60);
+  cursor: pointer;
+  transition: transform .15s ease;
+}
+.wacg-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+.wacg-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: #34D399;
+  cursor: pointer;
+}
+.wacg-slider-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: #34D399;
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* 送出按鈕 */
+.wacg-submit-btn {
+  width: 100%;
+  padding: 8px 0;
+  border-radius: var(--asd-radius-sm);
+  border: none;
+  background: linear-gradient(135deg, #34D399, #63A8FF);
+  color: #fff;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .2s ease;
+  margin-top: 4px;
+}
+.wacg-submit-btn:hover   { opacity: .85; }
+.wacg-submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 未登入提示 */
+.wacg-login-prompt {
+  display: block;
+  width: 100%;
+  padding: 8px 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--asd-border);
+  text-align: center;
+  font-size: .80rem;
+  color: var(--asd-primary);
+  text-decoration: none;
+  transition: var(--trans-smooth);
+}
+.wacg-login-prompt:hover { color: #fff; }
+
+/* Toast 提示 */
+.wacg-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 10px 24px;
+  border-radius: var(--asd-radius-pill);
+  font-size: .85rem;
+  font-weight: 600;
+  color: #fff;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity .3s ease, transform .3s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.wacg-toast--success { background: #34D399; }
+.wacg-toast--error   { background: #FB7185; }
+.wacg-toast--show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
