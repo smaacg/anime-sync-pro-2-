@@ -38,10 +38,16 @@
  *
  * ACJ – 新增「一鍵轉繁體」Meta Box，供編輯頁直接轉換簡體欄位。
  *
+ * ACM – handle_ajax_query_season() 移除 sleep(65) 阻塞，
+ *       改為讀取 Retry-After header，等待 > 30 秒直接回傳錯誤或部分資料。
+ *       同時修正 imported 判斷從 N+1 WP_Query 改為批次查詢。
+ *     – handle_ajax_bulk_action() 超時改為固定 300 秒上限，
+ *       refetch 單次限制最多 10 筆。
+ *     – 新增 get_imported_anilist_ids() 批次查詢 helper。
+ * 
  * ACK – ajax_convert_post_to_tw() 修正：強制寫入 meta 與 ACF 欄位，
  *       不依賴新舊值比較，確保 OpenCC 未安裝時靜態字典仍能正常運作。
  */
-
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 class Anime_Sync_Admin {
@@ -237,7 +243,6 @@ class Anime_Sync_Admin {
             'acf'  => [],
         ];
 
-        // ── post_title / post_content / post_excerpt ──
         $post_update = [ 'ID' => $post_id ];
 
         $new_title = $cn->convert( (string) $post->post_title );
@@ -262,7 +267,6 @@ class Anime_Sync_Admin {
             wp_update_post( $post_update );
         }
 
-        // ── ★ ACK 修正：固定 meta 欄位，強制寫入不比較新舊值 ──
         foreach ( $this->get_convert_target_meta_keys() as $meta_key ) {
             $old_value = get_post_meta( $post_id, $meta_key, true );
             if ( $old_value === '' || $old_value === null ) {
@@ -270,16 +274,15 @@ class Anime_Sync_Admin {
             }
 
             $new_value = $this->convert_meta_value( $cn, $meta_key, $old_value );
-            update_post_meta( $post_id, $meta_key, $new_value ); // ★ 強制寫入
+            update_post_meta( $post_id, $meta_key, $new_value );
             if ( $new_value !== $old_value ) {
                 $updated['meta'][] = $meta_key;
             }
         }
 
-        // ── 動態 meta 欄位（仍保留比較，避免覆蓋不必要的欄位）──
         foreach ( $this->get_dynamic_convertible_meta( $post_id ) as $meta_key ) {
             if ( in_array( $meta_key, $this->get_convert_target_meta_keys(), true ) ) {
-                continue; // 已在上面處理過，跳過
+                continue;
             }
 
             $old_value = get_post_meta( $post_id, $meta_key, true );
@@ -290,7 +293,6 @@ class Anime_Sync_Admin {
             }
         }
 
-        // ── ★ ACK 修正：ACF 欄位，強制寫入不比較新舊值 ──
         if ( function_exists( 'get_field_objects' ) && function_exists( 'update_field' ) ) {
             $acf_fields = get_field_objects( $post_id, false, true );
             if ( is_array( $acf_fields ) ) {
@@ -311,7 +313,7 @@ class Anime_Sync_Admin {
                         ? $this->convert_meta_value( $cn, $field_name, $old_value )
                         : $cn->convert_mixed( $old_value );
 
-                    update_field( $field_key, $new_value, $post_id ); // ★ 強制寫入
+                    update_field( $field_key, $new_value, $post_id );
                     if ( $new_value !== $old_value ) {
                         $updated['acf'][] = $field_name;
                     }
@@ -416,7 +418,6 @@ class Anime_Sync_Admin {
         return true;
     }
 
-    // ★ ACK 新增：ACF 欄位專用白名單判斷（只轉文字類欄位）
     private function is_convertible_acf_field( string $field_name ): bool {
         $whitelist = [
             'anime_title_chinese',
@@ -487,6 +488,8 @@ class Anime_Sync_Admin {
 
     // =========================================================================
     // AJAX：查詢季度清單
+    // ACM – 移除 sleep(65)，改為讀取 Retry-After header
+    //       imported 判斷改為批次查詢，消除 N+1
     // =========================================================================
 
     public function handle_ajax_query_season(): void {
@@ -514,21 +517,11 @@ class Anime_Sync_Admin {
         $page     = 1;
 
         do {
-            $res = wp_remote_post( 'https://graphql.anilist.co', [
-                'body'    => json_encode( [
-                    'query'     => $query,
-                    'variables' => [ 'season' => $season, 'year' => $year, 'page' => $page ],
-                ] ),
-                'headers' => [ 'Content-Type' => 'application/json', 'Accept' => 'application/json' ],
-                'timeout' => 20,
-            ] );
+            // ✅ ACM：最多重試 3 次，不再 sleep(65) 阻塞整個 PHP worker
+            $res  = null;
+            $code = 0;
 
-            if ( is_wp_error( $res ) ) break;
-
-            $code = (int) wp_remote_retrieve_response_code( $res );
-
-            if ( $code === 429 ) {
-                sleep( 65 );
+            for ( $attempt = 0; $attempt < 3; $attempt++ ) {
                 $res = wp_remote_post( 'https://graphql.anilist.co', [
                     'body'    => json_encode( [
                         'query'     => $query,
@@ -537,32 +530,51 @@ class Anime_Sync_Admin {
                     'headers' => [ 'Content-Type' => 'application/json', 'Accept' => 'application/json' ],
                     'timeout' => 20,
                 ] );
-                if ( is_wp_error( $res ) ) break;
+
+                if ( is_wp_error( $res ) ) {
+                    if ( $attempt < 2 ) sleep( 3 );
+                    continue;
+                }
+
                 $code = (int) wp_remote_retrieve_response_code( $res );
+
+                if ( $code === 429 ) {
+                    // ✅ ACM：讀取 Retry-After，等待時間 > 30 秒直接回傳，不阻塞
+                    $retry_after = (int) wp_remote_retrieve_header( $res, 'retry-after' );
+                    $wait        = $retry_after > 0 ? $retry_after : 10;
+
+                    if ( $wait > 30 ) {
+                        if ( ! empty( $all_list ) ) {
+                            wp_send_json_success( [
+                                'list'    => $all_list,
+                                'total'   => count( $all_list ),
+                                'warning' => 'AniList 速率限制，已載入前 ' . count( $all_list ) . ' 筆，請稍後重新查詢以取得完整清單',
+                            ] );
+                        }
+                        wp_send_json_error( 'AniList 請求過於頻繁（429），請稍後 ' . $wait . ' 秒再試' );
+                    }
+
+                    sleep( $wait );
+                    continue;
+                }
+
+                if ( $code === 200 ) break;
+
+                if ( $attempt < 2 ) sleep( 2 );
             }
 
-            if ( $code !== 200 ) break;
+            if ( is_wp_error( $res ) || $code !== 200 ) break;
 
             $body      = json_decode( wp_remote_retrieve_body( $res ), true );
             $page_data = $body['data']['Page'] ?? [];
             $media     = $page_data['media'] ?? [];
             $has_next  = (bool) ( $page_data['pageInfo']['hasNextPage'] ?? false );
 
-            foreach ( $media as $m ) {
-                $existing_query = new WP_Query( [
-                    'post_type'      => 'anime',
-                    'post_status'    => 'any',
-                    'posts_per_page' => 1,
-                    'fields'         => 'ids',
-                    'no_found_rows'  => true,
-                    'meta_query'     => [ [
-                        'key'     => 'anime_anilist_id',
-                        'value'   => (int) $m['id'],
-                        'compare' => '=',
-                        'type'    => 'NUMERIC',
-                    ] ],
-                ] );
+            // ✅ ACM：批次查詢本頁所有 AniList ID 是否已匯入，消除 N+1 WP_Query
+            $anilist_ids_on_page = array_map( fn( $m ) => (int) $m['id'], $media );
+            $imported_ids        = $this->get_imported_anilist_ids( $anilist_ids_on_page );
 
+            foreach ( $media as $m ) {
                 $all_list[] = [
                     'anilist_id'   => (int) $m['id'],
                     'mal_id'       => $m['idMal'] ?? null,
@@ -571,7 +583,7 @@ class Anime_Sync_Admin {
                     'episodes'     => $m['episodes'] ?? null,
                     'popularity'   => (int) ( $m['popularity'] ?? 0 ),
                     'status'       => $m['status'] ?? '',
-                    'imported'     => ! empty( $existing_query->posts ),
+                    'imported'     => in_array( (int) $m['id'], $imported_ids, true ),
                 ];
             }
 
@@ -590,34 +602,74 @@ class Anime_Sync_Admin {
         wp_send_json_success( [ 'list' => $all_list, 'total' => count( $all_list ) ] );
     }
 
+    // ✅ ACM：批次查詢哪些 AniList ID 已匯入，取代原本迴圈內 N+1 WP_Query
+    private function get_imported_anilist_ids( array $anilist_ids ): array {
+        if ( empty( $anilist_ids ) ) return [];
+
+        global $wpdb;
+
+        $placeholders = implode( ',', array_fill( 0, count( $anilist_ids ), '%d' ) );
+
+        $results = $wpdb->get_col( $wpdb->prepare(
+            "SELECT DISTINCT pm.meta_value
+             FROM {$wpdb->postmeta} pm
+             INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+             WHERE pm.meta_key = 'anime_anilist_id'
+               AND pm.meta_value IN ({$placeholders})
+               AND p.post_type = 'anime'
+               AND p.post_status IN ('publish','draft','pending','private')",
+            ...$anilist_ids
+        ) );
+
+        return array_map( 'intval', $results );
+    }
+
     // =========================================================================
     // AJAX：批次操作
+    // ACM – 超時改為固定 300 秒上限，refetch 單次限制最多 10 筆
     // =========================================================================
 
     public function handle_ajax_bulk_action(): void {
         check_ajax_referer( 'anime_sync_admin_nonce', 'nonce' );
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( '權限不足' );
+
         $action   = sanitize_text_field( $_POST['bulk'] ?? '' );
         $post_ids = array_map( 'intval', (array) ( $_POST['post_ids'] ?? [] ) );
+
         if ( empty( $action ) || empty( $post_ids ) ) wp_send_json_error( '參數錯誤' );
+
         $allowed_actions = [ 'publish', 'draft', 'delete', 'refetch' ];
         if ( ! in_array( $action, $allowed_actions, true ) ) wp_send_json_error( '不允許的操作' );
-        if ( $action === 'refetch' ) @set_time_limit( 180 * count( $post_ids ) );
+
+        if ( $action === 'refetch' ) {
+            // ✅ ACM：固定 300 秒，不再 180 * count($post_ids)
+            @set_time_limit( 300 );
+            // ✅ ACM：單次最多 10 筆，超過請分批操作
+            if ( count( $post_ids ) > 10 ) {
+                wp_send_json_error( 'refetch 單次最多 10 筆，請分批操作或使用逐筆匯入功能' );
+            }
+        }
+
         $count = 0;
+
         foreach ( $post_ids as $post_id ) {
             if ( ! $post_id || get_post_type( $post_id ) !== 'anime' ) continue;
+
             switch ( $action ) {
                 case 'publish':
                     $r = wp_update_post( [ 'ID' => $post_id, 'post_status' => 'publish' ] );
                     if ( $r && ! is_wp_error( $r ) ) $count++;
                     break;
+
                 case 'draft':
                     $r = wp_update_post( [ 'ID' => $post_id, 'post_status' => 'draft' ] );
                     if ( $r && ! is_wp_error( $r ) ) $count++;
                     break;
+
                 case 'delete':
                     if ( wp_delete_post( $post_id, true ) ) $count++;
                     break;
+
                 case 'refetch':
                     $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
                     if ( $anilist_id ) {
@@ -627,6 +679,7 @@ class Anime_Sync_Admin {
                     break;
             }
         }
+
         wp_send_json_success( [ 'count' => $count, 'message' => "已完成 {$count} 筆操作" ] );
     }
 
@@ -843,7 +896,7 @@ class Anime_Sync_Admin {
         $cache_key = 'anime_sync_series_gaps';
 
         $selected_ids_str = isset( $_POST['selected_ids'] ) ? sanitize_text_field( $_POST['selected_ids'] ) : '';
-        $selected_ids = [];
+        $selected_ids     = [];
         if ( ! empty( $selected_ids_str ) ) {
             $selected_ids = array_filter( array_map( 'intval', explode( ',', $selected_ids_str ) ) );
         }
@@ -867,12 +920,12 @@ class Anime_Sync_Admin {
         $gaps           = [];
 
         $posts = get_posts( [
-            'post__in'        => $selected_ids,
-            'post_type'       => 'anime',
-            'post_status'     => [ 'publish', 'draft' ],
-            'posts_per_page'  => -1,
-            'fields'          => 'ids',
-            'no_found_rows'   => true,
+            'post__in'       => $selected_ids,
+            'post_type'      => 'anime',
+            'post_status'    => [ 'publish', 'draft' ],
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
         ] );
 
         foreach ( $posts as $post_id ) {
