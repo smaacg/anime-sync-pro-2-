@@ -12,6 +12,8 @@
  * 相容 class-cron-manager.php 呼叫 import_single($id, null, 'anilist')。
  * generate_slug() 新增 $exclude_id 參數，更新時排除自身避免無限加 suffix。
  * ACK – 新增 map_streaming_to_tw_fields()：解析 externalLinks 自動寫入台灣串流平台欄位。
+ * ACL – import_single() enrich 排程改為依 post_id 尾數錯開時間，
+ *        避免批量匯入時同時觸發大量 API 請求撞 rate limit。
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -80,7 +82,6 @@ class Anime_Sync_Import_Manager {
 			'⏳ 待補抓：聲優/主題曲/Wikipedia',
 		] ) );
 
-		// ★ 修改1：移除 cn_converter->convert()，直接使用原始標題，避免 OpenCC 把繁體「迴」誤轉成「回」
 		$post_title = ! empty( $anime_data['anime_title_chinese'] )
 			? (string) $anime_data['anime_title_chinese']
 			: ( $anime_data['anime_title_romaji'] ?? "Anime {$anilist_id}" );
@@ -107,19 +108,19 @@ class Anime_Sync_Import_Manager {
 			$post_id = wp_insert_post( $post_data, true );
 		}
 
-	if ( is_wp_error( $post_id ) ) {
-    return [
-        'success' => false,
-        'message' => '文章建立失敗：' . $post_id->get_error_message(),
-    ];
-}
+		if ( is_wp_error( $post_id ) ) {
+			return [
+				'success' => false,
+				'message' => '文章建立失敗：' . $post_id->get_error_message(),
+			];
+		}
 
-$this->save_post_meta( $post_id, $anime_data );
-update_post_meta( $post_id, 'anime_last_updated', current_time( 'mysql' ) ); // ★ 新增
+		$this->save_post_meta( $post_id, $anime_data );
+		update_post_meta( $post_id, 'anime_last_updated', current_time( 'mysql' ) );
 
-if ( ! $is_update ) {
-    $this->apply_first_import_locks( $post_id, $anime_data );
-}
+		if ( ! $is_update ) {
+			$this->apply_first_import_locks( $post_id, $anime_data );
+		}
 
 		if ( ! empty( $anime_data['anime_cover_image'] ) ) {
 			$this->set_featured_image( $post_id, $anime_data['anime_cover_image'], $post_title );
@@ -131,8 +132,13 @@ if ( ! $is_update ) {
 		update_post_meta( $post_id, 'anime_last_sync', current_time( 'mysql' ) );
 		delete_post_meta( $post_id, '_enriched_at' );
 
+		// ✅ ACL：依 post_id 尾數錯開 enrich 排程，避免批量匯入時同時觸發大量 API 請求。
+		// 每部動畫間隔 90 秒，post_id 尾數決定在哪個 slot 執行：
+		//   post_id % 40 → 0~39，乘以 90 秒 → 最多分散在 60 分鐘內完成。
 		if ( ! wp_next_scheduled( 'anime_sync_enrich_post', [ $post_id ] ) ) {
-			wp_schedule_single_event( time() + 60, 'anime_sync_enrich_post', [ $post_id ] );
+			$slot  = ( $post_id % 40 );           // 0 ~ 39
+			$delay = 60 + ( $slot * 90 );          // 60s ~ 3570s（約 1 分鐘 ~ 60 分鐘）
+			wp_schedule_single_event( time() + $delay, 'anime_sync_enrich_post', [ $post_id ] );
 		}
 
 		$display_title   = $anime_data['anime_title_chinese'] ?: $anime_data['anime_title_romaji'] ?: "ID {$anilist_id}";
@@ -279,7 +285,6 @@ if ( ! $is_update ) {
 			? trim( (string) $data['anime_animethemes_slug'] )
 			: trim( (string) ( $data['animethemes_slug'] ?? '' ) );
 
-		// 相容舊資料：舊版曾把 slug 寫進 anime_animethemes_id。
 		if ( $animethemes_id !== '' && ! ctype_digit( $animethemes_id ) && $animethemes_slug === '' ) {
 			$animethemes_slug = $animethemes_id;
 			$animethemes_id   = '';
@@ -332,7 +337,6 @@ if ( ! $is_update ) {
 			update_post_meta( $post_id, $key, $this->prepare_meta_value( $key, $value ) );
 		}
 
-		// 自動解析 externalLinks 寫入台灣串流平台欄位
 		$this->map_streaming_to_tw_fields( $post_id, $data['anime_external_links'] ?? '[]' );
 
 		$bgm_id_raw        = $data['bangumi_id'] ?? null;
@@ -347,7 +351,6 @@ if ( ! $is_update ) {
 			delete_post_meta( $post_id, '_bangumi_id_pending' );
 		} elseif ( ! $manually_set ) {
 			if ( $existing_bangumi > 0 ) {
-				// 本次查詢失敗時保留舊的 Bangumi ID，避免 refetch 把已配對資料洗掉。
 				update_post_meta( $post_id, 'anime_bangumi_id', $existing_bangumi );
 				update_post_meta( $post_id, 'bangumi_id', $existing_bangumi );
 				delete_post_meta( $post_id, '_bangumi_id_pending' );
@@ -377,7 +380,6 @@ if ( ! $is_update ) {
 		return $value;
 	}
 
-	// ★ 修改2：移除 'anime_title_chinese'，避免 OpenCC 把繁體字誤轉（如「迴」→「回」）
 	private function is_convertible_text_meta_key( string $key ): bool {
 		return in_array( $key, [
 			'anime_synopsis_chinese',
@@ -507,26 +509,25 @@ if ( ! $is_update ) {
 			if ( ! empty( $genre_ids ) ) wp_set_post_terms( $post_id, $genre_ids, 'genre' );
 		}
 
-	$season_year = (int) ( $data['anime_season_year'] ?? 0 );
-$season      = strtoupper( $data['anime_season'] ?? '' );
-if ( $season_year && $season ) {
-    $season_map = [
-        'SPRING' => '春季',
-        'SUMMER' => '夏季',
-        'FALL'   => '秋季',
-        'WINTER' => '冬季',
-    ];
-    $season_zh    = $season_map[ $season ] ?? ucfirst( strtolower( $season ) );
-    $season_label = "{$season_year} {$season_zh}"; // → "2026 春季"
+		$season_year = (int) ( $data['anime_season_year'] ?? 0 );
+		$season      = strtoupper( $data['anime_season'] ?? '' );
+		if ( $season_year && $season ) {
+			$season_map = [
+				'SPRING' => '春季',
+				'SUMMER' => '夏季',
+				'FALL'   => '秋季',
+				'WINTER' => '冬季',
+			];
+			$season_zh    = $season_map[ $season ] ?? ucfirst( strtolower( $season ) );
+			$season_label = "{$season_year} {$season_zh}";
 
-    $term = term_exists( $season_label, 'anime_season_tax' );
-    if ( ! $term ) $term = wp_insert_term( $season_label, 'anime_season_tax' );
-    if ( ! is_wp_error( $term ) ) {
-        $tid = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
-        wp_set_post_terms( $post_id, [ $tid ], 'anime_season_tax' );
-    }
-}
-
+			$term = term_exists( $season_label, 'anime_season_tax' );
+			if ( ! $term ) $term = wp_insert_term( $season_label, 'anime_season_tax' );
+			if ( ! is_wp_error( $term ) ) {
+				$tid = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+				wp_set_post_terms( $post_id, [ $tid ], 'anime_season_tax' );
+			}
+		}
 
 		$format = $data['anime_format'] ?? '';
 		if ( $format !== '' ) {
@@ -577,83 +578,78 @@ if ( $season_year && $season ) {
 	// PRIVATE – 解析 externalLinks 自動寫入台灣串流平台欄位
 	// =========================================================================
 
-private function map_streaming_to_tw_fields( int $post_id, string $external_links_json ): void {
-    $links = json_decode( $external_links_json, true );
-    if ( ! is_array( $links ) || empty( $links ) ) return;
+	private function map_streaming_to_tw_fields( int $post_id, string $external_links_json ): void {
+		$links = json_decode( $external_links_json, true );
+		if ( ! is_array( $links ) || empty( $links ) ) return;
 
-    $platform_map = [
-        'Crunchyroll'        => 'anime_tw_streaming_url_crunchyroll',
-        'Netflix'            => 'anime_tw_streaming_url_netflix',
-        'Disney Plus'        => 'anime_tw_streaming_url_disney',
-        'Disney+'            => 'anime_tw_streaming_url_disney',
-        'Amazon Prime Video' => 'anime_tw_streaming_url_amazon',
-        'Hulu'               => 'anime_tw_streaming_url_hulu',
-        'HIDIVE'             => 'anime_tw_streaming_url_hidive',
-        'Bilibili'           => 'anime_tw_streaming_url_bilibili',
-        'YouTube'            => 'anime_tw_streaming_url_youtube',
-        'WeTV'               => 'anime_tw_streaming_url_wetv',
-        'Viu'                => 'anime_tw_streaming_url_viu',
-        'Ani-One Asia'       => 'anime_tw_streaming_url_ani_one',
-        'Muse Asia'          => 'anime_tw_streaming_url_muse',
-    ];
+		$platform_map = [
+			'Crunchyroll'        => 'anime_tw_streaming_url_crunchyroll',
+			'Netflix'            => 'anime_tw_streaming_url_netflix',
+			'Disney Plus'        => 'anime_tw_streaming_url_disney',
+			'Disney+'            => 'anime_tw_streaming_url_disney',
+			'Amazon Prime Video' => 'anime_tw_streaming_url_amazon',
+			'Hulu'               => 'anime_tw_streaming_url_hulu',
+			'HIDIVE'             => 'anime_tw_streaming_url_hidive',
+			'Bilibili'           => 'anime_tw_streaming_url_bilibili',
+			'YouTube'            => 'anime_tw_streaming_url_youtube',
+			'WeTV'               => 'anime_tw_streaming_url_wetv',
+			'Viu'                => 'anime_tw_streaming_url_viu',
+			'Ani-One Asia'       => 'anime_tw_streaming_url_ani_one',
+			'Muse Asia'          => 'anime_tw_streaming_url_muse',
+		];
 
-    // 只勾選確定在台灣有服務的平台
-    $platform_to_checkbox = [
-        'Netflix'      => 'netflix',
-        'Disney Plus'  => 'disney',
-        'Disney+'      => 'disney',
-        'Crunchyroll'  => 'crunchyroll',
-        'Ani-One Asia' => 'ani-one',
-        'Muse Asia'    => 'muse',
-    ];
+		$platform_to_checkbox = [
+			'Netflix'      => 'netflix',
+			'Disney Plus'  => 'disney',
+			'Disney+'      => 'disney',
+			'Crunchyroll'  => 'crunchyroll',
+			'Ani-One Asia' => 'ani-one',
+			'Muse Asia'    => 'muse',
+		];
 
-    $checked_platforms = get_post_meta( $post_id, 'anime_tw_streaming', true );
-    if ( ! is_array( $checked_platforms ) ) {
-        $checked_platforms = [];
-    }
+		$checked_platforms = get_post_meta( $post_id, 'anime_tw_streaming', true );
+		if ( ! is_array( $checked_platforms ) ) {
+			$checked_platforms = [];
+		}
 
-    // 已有手動設定過，勾選欄位就不自動覆蓋
-    $has_existing = ! empty( $checked_platforms );
+		$has_existing = ! empty( $checked_platforms );
 
-    foreach ( $links as $link ) {
-        $site = $link['site'] ?? '';
-        $url  = $link['url']  ?? '';
-        $type = strtoupper( $link['type'] ?? '' );
+		foreach ( $links as $link ) {
+			$site = $link['site'] ?? '';
+			$url  = $link['url']  ?? '';
+			$type = strtoupper( $link['type'] ?? '' );
 
-        if ( $site === '' || $url === '' ) continue;
-        if ( $type !== '' && $type !== 'STREAMING' ) continue;
+			if ( $site === '' || $url === '' ) continue;
+			if ( $type !== '' && $type !== 'STREAMING' ) continue;
 
-        if ( $site === 'YouTube' ) {
-            if ( stripos( $url, 'AniOneAsia' ) !== false || stripos( $url, 'ani-one' ) !== false ) {
-                $site = 'Ani-One Asia';
-            } elseif ( stripos( $url, 'MuseAsia' ) !== false || stripos( $url, 'muse' ) !== false ) {
-                $site = 'Muse Asia';
-            }
-        }
+			if ( $site === 'YouTube' ) {
+				if ( stripos( $url, 'AniOneAsia' ) !== false || stripos( $url, 'ani-one' ) !== false ) {
+					$site = 'Ani-One Asia';
+				} elseif ( stripos( $url, 'MuseAsia' ) !== false || stripos( $url, 'muse' ) !== false ) {
+					$site = 'Muse Asia';
+				}
+			}
 
-        // URL 永遠存，但不覆蓋已填過的
-        if ( isset( $platform_map[ $site ] ) ) {
-            $meta_key = $platform_map[ $site ];
-            $existing = get_post_meta( $post_id, $meta_key, true );
-            if ( empty( $existing ) ) {
-                update_post_meta( $post_id, $meta_key, esc_url_raw( $url ) );
-            }
-        }
+			if ( isset( $platform_map[ $site ] ) ) {
+				$meta_key = $platform_map[ $site ];
+				$existing = get_post_meta( $post_id, $meta_key, true );
+				if ( empty( $existing ) ) {
+					update_post_meta( $post_id, $meta_key, esc_url_raw( $url ) );
+				}
+			}
 
-        // 勾選只在第一次匯入時自動填
-        if ( ! $has_existing && isset( $platform_to_checkbox[ $site ] ) ) {
-            $val = $platform_to_checkbox[ $site ];
-            if ( ! in_array( $val, $checked_platforms, true ) ) {
-                $checked_platforms[] = $val;
-            }
-        }
-    }
+			if ( ! $has_existing && isset( $platform_to_checkbox[ $site ] ) ) {
+				$val = $platform_to_checkbox[ $site ];
+				if ( ! in_array( $val, $checked_platforms, true ) ) {
+					$checked_platforms[] = $val;
+				}
+			}
+		}
 
-    // 只有第一次匯入才寫入勾選
-    if ( ! $has_existing && ! empty( $checked_platforms ) ) {
-        update_post_meta( $post_id, 'anime_tw_streaming', array_values( $checked_platforms ) );
-    }
-}
+		if ( ! $has_existing && ! empty( $checked_platforms ) ) {
+			update_post_meta( $post_id, 'anime_tw_streaming', array_values( $checked_platforms ) );
+		}
+	}
 
 	// =========================================================================
 	// PRIVATE – Tag helpers
@@ -701,154 +697,170 @@ private function map_streaming_to_tw_fields( int $post_id, string $external_link
 
 	private function get_tag_map(): array {
 		return [
-			'Amnesia'                    => '失憶',
-			'Revenge'                    => '復仇',
-			'Reincarnation'              => '轉生',
-			'Time Travel'                => '時間旅行',
-			'Time Loop'                  => '時間循環',
-			'Isekai'                     => '異世界',
-			'Parallel World'             => '平行世界',
-			'Virtual Reality'            => '虛擬實境',
-			'Augmented Reality'          => '擴增實境',
-			'Post-Apocalyptic'           => '末日後',
-			'Dystopia'                   => '反烏托邦',
-			'Utopia'                     => '烏托邦',
-			'Alternate History'          => '架空歷史',
-			'Historical'                 => '歷史',
-			'Fictional World'            => '架空世界',
-			'Space'                      => '宇宙',
-			'Space Opera'                => '太空歌劇',
-			'Cyberpunk'                  => '賽博龐克',
-			'Steampunk'                  => '蒸汽龐克',
-			'Dieselpunk'                 => '柴油龐克',
-			'Fantasy World'              => '奇幻世界',
-			'High Fantasy'               => '高奇幻',
-			'Low Fantasy'                => '低奇幻',
-			'Urban Fantasy'              => '都市奇幻',
-			'Mythology'                  => '神話',
-			'Feudal Japan'               => '日本戰國',
-			'Anti-Hero'                  => '反英雄',
-			'Villain Protagonist'        => '反派主角',
-			'Overpowered Protagonist'    => '無敵主角',
-			'Female Protagonist'         => '女主角',
-			'Male Protagonist'           => '男主角',
-			'Non-Human Protagonist'      => '非人類主角',
-			'Ensemble Cast'              => '群像劇',
-			'Kuudere'                    => '酷蛋',
-			'Tsundere'                   => '傲嬌',
-			'Yandere'                    => '病嬌',
-			'Dandere'                    => '呆萌',
-			'Coming of Age'              => '成長故事',
-			'Redemption'                 => '救贖',
-			'Found Family'               => '羈絆家族',
-			'Tragedy'                    => '悲劇',
-			'Comedy'                     => '喜劇',
-			'Parody'                     => '搞笑惡搞',
-			'Romance'                    => '戀愛',
-			'Harem'                      => '後宮',
-			'Reverse Harem'              => '逆後宮',
-			'Love Triangle'              => '三角戀',
-			'Forbidden Love'             => '禁忌之戀',
-			'Arranged Marriage'          => '包辦婚姻',
-			'Slice of Life'              => '日常',
-			'School Life'                => '校園生活',
-			'Work Life'                  => '職場生活',
-			'Magic'                      => '魔法',
-			'Superpowers'                => '超能力',
-			'Supernatural'               => '超自然',
-			'Demons'                     => '惡魔',
-			'Angels'                     => '天使',
-			'Vampires'                   => '吸血鬼',
-			'Werewolves'                 => '狼人',
-			'Ghosts'                     => '鬼魂',
-			'Undead'                     => '不死族',
-			'Gods'                       => '神明',
-			'Spirits'                    => '精靈/靈魂',
-			'Witches'                    => '女巫',
-			'Curses'                     => '詛咒',
-			'Alchemy'                    => '煉金術',
-			'Necromancy'                 => '死靈術',
-			'Action'                     => '動作',
-			'Martial Arts'               => '武術',
-			'Swordplay'                  => '劍術',
-			'Archery'                    => '弓術',
-			'Gunfights'                  => '槍戰',
-			'Mechs'                      => '機甲',
-			'Military'                   => '軍事',
-			'War'                        => '戰爭',
-			'Battle Royale'              => '大逃殺',
-			'Survival'                   => '求生',
-			'Tournament'                 => '競技賽',
-			'Strategy Game'              => '策略遊戲',
-			'Idol'                       => '偶像',
-			'Musician'                   => '音樂人',
-			'Detective'                  => '偵探',
-			'Police'                     => '警察',
-			'Samurai'                    => '武士',
-			'Ninja'                      => '忍者',
-			'Pirate'                     => '海盜',
-			'Doctor'                     => '醫生',
-			'Teacher'                    => '教師',
-			'Chef'                       => '廚師',
-			'Athlete'                    => '運動員',
-			'Adventurer'                 => '冒險者',
-			'Guild'                      => '公會',
-			'Siblings'                   => '兄弟姊妹',
-			'Twins'                      => '雙胞胎',
-			'Master-Servant'             => '主僕關係',
-			'Senpai-Kohai'               => '前輩後輩',
-			'Childhood Friends'          => '青梅竹馬',
-			'Rivals'                     => '對手',
-			'Bromance'                   => '兄弟情誼',
-			'Psychological'              => '心理',
-			'Trauma'                     => '心理創傷',
-			'Mental Illness'             => '精神疾病',
-			'Social Commentary'          => '社會批評',
-			'Politics'                   => '政治',
-			'Philosophy'                 => '哲學',
-			'Religion'                   => '宗教',
-			'Gore'                       => '血腥暴力',
-			'Horror'                     => '恐怖',
-			'Ecchi'                      => '輕微色情',
-			'Fanservice'                 => '福利',
-			'Chibi'                      => '超可愛',
-			'Moe'                        => '萌',
+			'Amnesia'                      => '失憶',
+			'Revenge'                      => '復仇',
+			'Reincarnation'                => '轉生',
+			'Time Travel'                  => '時間旅行',
+			'Time Loop'                    => '時間循環',
+			'Isekai'                       => '異世界',
+			'Parallel World'               => '平行世界',
+			'Virtual Reality'              => '虛擬實境',
+			'Augmented Reality'            => '擴增實境',
+			'Post-Apocalyptic'             => '末日後',
+			'Dystopia'                     => '反烏托邦',
+			'Utopia'                       => '烏托邦',
+			'Alternate History'            => '架空歷史',
+			'Historical'                   => '歷史',
+			'Fictional World'              => '架空世界',
+			'Space'                        => '宇宙',
+			'Space Opera'                  => '太空歌劇',
+			'Cyberpunk'                    => '賽博龐克',
+			'Steampunk'                    => '蒸汽龐克',
+			'Dieselpunk'                   => '柴油龐克',
+			'Fantasy World'                => '奇幻世界',
+			'High Fantasy'                 => '高奇幻',
+			'Low Fantasy'                  => '低奇幻',
+			'Urban Fantasy'                => '都市奇幻',
+			'Mythology'                    => '神話',
+			'Feudal Japan'                 => '日本戰國',
+			'Anti-Hero'                    => '反英雄',
+			'Villain Protagonist'          => '反派主角',
+			'Overpowered Protagonist'      => '無敵主角',
+			'Female Protagonist'           => '女主角',
+			'Male Protagonist'             => '男主角',
+			'Non-Human Protagonist'        => '非人類主角',
+			'Ensemble Cast'                => '群像劇',
+			'Kuudere'                      => '酷蛋',
+			'Tsundere'                     => '傲嬌',
+			'Yandere'                      => '病嬌',
+			'Dandere'                      => '呆萌',
+			'Coming of Age'                => '成長故事',
+			'Redemption'                   => '救贖',
+			'Found Family'                 => '羈絆家族',
+			'Tragedy'                      => '悲劇',
+			'Comedy'                       => '喜劇',
+			'Parody'                       => '搞笑惡搞',
+			'Romance'                      => '戀愛',
+			'Harem'                        => '後宮',
+			'Reverse Harem'                => '逆後宮',
+			'Love Triangle'                => '三角戀',
+			'Forbidden Love'               => '禁忌之戀',
+			'Arranged Marriage'            => '包辦婚姻',
+			'Slice of Life'                => '日常',
+			'School Life'                  => '校園生活',
+			'Work Life'                    => '職場生活',
+			'Magic'                        => '魔法',
+			'Superpowers'                  => '超能力',
+			'Supernatural'                 => '超自然',
+			'Demons'                       => '惡魔',
+			'Angels'                       => '天使',
+			'Vampires'                     => '吸血鬼',
+			'Werewolves'                   => '狼人',
+			'Ghosts'                       => '鬼魂',
+			'Undead'                       => '不死族',
+			'Gods'                         => '神明',
+			'Spirits'                      => '精靈/靈魂',
+			'Witches'                      => '女巫',
+			'Curses'                       => '詛咒',
+			'Alchemy'                      => '煉金術',
+			'Necromancy'                   => '死靈術',
+			'Action'                       => '動作',
+			'Martial Arts'                 => '武術',
+			'Swordplay'                    => '劍術',
+			'Archery'                      => '弓術',
+			'Gunfights'                    => '槍戰',
+			'Mechs'                        => '機甲',
+			'Military'                     => '軍事',
+			'War'                          => '戰爭',
+			'Battle Royale'                => '大逃殺',
+			'Survival'                     => '求生',
+			'Tournament'                   => '競技賽',
+			'Strategy Game'                => '策略遊戲',
+			'Idol'                         => '偶像',
+			'Musician'                     => '音樂人',
+			'Detective'                    => '偵探',
+			'Police'                       => '警察',
+			'Samurai'                      => '武士',
+			'Ninja'                        => '忍者',
+			'Pirate'                       => '海盜',
+			'Doctor'                       => '醫生',
+			'Teacher'                      => '教師',
+			'Chef'                         => '廚師',
+			'Athlete'                      => '運動員',
+			'Adventurer'                   => '冒險者',
+			'Guild'                        => '公會',
+			'Siblings'                     => '兄弟姊妹',
+			'Twins'                        => '雙胞胎',
+			'Master-Servant'               => '主僕關係',
+			'Senpai-Kohai'                 => '前輩後輩',
+			'Childhood Friends'            => '青梅竹馬',
+			'Rivals'                       => '對手',
+			'Bromance'                     => '兄弟情誼',
+			'Psychological'                => '心理',
+			'Trauma'                       => '心理創傷',
+			'Mental Illness'               => '精神疾病',
+			'Social Commentary'            => '社會批評',
+			'Politics'                     => '政治',
+			'Philosophy'                   => '哲學',
+			'Religion'                     => '宗教',
+			'Gore'                         => '血腥暴力',
+			'Horror'                       => '恐怖',
+			'Ecchi'                        => '輕微色情',
+			'Fanservice'                   => '福利',
+			'Chibi'                        => '超可愛',
+			'Moe'                          => '萌',
 			'Cute Girls Doing Cute Things' => '日常萌系',
-			'Anthropomorphism'           => '擬人化',
-			'Dragons'                    => '龍',
-			'Cats'                       => '貓',
-			'Dogs'                       => '狗',
-			'Kemonomimi'                 => '獸耳',
-			'Monster Girls'              => '娘化怪物',
-			'Based on a Manga'           => '漫改',
-			'Based on a Light Novel'     => '輕小說改編',
-			'Based on a Novel'           => '小說改編',
-			'Based on a Game'            => '遊改',
-			'Based on a Visual Novel'    => '視覺小說改編',
-			'Original'                   => '原創',
-			'Sequel'                     => '續集',
-			'Prequel'                    => '前傳',
-			'Spin-Off'                   => '外傳',
+			'Anthropomorphism'             => '擬人化',
+			'Dragons'                      => '龍',
+			'Cats'                         => '貓咪',
+			'Dogs'                         => '狗狗',
+			'Iyashikei'                    => '療癒系',
+			'CGDCT'                        => '日常萌系',
+			'Music'                        => '音樂',
+			'Sports'                       => '運動',
+			'Racing'                       => '賽車',
+			'Cooking'                      => '料理',
+			'Gaming'                       => '遊戲',
+			'Card Games'                   => '卡牌遊戲',
+			'Mahjong'                      => '麻將',
+			'Shounen'                      => '少年',
+			'Shoujo'                       => '少女',
+			'Seinen'                       => '青年',
+			'Josei'                        => '女性向',
+			'Mecha'                        => '機器人',
+			'Sci-Fi'                       => '科幻',
+			'Science Fiction'              => '科幻',
+			'Adventure'                    => '冒險',
+			'Mystery'                      => '推理',
+			'Thriller'                     => '驚悚',
+			'Suspense'                     => '懸疑',
+			'Drama'                        => '劇情',
+			'Family'                       => '家庭',
+			'Kids'                         => '兒童',
 		];
 	}
 
 	// =========================================================================
-	// PRIVATE – 查找已存在的文章
+	// PRIVATE – 查找現有文章
 	// =========================================================================
 
 	private function find_existing( int $anilist_id ): int {
+		if ( $anilist_id <= 0 ) return 0;
+
 		$query = new WP_Query( [
 			'post_type'      => 'anime',
 			'post_status'    => 'any',
 			'posts_per_page' => 1,
+			'meta_query'     => [
+				[
+					'key'     => 'anime_anilist_id',
+					'value'   => $anilist_id,
+					'compare' => '=',
+					'type'    => 'NUMERIC',
+				],
+			],
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
-			'meta_query'     => [ [
-				'key'     => 'anime_anilist_id',
-				'value'   => $anilist_id,
-				'compare' => '=',
-				'type'    => 'NUMERIC',
-			] ],
 		] );
 
 		return ! empty( $query->posts ) ? (int) $query->posts[0] : 0;
