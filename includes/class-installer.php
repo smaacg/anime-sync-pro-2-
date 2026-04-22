@@ -75,6 +75,26 @@ class Anime_Sync_Installer {
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $queue_sql );
         dbDelta( $logs_sql );
+                // 評分資料表
+        $ratings_table = $wpdb->prefix . 'anime_ratings';
+        $ratings_sql   = "CREATE TABLE IF NOT EXISTS {$ratings_table} (
+            id               BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            anime_id         BIGINT(20) UNSIGNED NOT NULL,
+            user_id          BIGINT(20) UNSIGNED NOT NULL,
+            score_story      DECIMAL(4,2) NOT NULL DEFAULT 0.00,
+            score_music      DECIMAL(4,2) NOT NULL DEFAULT 0.00,
+            score_animation  DECIMAL(4,2) NOT NULL DEFAULT 0.00,
+            score_voice      DECIMAL(4,2) NOT NULL DEFAULT 0.00,
+            score_overall    DECIMAL(4,2) NOT NULL DEFAULT 0.00,
+            weight           DECIMAL(4,2) NOT NULL DEFAULT 1.00,
+            created_at       DATETIME NOT NULL,
+            updated_at       DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY user_anime (user_id, anime_id),
+            KEY anime_id (anime_id),
+            KEY score_overall (score_overall)
+        ) {$charset_collate};";
+        dbDelta( $ratings_sql );
     }
 
     /**
