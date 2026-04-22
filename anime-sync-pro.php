@@ -268,6 +268,11 @@ add_action( 'plugins_loaded', function () {
     if ( class_exists( 'Anime_Sync_Frontend' ) ) {
         new Anime_Sync_Frontend();
     }
+        // 6-3-1. 初始化評分系統
+    if ( class_exists( 'Anime_Sync_Rating_Manager' ) ) {
+        new Anime_Sync_Rating_Manager();
+    }
+
 
     // 6-4. 後台 + Cron 環境
     if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
