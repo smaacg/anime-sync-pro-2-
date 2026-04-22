@@ -19,8 +19,10 @@
  *   ACA – 成功寫入 bangumi_id 後自動清除 _bangumi_id_pending meta
  *         補全 season_to_quarter() / get_bangumi_quarter() 完整實作
  *   ACB – MAP_SOURCE_URL 更新為 GitHub Releases 路徑
- *         download_and_cache_map() 第一段改用 cURL 串流寫檔，
- *         避免 wp_remote_get body size 限制與記憶體爆炸（58MB JSON）
+ *         download_and_cache_map() 第一段改用 cURL 串流寫檔
+ *   ACC – anime-offline-database 已不含 Bangumi 對應（0筆）
+ *         entry_count / mal_count 改從 BangumiExtLinker 計算
+ *         META_FILE 寫入移至第二段完成後，後台顯示正確筆數
  *
  * @package Anime_Sync_Pro
  */
@@ -37,36 +39,27 @@ class Anime_Sync_ID_Mapper {
 
     const MAP_DIR          = 'anime-sync-pro';
 
-    // anime-offline-database 相關
     const MAP_FILE         = 'anime_map.json';
     const MAL_INDEX_FILE   = 'mal_index.json';
     const NAME_CACHE_FILE  = 'name_cache.json';
     const META_FILE        = 'anime_map_meta.json';
     const AL_INDEX_FILE    = 'al_index.json';
 
-    // ✅ ACB：更新為 GitHub Releases 路徑（master 分支已不存在）
+    // ✅ ACB：更新為 GitHub Releases 路徑
     const MAP_SOURCE_URL   = 'https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json';
 
-    // BangumiExtLinker 相關（ABZ）
     const BGM_EXT_SOURCE_URL       = 'https://raw.githubusercontent.com/Rhilip/BangumiExtLinker/master/data/anime_map.json';
     const BGM_EXT_MAL_INDEX_FILE   = 'bgm_ext_mal_index.json';
     const BGM_EXT_NAME_INDEX_FILE  = 'bgm_ext_name_index.json';
     const BGM_EXT_ANIDB_INDEX_FILE = 'bgm_ext_anidb_index.json';
     const BGM_EXT_META_FILE        = 'bgm_ext_meta.json';
 
-    // Bangumi API
     const BGM_SEARCH_URL   = 'https://api.bgm.tv/v0/search/subjects';
     const BGM_SUBJECT_URL  = 'https://api.bgm.tv/v0/subjects/';
 
-    // Jikan（ABZ Layer 1.7）
     const JIKAN_EXTERNAL_URL = 'https://api.jikan.moe/v4/anime/';
 
-    // ABY：false = 正式環境，true = 開發偵錯
     const DEBUG_LOG        = false;
-
-    // -------------------------------------------------------------------------
-    // 靜態對照表（Layer -1）
-    // -------------------------------------------------------------------------
 
     private const STATIC_BGM_MAP = [
         // 範例：153518 => 328609,
@@ -338,8 +331,7 @@ class Anime_Sync_ID_Mapper {
             return false;
         }
 
-        // ── 第一段：anime-offline-database ───────────────────────────────────
-        // ✅ ACB：改用 cURL 串流寫檔，避免 wp_remote_get body size 限制（58MB）
+        // ── 第一段：anime-offline-database（cURL 串流）───────────────────────
         $tmp_file = $this->get_file_path( 'anime_map_tmp.json' );
 
         $fp = fopen( $tmp_file, 'wb' );
@@ -368,6 +360,7 @@ class Anime_Sync_ID_Mapper {
             return false;
         }
 
+        Anime_Sync_Performance::increase_memory_limit( '512M' );
         $body = file_get_contents( $tmp_file );
         @unlink( $tmp_file );
 
@@ -377,10 +370,15 @@ class Anime_Sync_ID_Mapper {
         }
 
         $data = json_decode( $body, true );
-        unset( $body ); // ✅ 立刻釋放 58MB 記憶體
+        unset( $body );
+
+        if ( $data === null ) {
+            $this->last_error = 'JSON decode 失敗：' . json_last_error_msg();
+            return false;
+        }
 
         if ( ! isset( $data['data'] ) || ! is_array( $data['data'] ) ) {
-            $this->last_error = 'Invalid anime-offline-database JSON structure.';
+            $this->last_error = 'JSON 結構異常，頂層 keys：' . implode( ', ', array_keys( $data ) );
             return false;
         }
 
@@ -426,26 +424,18 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        unset( $data ); // ✅ 解析完立刻釋放
+        unset( $data );
 
         $this->write_json( self::MAP_FILE,        $al_index );
         $this->write_json( self::MAL_INDEX_FILE,  $mal_index );
         $this->write_json( self::AL_INDEX_FILE,   $al_index );
         $this->write_json( self::NAME_CACHE_FILE, $name_cache );
-        $this->write_json( self::META_FILE, [
-            'source_url'   => self::MAP_SOURCE_URL,
-            'version'      => '1.0',
-            'entry_count'  => count( $al_index ),
-            'mal_count'    => count( $mal_index ),
-            'al_count'     => count( $al_index ),
-            'generated_at' => gmdate( 'Y-m-d H:i:s' ),
-        ] );
 
         $this->al_index   = $al_index;
         $this->mal_index  = $mal_index;
         $this->name_cache = $name_cache;
 
-        // ── 第二段：BangumiExtLinker（ABZ）───────────────────────────────────
+        // ── 第二段：BangumiExtLinker ──────────────────────────────────────────
         $ext_response = wp_remote_get( self::BGM_EXT_SOURCE_URL, [
             'timeout'    => 120,
             'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
@@ -454,12 +444,29 @@ class Anime_Sync_ID_Mapper {
 
         if ( is_wp_error( $ext_response ) ) {
             $this->last_error = 'BangumiExtLinker download failed: ' . $ext_response->get_error_message();
+            // 第一段成功，寫入暫時 meta 後回傳 true
+            $this->write_json( self::META_FILE, [
+                'source_url'   => self::MAP_SOURCE_URL,
+                'version'      => '1.0',
+                'entry_count'  => 0,
+                'mal_count'    => 0,
+                'al_count'     => count( $al_index ),
+                'generated_at' => gmdate( 'Y-m-d H:i:s' ),
+            ] );
             return true;
         }
 
         $ext_code = (int) wp_remote_retrieve_response_code( $ext_response );
         if ( $ext_code !== 200 ) {
             $this->last_error = "BangumiExtLinker HTTP {$ext_code}.";
+            $this->write_json( self::META_FILE, [
+                'source_url'   => self::MAP_SOURCE_URL,
+                'version'      => '1.0',
+                'entry_count'  => 0,
+                'mal_count'    => 0,
+                'al_count'     => count( $al_index ),
+                'generated_at' => gmdate( 'Y-m-d H:i:s' ),
+            ] );
             return true;
         }
 
@@ -520,6 +527,16 @@ class Anime_Sync_ID_Mapper {
             'generated_at' => gmdate( 'Y-m-d H:i:s' ),
         ] );
 
+        // ✅ ACC：META_FILE 移至第二段完成後寫入，entry_count 反映 BangumiExtLinker 筆數
+        $this->write_json( self::META_FILE, [
+            'source_url'   => self::MAP_SOURCE_URL,
+            'version'      => '1.0',
+            'entry_count'  => count( $bgm_ext_mal_index ),
+            'mal_count'    => count( $bgm_ext_mal_index ),
+            'al_count'     => count( $al_index ),
+            'generated_at' => gmdate( 'Y-m-d H:i:s' ),
+        ] );
+
         $this->bgm_ext_mal_index   = $bgm_ext_mal_index;
         $this->bgm_ext_name_index  = $bgm_ext_name_index;
         $this->bgm_ext_anidb_index = $bgm_ext_anidb_index;
@@ -571,13 +588,10 @@ class Anime_Sync_ID_Mapper {
         $variants = [ $title ];
 
         $normalized = $this->normalize_title( $title );
-        if ( $normalized !== '' ) {
-            $variants[] = $normalized;
-        }
+        if ( $normalized !== '' ) $variants[] = $normalized;
 
         $without_brackets = preg_replace( '/[\(\（\[【].*?[\)\）\]】]/u', ' ', $title );
-        $without_brackets = preg_replace( '/\s+/u', ' ', (string) $without_brackets );
-        $without_brackets = trim( $without_brackets );
+        $without_brackets = trim( preg_replace( '/\s+/u', ' ', (string) $without_brackets ) );
         if ( $without_brackets !== '' ) {
             $variants[] = $without_brackets;
             $variants[] = $this->normalize_title( $without_brackets );
@@ -596,42 +610,29 @@ class Anime_Sync_ID_Mapper {
             ' ',
             $title
         );
-        $base_title = preg_replace( '/\s+/u', ' ', (string) $base_title );
-        $base_title = trim( $base_title );
+        $base_title = trim( preg_replace( '/\s+/u', ' ', (string) $base_title ) );
         if ( $base_title !== '' && $base_title !== $title ) {
             $variants[] = $base_title;
             $variants[] = $this->normalize_title( $base_title );
         }
 
         $cleaned = [];
-        foreach ( $variants as $variant ) {
-            $variant = trim( preg_replace( '/\s+/u', ' ', (string) $variant ) );
-            if ( $variant === '' ) continue;
-            $cleaned[ $variant ] = true;
+        foreach ( $variants as $v ) {
+            $v = trim( preg_replace( '/\s+/u', ' ', (string) $v ) );
+            if ( $v !== '' ) $cleaned[ $v ] = true;
         }
 
         return array_keys( $cleaned );
     }
 
     private function query_bangumi_search( string $keyword ): array {
-        $url = add_query_arg( [
-            'limit'  => 25,
-            'offset' => 0,
-        ], self::BGM_SEARCH_URL );
-
-        $body = wp_json_encode( [
-            'keyword' => $keyword,
-            'filter'  => [ 'type' => [ 2 ] ],
-        ] );
+        $url = add_query_arg( [ 'limit' => 25, 'offset' => 0 ], self::BGM_SEARCH_URL );
 
         $response = wp_remote_post( $url, [
             'timeout'    => 15,
             'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
-            'headers'    => [
-                'Content-Type' => 'application/json',
-                'Accept'       => 'application/json',
-            ],
-            'body' => $body,
+            'headers'    => [ 'Content-Type' => 'application/json', 'Accept' => 'application/json' ],
+            'body'       => wp_json_encode( [ 'keyword' => $keyword, 'filter' => [ 'type' => [ 2 ] ] ] ),
         ] );
 
         if ( is_wp_error( $response ) ) return [];
@@ -642,16 +643,12 @@ class Anime_Sync_ID_Mapper {
     }
 
     private function match_best_result( array $results, string $title, int $year, string $season = '', int $episodes = 0 ): ?int {
-
         if ( empty( $results ) ) return null;
 
         $normalized_input = $this->normalize_title( $title );
         $input_quarter    = $this->season_to_quarter( $season );
 
-        $p1 = $p2 = $p3 = $p4 = [];
-        $candidates_secondary = [];
-        $candidates_no_year   = [];
-        $all_candidates       = [];
+        $p1 = $p2 = $p3 = $p4 = $candidates_secondary = $candidates_no_year = $all_candidates = [];
 
         foreach ( $results as $subject ) {
             $bgm_id = (int) ( $subject['id'] ?? 0 );
@@ -671,50 +668,33 @@ class Anime_Sync_ID_Mapper {
             $sim = max( $sim_cn, $sim_ja, $sim_cn_rev, $sim_ja_rev );
 
             if ( self::DEBUG_LOG ) {
-                error_log( sprintf(
-                    '[BGM MATCH] INPUT: %s | BGM: %s / %s | SIM: %.1f%%',
-                    $normalized_input, $bgm_title_ja, $bgm_title_cn, $sim
-                ) );
+                error_log( sprintf( '[BGM MATCH] INPUT: %s | BGM: %s / %s | SIM: %.1f%%',
+                    $normalized_input, $bgm_title_ja, $bgm_title_cn, $sim ) );
             }
 
             if ( $sim < 45.0 ) continue;
 
-            $bgm_year  = $this->get_bangumi_year( $subject );
-            $year_diff = ( $year > 0 && $bgm_year > 0 ) ? abs( $bgm_year - $year ) : 999;
-
+            $bgm_year     = $this->get_bangumi_year( $subject );
+            $year_diff    = ( $year > 0 && $bgm_year > 0 ) ? abs( $bgm_year - $year ) : 999;
             $bgm_quarter  = $this->get_bangumi_quarter( $subject );
-            $quarter_diff = ( $input_quarter > 0 && $bgm_quarter > 0 )
-                            ? abs( $input_quarter - $bgm_quarter )
-                            : 999;
+            $quarter_diff = ( $input_quarter > 0 && $bgm_quarter > 0 ) ? abs( $input_quarter - $bgm_quarter ) : 999;
+            $bgm_eps      = (int) ( $subject['eps'] ?? 0 );
+            $eps_diff     = ( $episodes > 0 && $bgm_eps > 0 ) ? abs( $bgm_eps - $episodes ) : 999;
+            $eps_ok       = ( $eps_diff === 999 || $eps_diff <= 3 );
 
-            $bgm_eps  = (int) ( $subject['eps'] ?? 0 );
-            $eps_diff = ( $episodes > 0 && $bgm_eps > 0 ) ? abs( $bgm_eps - $episodes ) : 999;
-            $eps_ok   = ( $eps_diff === 999 || $eps_diff <= 3 );
-
-            $candidate = [
-                'id'           => $bgm_id,
-                'sim'          => $sim,
-                'year_diff'    => $year_diff,
-                'quarter_diff' => $quarter_diff,
-                'eps_diff'     => $eps_diff,
-            ];
+            $candidate = [ 'id' => $bgm_id, 'sim' => $sim, 'year_diff' => $year_diff,
+                           'quarter_diff' => $quarter_diff, 'eps_diff' => $eps_diff ];
 
             $all_candidates[] = $candidate;
 
             if ( $year_diff === 999 ) {
                 $candidates_no_year[] = $candidate;
             } elseif ( $year_diff <= 1 ) {
-                if ( ( $quarter_diff === 999 || $quarter_diff === 0 ) && $eps_ok ) {
-                    $p1[] = $candidate;
-                } elseif ( $quarter_diff === 1 && $eps_ok ) {
-                    $p2[] = $candidate;
-                } elseif ( $eps_ok ) {
-                    $p3[] = $candidate;
-                } elseif ( $eps_diff <= 6 ) {
-                    $p4[] = $candidate;
-                } else {
-                    $candidates_secondary[] = $candidate;
-                }
+                if ( ( $quarter_diff === 999 || $quarter_diff === 0 ) && $eps_ok ) $p1[] = $candidate;
+                elseif ( $quarter_diff === 1 && $eps_ok )                          $p2[] = $candidate;
+                elseif ( $eps_ok )                                                 $p3[] = $candidate;
+                elseif ( $eps_diff <= 6 )                                          $p4[] = $candidate;
+                else                                                               $candidates_secondary[] = $candidate;
             } else {
                 $candidates_secondary[] = $candidate;
             }
@@ -723,37 +703,26 @@ class Anime_Sync_ID_Mapper {
         foreach ( [ $p1, $p2, $p3, $p4 ] as $pool ) {
             if ( ! empty( $pool ) ) {
                 usort( $pool, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
-                if ( self::DEBUG_LOG ) {
-                    error_log( '[BGM MATCH] Selected ID=' . $pool[0]['id'] . ' sim=' . $pool[0]['sim'] );
-                }
+                if ( self::DEBUG_LOG ) error_log( '[BGM MATCH] Selected ID=' . $pool[0]['id'] . ' sim=' . $pool[0]['sim'] );
                 return $pool[0]['id'];
             }
         }
 
         if ( ! empty( $candidates_secondary ) ) {
-            usort( $candidates_secondary, function ( $a, $b ) {
-                if ( $a['year_diff'] !== $b['year_diff'] )
-                    return $a['year_diff'] <=> $b['year_diff'];
-                return $b['sim'] <=> $a['sim'];
-            } );
-            if ( $candidates_secondary[0]['year_diff'] <= 3 ) {
-                return $candidates_secondary[0]['id'];
-            }
+            usort( $candidates_secondary, fn( $a, $b ) =>
+                $a['year_diff'] !== $b['year_diff'] ? $a['year_diff'] <=> $b['year_diff'] : $b['sim'] <=> $a['sim'] );
+            if ( $candidates_secondary[0]['year_diff'] <= 3 ) return $candidates_secondary[0]['id'];
         }
 
         if ( ! empty( $candidates_no_year ) ) {
             usort( $candidates_no_year, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
-            if ( $candidates_no_year[0]['sim'] >= 80.0 )
-                return $candidates_no_year[0]['id'];
+            if ( $candidates_no_year[0]['sim'] >= 80.0 ) return $candidates_no_year[0]['id'];
         }
 
         if ( ! empty( $all_candidates ) ) {
             usort( $all_candidates, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
             if ( $all_candidates[0]['sim'] >= 65.0 ) {
-                if ( self::DEBUG_LOG ) {
-                    error_log( '[BGM MATCH] fallback ID=' . $all_candidates[0]['id'] .
-                               ' sim=' . $all_candidates[0]['sim'] );
-                }
+                if ( self::DEBUG_LOG ) error_log( '[BGM MATCH] fallback ID=' . $all_candidates[0]['id'] . ' sim=' . $all_candidates[0]['sim'] );
                 return $all_candidates[0]['id'];
             }
         }
@@ -762,7 +731,7 @@ class Anime_Sync_ID_Mapper {
     }
 
     // =========================================================================
-    // PRIVATE – Layer 1.7：Jikan external links
+    // PRIVATE – Layer 1.7：Jikan
     // =========================================================================
 
     private function fetch_jikan_bgm_url( int $mal_id ): int {
@@ -851,38 +820,30 @@ class Anime_Sync_ID_Mapper {
     }
 
     private function get_bangumi_quarter( array $subject ): int {
-        $date = $subject['date'] ?? '';
+        $date  = $subject['date'] ?? '';
         if ( $date === '' ) return 0;
-
         $parts = explode( '-', $date );
         $month = isset( $parts[1] ) ? (int) $parts[1] : 0;
         if ( $month <= 0 ) return 0;
-
-        if ( $month >= 1  && $month <= 3  ) return 1;
-        if ( $month >= 4  && $month <= 6  ) return 2;
-        if ( $month >= 7  && $month <= 9  ) return 3;
-        if ( $month >= 10 && $month <= 12 ) return 4;
-
+        if ( $month <= 3  ) return 1;
+        if ( $month <= 6  ) return 2;
+        if ( $month <= 9  ) return 3;
+        if ( $month <= 12 ) return 4;
         return 0;
     }
 
     // =========================================================================
-    // PRIVATE – Bangumi 年份提取
+    // PRIVATE – Bangumi 年份
     // =========================================================================
 
     private function get_bangumi_year( array $subject ): int {
-        $date = $subject['date'] ?? '';
-        if ( $date !== '' ) {
-            $year = (int) substr( $date, 0, 4 );
-            if ( $year > 1900 ) return $year;
+        foreach ( [ 'date', 'air_date' ] as $key ) {
+            $val = $subject[ $key ] ?? '';
+            if ( $val !== '' ) {
+                $year = (int) substr( $val, 0, 4 );
+                if ( $year > 1900 ) return $year;
+            }
         }
-
-        $air_date = $subject['air_date'] ?? '';
-        if ( $air_date !== '' ) {
-            $year = (int) substr( $air_date, 0, 4 );
-            if ( $year > 1900 ) return $year;
-        }
-
         return 0;
     }
 
@@ -918,14 +879,8 @@ class Anime_Sync_ID_Mapper {
             return null;
         }
 
-        $bgm_title = $subject['name'] ?? '';
-        $sim       = 0.0;
-        similar_text(
-            $this->normalize_title( $title ),
-            $this->normalize_title( $bgm_title ),
-            $sim
-        );
-
+        $sim = 0.0;
+        similar_text( $this->normalize_title( $title ), $this->normalize_title( $subject['name'] ?? '' ), $sim );
         if ( $sim < 30.0 ) {
             set_transient( $cache_key, 0, DAY_IN_SECONDS );
             return null;
@@ -940,45 +895,38 @@ class Anime_Sync_ID_Mapper {
     // =========================================================================
 
     private function load_anime_map(): void {
-        if ( $this->anime_map === null ) {
+        if ( $this->anime_map === null )
             $this->anime_map = $this->load_json_file( $this->get_file_path( self::MAP_FILE ) ) ?? [];
-        }
     }
 
     private function load_mal_index(): void {
-        if ( $this->mal_index === null ) {
+        if ( $this->mal_index === null )
             $this->mal_index = $this->load_json_file( $this->get_file_path( self::MAL_INDEX_FILE ) ) ?? [];
-        }
     }
 
     private function load_al_index(): void {
-        if ( $this->al_index === null ) {
+        if ( $this->al_index === null )
             $this->al_index = $this->load_json_file( $this->get_file_path( self::AL_INDEX_FILE ) ) ?? [];
-        }
     }
 
     private function load_name_cache(): void {
-        if ( $this->name_cache === null ) {
+        if ( $this->name_cache === null )
             $this->name_cache = $this->load_json_file( $this->get_file_path( self::NAME_CACHE_FILE ) ) ?? [];
-        }
     }
 
     private function load_bgm_ext_mal_index(): void {
-        if ( $this->bgm_ext_mal_index === null ) {
+        if ( $this->bgm_ext_mal_index === null )
             $this->bgm_ext_mal_index = $this->load_json_file( $this->get_file_path( self::BGM_EXT_MAL_INDEX_FILE ) ) ?? [];
-        }
     }
 
     private function load_bgm_ext_name_index(): void {
-        if ( $this->bgm_ext_name_index === null ) {
+        if ( $this->bgm_ext_name_index === null )
             $this->bgm_ext_name_index = $this->load_json_file( $this->get_file_path( self::BGM_EXT_NAME_INDEX_FILE ) ) ?? [];
-        }
     }
 
     private function load_bgm_ext_anidb_index(): void {
-        if ( $this->bgm_ext_anidb_index === null ) {
+        if ( $this->bgm_ext_anidb_index === null )
             $this->bgm_ext_anidb_index = $this->load_json_file( $this->get_file_path( self::BGM_EXT_ANIDB_INDEX_FILE ) ) ?? [];
-        }
     }
 
     // =========================================================================
