@@ -507,17 +507,26 @@ if ( ! $is_update ) {
 			if ( ! empty( $genre_ids ) ) wp_set_post_terms( $post_id, $genre_ids, 'genre' );
 		}
 
-		$season_year = (int) ( $data['anime_season_year'] ?? 0 );
-		$season      = strtoupper( $data['anime_season'] ?? '' );
-		if ( $season_year && $season ) {
-			$season_label = "{$season_year} " . ucfirst( strtolower( $season ) );
-			$term = term_exists( $season_label, 'anime_season_tax' );
-			if ( ! $term ) $term = wp_insert_term( $season_label, 'anime_season_tax' );
-			if ( ! is_wp_error( $term ) ) {
-				$tid = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
-				wp_set_post_terms( $post_id, [ $tid ], 'anime_season_tax' );
-			}
-		}
+	$season_year = (int) ( $data['anime_season_year'] ?? 0 );
+$season      = strtoupper( $data['anime_season'] ?? '' );
+if ( $season_year && $season ) {
+    $season_map = [
+        'SPRING' => '春季',
+        'SUMMER' => '夏季',
+        'FALL'   => '秋季',
+        'WINTER' => '冬季',
+    ];
+    $season_zh    = $season_map[ $season ] ?? ucfirst( strtolower( $season ) );
+    $season_label = "{$season_year} {$season_zh}"; // → "2026 春季"
+
+    $term = term_exists( $season_label, 'anime_season_tax' );
+    if ( ! $term ) $term = wp_insert_term( $season_label, 'anime_season_tax' );
+    if ( ! is_wp_error( $term ) ) {
+        $tid = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+        wp_set_post_terms( $post_id, [ $tid ], 'anime_season_tax' );
+    }
+}
+
 
 		$format = $data['anime_format'] ?? '';
 		if ( $format !== '' ) {
