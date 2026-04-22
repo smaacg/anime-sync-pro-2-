@@ -1442,15 +1442,34 @@ nav.asd-tabs a.asd-tab {
    21. WeixiaoACG+ 評分系統
    ================================================================ */
 
-/* 分隔線 */
+/* 右欄限高 — 防止評分 block 撐破 Hero Grid */
+.asd-hero-sidebar {
+  max-height: 424px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255,255,255,.15) transparent !important;
+}
+.asd-hero-sidebar::-webkit-scrollbar {
+  width: 3px !important;
+}
+.asd-hero-sidebar::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+.asd-hero-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.20) !important;
+  border-radius: 3px !important;
+}
+
+/* 評分分隔線 */
 .wacg-rating-divider {
   width: 100%;
   height: 1px;
   background: var(--asd-border);
-  margin: 10px 0;
+  margin: 8px 0;
 }
 
-/* WeixiaoACG+ 圓點顏色 */
+/* WeixiaoACG+ 圓點 */
 .wacg-dot-site {
   background: #34D399;
   box-shadow: 0 0 4px 1px rgba(52,211,153,.60), 0 0 8px 2px rgba(52,211,153,.30);
@@ -1461,93 +1480,39 @@ nav.asd-tabs a.asd-tab {
   flex-shrink: 0;
 }
 
-/* 統計區塊 */
-.wacg-rating-stats {
-  width: 100%;
-  box-sizing: border-box;
-}
+/* 統計區 */
+.wacg-rating-stats { width: 100%; box-sizing: border-box; }
 
-/* 總分列 */
 .wacg-score-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 0;
+  padding: 2px 0;
 }
 
-/* 評分人數 */
 .wacg-vote-count {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--asd-text-dim);
-  padding: 2px 0 6px 0;
+  padding: 1px 0 4px 0;
   text-align: center;
 }
 
-/* 四項分類 */
+/* 四項分類 — 兩欄並排 */
 .wacg-cats {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin: 6px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 6px;
+  margin: 4px 0;
 }
 .wacg-cat-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2px 0;
+  padding: 1px 0;
 }
-.wacg-cat-label {
-  font-size: 11px;
-  color: var(--asd-text-dim);
-}
-.wacg-cat-val {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--asd-text);
-}
-
-/* 分布圖 */
-.wacg-dist-bars {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin: 8px 0 6px 0;
-}
-.wacg-dist-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-}
-.wacg-dist-label {
-  font-size: 10px;
-  color: var(--asd-text-dim);
-  width: 10px;
-  text-align: right;
-  flex-shrink: 0;
-}
-.wacg-dist-track {
-  flex: 1;
-  height: 4px;
-  border-radius: 4px;
-  background: rgba(255,255,255,.08);
-  overflow: hidden;
-}
-.wacg-dist-fill {
-  height: 100%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, #34D399, #63A8FF);
-  transition: width .4s ease;
-}
-.wacg-dist-cnt {
-  font-size: 10px;
-  color: var(--asd-text-dim);
-  width: 16px;
-  text-align: right;
-  flex-shrink: 0;
-}
+.wacg-cat-label { font-size: 10px; color: var(--asd-text-dim); }
+.wacg-cat-val   { font-size: 11px; font-weight: 700; color: var(--asd-text); }
 
 /* 評分表單 */
 .wacg-rating-form {
@@ -1555,98 +1520,105 @@ nav.asd-tabs a.asd-tab {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 8px;
+  gap: 5px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid var(--asd-border);
 }
 .wacg-slider-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
 }
 .wacg-slider-label {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--asd-text-dim);
-  width: 28px;
+  width: 24px;
   flex-shrink: 0;
 }
 .wacg-slider {
   flex: 1;
   min-width: 0;
-  height: 4px;
+  height: 3px;
   -webkit-appearance: none;
   appearance: none;
   background: rgba(255,255,255,.12);
-  border-radius: 4px;
+  border-radius: 3px;
   outline: none;
   cursor: pointer;
 }
 .wacg-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: #34D399;
   box-shadow: 0 0 4px rgba(52,211,153,.60);
   cursor: pointer;
   transition: transform .15s ease;
 }
-.wacg-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.25);
-}
+.wacg-slider::-webkit-slider-thumb:hover { transform: scale(1.25); }
 .wacg-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border: none;
   border-radius: 50%;
   background: #34D399;
   cursor: pointer;
 }
 .wacg-slider-val {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: #34D399;
-  width: 28px;
+  width: 24px;
   text-align: right;
   flex-shrink: 0;
 }
 
-/* 送出按鈕 */
 .wacg-submit-btn {
   width: 100%;
-  padding: 8px 0;
+  padding: 6px 0;
   border-radius: var(--asd-radius-sm);
   border: none;
   background: linear-gradient(135deg, #34D399, #63A8FF);
   color: #fff;
-  font-size: .82rem;
+  font-size: .78rem;
   font-weight: 700;
   cursor: pointer;
   transition: opacity .2s ease;
-  margin-top: 4px;
+  margin-top: 2px;
 }
-.wacg-submit-btn:hover   { opacity: .85; }
+.wacg-submit-btn:hover    { opacity: .85; }
 .wacg-submit-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* 未登入提示 */
 .wacg-login-prompt {
   display: block;
   width: 100%;
-  padding: 8px 0;
-  margin-top: 8px;
+  padding: 6px 0;
+  margin-top: 6px;
   border-top: 1px solid var(--asd-border);
   text-align: center;
-  font-size: .80rem;
+  font-size: .75rem;
   color: var(--asd-primary);
   text-decoration: none;
   transition: var(--trans-smooth);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wacg-login-prompt:hover { color: #fff; }
 
-/* Toast 提示 */
+/* Hero Pill — WeixiaoACG+ */
+.asd-wrap .asd-score-pill--site .asd-sp-dot {
+  background: #34D399 !important;
+  box-shadow: 0 0 4px 1px rgba(52,211,153,.60), 0 0 8px 2px rgba(52,211,153,.30) !important;
+}
+.asd-wrap .asd-score-pill--site .asd-sp-val { color: #34D399 !important; }
+
+/* Toast */
 .wacg-toast {
   position: fixed;
   bottom: 24px;
