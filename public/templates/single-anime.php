@@ -549,32 +549,34 @@ foreach ( $cast_list as $c ) {
                 }
                 ?>
             </div>
-
-            <?php if ( $score_anilist || $score_mal || $score_bangumi ) : ?>
-                <div class="asd-hero-scores-new">
-                    <?php if ( $score_anilist ) : ?>
-                        <div class="asd-score-pill asd-score-pill--al">
-                            <span class="asd-sp-dot"></span>
-                            <span class="asd-sp-val"><?php echo esc_html( $score_anilist ); ?></span>
-                            <span class="asd-sp-label">AniList</span>
-                        </div>
-                    <?php endif; ?>
-                    <?php if ( $score_mal ) : ?>
-                        <div class="asd-score-pill asd-score-pill--mal">
-                            <span class="asd-sp-dot"></span>
-                            <span class="asd-sp-val"><?php echo esc_html( $score_mal ); ?></span>
-                            <span class="asd-sp-label">MAL</span>
-                        </div>
-                    <?php endif; ?>
-                    <?php if ( $score_bangumi ) : ?>
-                        <div class="asd-score-pill asd-score-pill--bgm">
-                            <span class="asd-sp-dot"></span>
-                            <span class="asd-sp-val"><?php echo esc_html( $score_bangumi ); ?></span>
-                            <span class="asd-sp-label">Bangumi</span>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
+<div class="asd-hero-scores-new">
+    <?php if ( $score_anilist ) : ?>
+        <div class="asd-score-pill asd-score-pill--al">
+            <span class="asd-sp-dot"></span>
+            <span class="asd-sp-val"><?php echo esc_html( $score_anilist ); ?></span>
+            <span class="asd-sp-label">AniList</span>
+        </div>
+    <?php endif; ?>
+    <?php if ( $score_mal ) : ?>
+        <div class="asd-score-pill asd-score-pill--mal">
+            <span class="asd-sp-dot"></span>
+            <span class="asd-sp-val"><?php echo esc_html( $score_mal ); ?></span>
+            <span class="asd-sp-label">MAL</span>
+        </div>
+    <?php endif; ?>
+    <?php if ( $score_bangumi ) : ?>
+        <div class="asd-score-pill asd-score-pill--bgm">
+            <span class="asd-sp-dot"></span>
+            <span class="asd-sp-val"><?php echo esc_html( $score_bangumi ); ?></span>
+            <span class="asd-sp-label">Bangumi</span>
+        </div>
+    <?php endif; ?>
+    <div class="asd-score-pill asd-score-pill--site" id="hero-site-score-pill">
+        <span class="asd-sp-dot"></span>
+        <span class="asd-sp-val wacg-hero-score">暫無</span>
+        <span class="asd-sp-label">WeixiaoACG+</span>
+    </div>
+</div>
 
             <div class="asd-hero-actions">
                 <?php if ( $youtube_id ) : ?>
@@ -593,6 +595,7 @@ foreach ( $cast_list as $c ) {
         </div>
 
 <div class="asd-hside-block" id="wacg-rating-block">
+
     <div class="asd-hside-title">評分</div>
 
     <?php /* ── 三大平台分數 ── */ ?>
@@ -621,16 +624,12 @@ foreach ( $cast_list as $c ) {
     <?php /* ── WeixiaoACG+ 評分區塊 ── */ ?>
     <div class="wacg-rating-divider"></div>
     <div id="wacg-rating-stats" class="wacg-rating-stats">
-
-        <?php /* 總分顯示 */ ?>
         <div class="wacg-score-row">
             <span class="asd-hside-dot wacg-dot-site"></span>
             <span class="asd-hside-key">WeixiaoACG+</span>
             <span class="asd-hside-val wacg-score-main">—</span>
         </div>
-        <div class="wacg-vote-count">載入中…</div>
-
-        <?php /* 四項分類 */ ?>
+        <div class="wacg-vote-count"></div>
         <div class="wacg-cats">
             <div class="wacg-cat-row">
                 <span class="wacg-cat-label">劇情</span>
@@ -649,10 +648,6 @@ foreach ( $cast_list as $c ) {
                 <span class="wacg-cat-val wacg-cat-voice">—</span>
             </div>
         </div>
-
-        <?php /* 分布圖 */ ?>
-        <div class="wacg-dist-bars"></div>
-
     </div>
 
     <?php /* ── 評分表單 ── */ ?>
@@ -670,54 +665,48 @@ foreach ( $cast_list as $c ) {
                     <label class="wacg-slider-label" for="<?php echo esc_attr( $s['id'] ); ?>">
                         <?php echo esc_html( $s['label'] ); ?>
                     </label>
-                    <input
-                        type="range"
+                    <input type="range"
                         id="<?php echo esc_attr( $s['id'] ); ?>"
                         class="wacg-slider"
-                        min="1" max="10" step="0.1" value="5"
-                    >
+                        min="1" max="10" step="0.1" value="5">
                     <span id="<?php echo esc_attr( $s['id'] ); ?>-val" class="wacg-slider-val">5.0</span>
                 </div>
             <?php endforeach; ?>
-            <button type="submit" id="wacg-submit-btn" class="wacg-submit-btn">
-                送出評分
-            </button>
+            <button type="submit" id="wacg-submit-btn" class="wacg-submit-btn">送出評分</button>
         </form>
     <?php else : ?>
         <a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>"
-           class="wacg-login-prompt">
-            🔐 登入後即可評分
-        </a>
+           class="wacg-login-prompt">🔐 登入後即可評分</a>
+    <?php endif; ?>
+
+    <?php /* ── 基本資訊 ── */ ?>
+    <div class="wacg-rating-divider"></div>
+    <?php
+    $meta_rows = array(
+        '集數' => $ep_str,
+        '時長' => $duration ? $duration . ' 分鐘' : '',
+        '原作' => $source_label,
+        '季度' => $season_str,
+        '製作' => $studio,
+    );
+    $has_any_meta = false;
+    foreach ( $meta_rows as $mk => $mv ) :
+        if ( ! strlen( (string) $mv ) ) continue;
+        $has_any_meta = true;
+    ?>
+        <div class="asd-hside-info-row">
+            <span class="asd-hside-info-key"><?php echo esc_html( $mk ); ?></span>
+            <span class="asd-hside-info-val"><?php echo esc_html( $mv ); ?></span>
+        </div>
+    <?php endforeach; ?>
+    <?php if ( ! $has_any_meta ) : ?>
+        <p style="font-size:12px;color:var(--asd-text-muted);text-align:center;padding:8px 0;margin:0;">暫無資料</p>
     <?php endif; ?>
 
 </div>
 
-            <div class="asd-hside-block">
-                <?php
-                $meta_rows = array(
-                    '集數' => $ep_str,
-                    '時長' => $duration ? $duration . ' 分鐘' : '',
-                    '原作' => $source_label,
-                    '季度' => $season_str,
-                    '製作' => $studio,
-                );
-                $has_any_meta = false;
-                foreach ( $meta_rows as $mk => $mv ) :
-                    if ( ! strlen( (string) $mv ) ) continue;
-                    $has_any_meta = true;
-                ?>
-                    <div class="asd-hside-info-row">
-                        <span class="asd-hside-info-key"><?php echo esc_html( $mk ); ?></span>
-                        <span class="asd-hside-info-val"><?php echo esc_html( $mv ); ?></span>
-                    </div>
-                <?php endforeach; ?>
-                <?php if ( ! $has_any_meta ) : ?>
-                    <p style="font-size:12px;color:var(--asd-text-muted);text-align:center;padding:8px 0;margin:0;">暫無資料</p>
-                <?php endif; ?>
-            </div>
-        </div>
+</div><!-- /.asd-hero-new -->
 
-    </div><!-- /.asd-hero-new -->
 
 <?php /* ── Tabs ── */ ?>
 <div class="asd-tabs-wrap">
