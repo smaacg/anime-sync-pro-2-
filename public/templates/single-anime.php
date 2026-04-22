@@ -19,6 +19,20 @@ wp_enqueue_style(
     '18.5'
 );
 
+wp_enqueue_script(
+    'anime-rating',
+    get_stylesheet_directory_uri() . '/assets/js/anime-rating.js',
+    [],
+    '1.0.0',
+    true
+);
+wp_localize_script( 'anime-rating', 'animeRatingData', [
+    'anime_id'  => get_the_ID(),
+    'nonce'     => wp_create_nonce( 'wp_rest' ),
+    'is_logged' => is_user_logged_in(),
+    'login_url' => wp_login_url( get_permalink() ),
+] );
+
 get_header();
 
 while ( have_posts() ) :
@@ -578,33 +592,105 @@ foreach ( $cast_list as $c ) {
 
         </div>
 
-        <div class="asd-hero-sidebar">
-            <?php if ( $score_anilist || $score_mal || $score_bangumi ) : ?>
-                <div class="asd-hside-block">
-                    <div class="asd-hside-title">評分</div>
-                    <?php if ( $score_anilist ) : ?>
-                        <div class="asd-hside-row">
-                            <span class="asd-hside-dot" style="background:var(--asd-score-al)"></span>
-                            <span class="asd-hside-key">AniList</span>
-                            <span class="asd-hside-val"><?php echo esc_html( $score_anilist ); ?></span>
-                        </div>
-                    <?php endif; ?>
-                    <?php if ( $score_mal ) : ?>
-                        <div class="asd-hside-row">
-                            <span class="asd-hside-dot" style="background:var(--asd-score-mal)"></span>
-                            <span class="asd-hside-key">MAL</span>
-                            <span class="asd-hside-val"><?php echo esc_html( $score_mal ); ?></span>
-                        </div>
-                    <?php endif; ?>
-                    <?php if ( $score_bangumi ) : ?>
-                        <div class="asd-hside-row">
-                            <span class="asd-hside-dot" style="background:var(--asd-score-bgm)"></span>
-                            <span class="asd-hside-key">Bangumi</span>
-                            <span class="asd-hside-val"><?php echo esc_html( $score_bangumi ); ?></span>
-                        </div>
-                    <?php endif; ?>
+<div class="asd-hside-block" id="wacg-rating-block">
+    <div class="asd-hside-title">評分</div>
+
+    <?php /* ── 三大平台分數 ── */ ?>
+    <?php if ( $score_anilist ) : ?>
+        <div class="asd-hside-row">
+            <span class="asd-hside-dot" style="background:var(--asd-score-al)"></span>
+            <span class="asd-hside-key">AniList</span>
+            <span class="asd-hside-val"><?php echo esc_html( $score_anilist ); ?></span>
+        </div>
+    <?php endif; ?>
+    <?php if ( $score_mal ) : ?>
+        <div class="asd-hside-row">
+            <span class="asd-hside-dot" style="background:var(--asd-score-mal)"></span>
+            <span class="asd-hside-key">MAL</span>
+            <span class="asd-hside-val"><?php echo esc_html( $score_mal ); ?></span>
+        </div>
+    <?php endif; ?>
+    <?php if ( $score_bangumi ) : ?>
+        <div class="asd-hside-row">
+            <span class="asd-hside-dot" style="background:var(--asd-score-bgm)"></span>
+            <span class="asd-hside-key">Bangumi</span>
+            <span class="asd-hside-val"><?php echo esc_html( $score_bangumi ); ?></span>
+        </div>
+    <?php endif; ?>
+
+    <?php /* ── WeixiaoACG+ 評分區塊 ── */ ?>
+    <div class="wacg-rating-divider"></div>
+    <div id="wacg-rating-stats" class="wacg-rating-stats">
+
+        <?php /* 總分顯示 */ ?>
+        <div class="wacg-score-row">
+            <span class="asd-hside-dot wacg-dot-site"></span>
+            <span class="asd-hside-key">WeixiaoACG+</span>
+            <span class="asd-hside-val wacg-score-main">—</span>
+        </div>
+        <div class="wacg-vote-count">載入中…</div>
+
+        <?php /* 四項分類 */ ?>
+        <div class="wacg-cats">
+            <div class="wacg-cat-row">
+                <span class="wacg-cat-label">劇情</span>
+                <span class="wacg-cat-val wacg-cat-story">—</span>
+            </div>
+            <div class="wacg-cat-row">
+                <span class="wacg-cat-label">音樂</span>
+                <span class="wacg-cat-val wacg-cat-music">—</span>
+            </div>
+            <div class="wacg-cat-row">
+                <span class="wacg-cat-label">作畫</span>
+                <span class="wacg-cat-val wacg-cat-animation">—</span>
+            </div>
+            <div class="wacg-cat-row">
+                <span class="wacg-cat-label">聲優</span>
+                <span class="wacg-cat-val wacg-cat-voice">—</span>
+            </div>
+        </div>
+
+        <?php /* 分布圖 */ ?>
+        <div class="wacg-dist-bars"></div>
+
+    </div>
+
+    <?php /* ── 評分表單 ── */ ?>
+    <?php if ( is_user_logged_in() ) : ?>
+        <form id="wacg-rating-form" class="wacg-rating-form">
+            <?php
+            $sliders = [
+                [ 'id' => 'slider-story',     'label' => '劇情' ],
+                [ 'id' => 'slider-music',     'label' => '音樂' ],
+                [ 'id' => 'slider-animation', 'label' => '作畫' ],
+                [ 'id' => 'slider-voice',     'label' => '聲優' ],
+            ];
+            foreach ( $sliders as $s ) : ?>
+                <div class="wacg-slider-row">
+                    <label class="wacg-slider-label" for="<?php echo esc_attr( $s['id'] ); ?>">
+                        <?php echo esc_html( $s['label'] ); ?>
+                    </label>
+                    <input
+                        type="range"
+                        id="<?php echo esc_attr( $s['id'] ); ?>"
+                        class="wacg-slider"
+                        min="1" max="10" step="0.1" value="5"
+                    >
+                    <span id="<?php echo esc_attr( $s['id'] ); ?>-val" class="wacg-slider-val">5.0</span>
                 </div>
-            <?php endif; ?>
+            <?php endforeach; ?>
+            <button type="submit" id="wacg-submit-btn" class="wacg-submit-btn">
+                送出評分
+            </button>
+        </form>
+    <?php else : ?>
+        <a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>"
+           class="wacg-login-prompt">
+            🔐 登入後即可評分
+        </a>
+    <?php endif; ?>
+
+</div>
 
             <div class="asd-hside-block">
                 <?php
