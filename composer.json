@@ -1,20 +1,9 @@
 {
-    "name": "smaacg/anime-sync-pro",
-    "description": "Anime Sync Pro – WordPress plugin for syncing anime data from AniList, Bangumi, MAL.",
-    "type": "wordpress-plugin",
-    "license": "GPL-2.0-or-later",
+    "name": "anime-sync-pro/plugin",
     "require": {
-        "php": ">=8.0",
-        "overtrue/php-opencc": "^1.3"
+        "overtrue/php-opencc": "^1.0"
     },
     "config": {
-        "optimize-autoloader": true,
-        "preferred-install": "dist",
-        "sort-packages": true
-    },
-    "autoload": {
-        "psr-4": {
-            "AnimeSyncPro\\": "includes/"
-        }
+        "vendor-dir": "vendor"
     }
 }
