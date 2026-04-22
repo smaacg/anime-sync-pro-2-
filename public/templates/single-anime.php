@@ -647,7 +647,7 @@ foreach ( $cast_list as $c ) {
         <?php if ( $official_site || $twitter_url || $wikipedia_url || $tiktok_url || $anilist_id || $mal_id || $bangumi_id ) : ?>
             <a class="asd-tab" href="#asd-sec-links">🔗 外部連結</a>
         <?php endif; ?>
-        <a class="asd-tab" href="#comments">💬 留言</a>
+        <a class="asd-tab" href="#asd-sec-comments">💬 留言</a>
     </nav>
 </div>
 
@@ -1097,11 +1097,13 @@ $badge_class = ( strpos( $t_type, 'OP' ) === 0 )
                 </section>
             <?php endif; ?>
 
-            <?php /* ── 留言 ── */ ?>
-            <section class="asd-section asd-comments" id="comments">
-                <h2 class="asd-section-title">💬 留言</h2>
-                <?php comments_template(); ?>
-            </section>
+           <?php /* ── 留言 ── */ ?>
+<section class="asd-section asd-comments" id="asd-sec-comments">
+    <h2 class="asd-section-title">💬 留言</h2>
+    <div class="asd-comments-inner">
+        <?php comments_template(); ?>
+    </div>
+</section>
 
         </main><!-- /.asd-main -->
 
