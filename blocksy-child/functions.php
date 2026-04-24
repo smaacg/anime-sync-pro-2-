@@ -271,6 +271,103 @@ function smaacg_admin_styles() {
 }
 
 /* ============================================================
+   AJAX — 詳細分類評分（劇情/音樂/作畫/聲優）
+   ============================================================ */
+add_action( 'wp_ajax_smacg_submit_rating_detail', 'smacg_ajax_submit_rating_detail' );
+
+function smacg_ajax_submit_rating_detail(): void {
+
+    // 1. Nonce 驗證（對應 cfg.ajaxNonce = wp_create_nonce('smacg_nonce')）
+    check_ajax_referer( 'smacg_nonce', 'nonce' );
+
+    // 2. 登入驗證
+    $uid = get_current_user_id();
+    if ( ! $uid ) {
+        wp_send_json_error( [ 'msg' => '請先登入才能評分' ], 401 );
+    }
+
+    // 3. Post ID 驗證
+    $post_id = (int) ( $_POST['post_id'] ?? 0 );
+    if ( ! $post_id || get_post_type( $post_id ) !== 'anime' ) {
+        wp_send_json_error( [ 'msg' => '無效的動漫 ID' ], 400 );
+    }
+
+    // 4. 讀取並驗證四個分項（1–10）
+    $keys = [ 'story', 'music', 'animation', 'voice' ];
+    $scores = [];
+    foreach ( $keys as $key ) {
+        $val = isset( $_POST[ $key ] ) ? (float) $_POST[ $key ] : null;
+        if ( $val === null || $val < 1 || $val > 10 ) {
+            wp_send_json_error( [ 'msg' => "「{$key}」分數無效，應介於 1–10" ], 400 );
+        }
+        $scores[ $key ] = round( $val, 1 );
+    }
+
+    // 5. 計算個人平均
+    $avg = round( array_sum( $scores ) / count( $scores ), 2 );
+
+    // 6. 存使用者評分（整包存，方便後續讀取）
+    $user_rating = array_merge( $scores, [ 'avg' => $avg, 'time' => time() ] );
+    update_user_meta( $uid, "smacg_rating_detail_{$post_id}", $user_rating );
+
+    // 7. 重新計算全站平均
+    global $wpdb;
+    $meta_key   = "smacg_rating_detail_{$post_id}";
+    $all_ratings = $wpdb->get_col( $wpdb->prepare(
+        "SELECT meta_value FROM {$wpdb->usermeta} WHERE meta_key = %s",
+        $meta_key
+    ) );
+
+    $totals = [ 'story' => 0, 'music' => 0, 'animation' => 0, 'voice' => 0 ];
+    $count  = 0;
+    foreach ( $all_ratings as $raw ) {
+        $r = maybe_unserialize( $raw );
+        if ( ! is_array( $r ) ) continue;
+        foreach ( $keys as $k ) {
+            $totals[ $k ] += (float) ( $r[ $k ] ?? 0 );
+        }
+        $count++;
+    }
+
+    if ( $count > 0 ) {
+        $site = [];
+        foreach ( $keys as $k ) {
+            $site[ $k ] = round( $totals[ $k ] / $count, 1 );
+        }
+        $site_avg = round( array_sum( $site ) / count( $site ), 1 );
+
+        // 8. 更新 post meta
+        update_post_meta( $post_id, 'smacg_site_score',           $site_avg          );
+        update_post_meta( $post_id, 'smacg_site_score_story',     $site['story']     );
+        update_post_meta( $post_id, 'smacg_site_score_music',     $site['music']     );
+        update_post_meta( $post_id, 'smacg_site_score_animation', $site['animation'] );
+        update_post_meta( $post_id, 'smacg_site_score_voice',     $site['voice']     );
+        update_post_meta( $post_id, 'smacg_site_score_count',     $count             );
+
+        wp_send_json_success( [
+            'msg'   => '評分成功，感謝你的評價！',
+            'avg'   => $site_avg,
+            'story' => $site['story'],
+            'music' => $site['music'],
+            'animation' => $site['animation'],
+            'voice' => $site['voice'],
+            'count' => $count,
+        ] );
+    }
+
+    // 只有一筆（就是剛剛自己）
+    wp_send_json_success( [
+        'msg'   => '評分成功！',
+        'avg'   => $avg,
+        'story' => $scores['story'],
+        'music' => $scores['music'],
+        'animation' => $scores['animation'],
+        'voice' => $scores['voice'],
+        'count' => 1,
+    ] );
+}
+
+/* ============================================================
    AJAX — 收藏
    ============================================================ */
 add_action( 'wp_ajax_smaacg_toggle_favorite', 'smaacg_ajax_toggle_favorite' );
@@ -806,12 +903,13 @@ add_action( 'um_user_login', function ( $user_id ) {
 add_action( 'wp_enqueue_scripts', function () {
     if ( ! is_singular( 'anime' ) ) return;
 
-    wp_enqueue_style(
-        'smacg-anime-status',
-        get_stylesheet_directory_uri() . '/assets/css/anime-status.css',
-        [],
-        '1.0.0'
-    );
+wp_enqueue_script(
+    'smacg-anime-status',
+    get_stylesheet_directory_uri() . '/assets/js/anime-status.js',
+    [ 'jquery' ],
+    filemtime( get_stylesheet_directory() . '/assets/js/anime-status.js' ),
+    true
+);
 
     wp_enqueue_script(
         'smacg-anime-status',
