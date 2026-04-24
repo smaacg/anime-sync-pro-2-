@@ -34,7 +34,6 @@ class Anime_Sync_Image_Handler {
 
     // ============================================================
     // 模式一：直接使用 API URL
-    // Bug 2 修正：先檢查 featured image 是否已存在，避免重複下載
     // ============================================================
     private function handle_api_url( string $url, string $anime_title, int $post_id ): array {
         if ( ! $this->validate_url( $url ) ) {
@@ -47,14 +46,13 @@ class Anime_Sync_Image_Handler {
         if ( $post_id ) {
             update_post_meta( $post_id, 'anime_cover_image', $clean_url );
 
-            // ✅ Bug 2 修正：已有 featured image 就不重複下載
             if ( ! has_post_thumbnail( $post_id ) ) {
                 $attachment_id = $this->download_and_upload( $url, $anime_title, $post_id, true );
                 if ( ! $attachment_id ) {
                     $this->logger->log( 'warning', 'api_url 模式：無法下載封面至媒體庫，改用外部 URL', [
                         'url'   => $url,
                         'title' => $anime_title,
-                    ]);
+                    ] );
                 }
             }
         }
@@ -64,7 +62,6 @@ class Anime_Sync_Image_Handler {
 
     // ============================================================
     // 模式二：上傳至媒體庫
-    // Bug 2 修正：先檢查 featured image 是否已存在
     // ============================================================
     private function handle_media_library( string $url, string $anime_title, int $post_id ): array {
         if ( ! $this->validate_url( $url ) ) {
@@ -72,7 +69,6 @@ class Anime_Sync_Image_Handler {
             return [ 'method' => 'media_library', 'value' => 0 ];
         }
 
-        // ✅ Bug 2 修正：已有 featured image 就不重複下載
         if ( $post_id && has_post_thumbnail( $post_id ) ) {
             return [ 'method' => 'media_library', 'value' => get_post_thumbnail_id( $post_id ) ];
         }
@@ -80,17 +76,16 @@ class Anime_Sync_Image_Handler {
         $attachment_id = $this->download_and_upload( $url, $anime_title, $post_id );
 
         if ( $attachment_id ) {
+            // ✅ 修正：resize_image() 現在會覆蓋原始檔並更新 attachment metadata
             $this->resize_image( $attachment_id, $this->cover_width, $this->cover_height );
             return [ 'method' => 'media_library', 'value' => $attachment_id ];
         }
 
-        // 失敗時 fallback 到 api_url
         return $this->handle_api_url( $url, $anime_title, $post_id );
     }
 
     // ============================================================
     // 模式三：CDN 代理
-    // Bug 2 修正：先檢查 featured image 是否已存在
     // ============================================================
     private function handle_cdn( string $url, string $anime_title, int $post_id ): array {
         $cdn_url = $this->build_cdn_url( $url, $this->cover_width, $this->cover_height );
@@ -98,14 +93,13 @@ class Anime_Sync_Image_Handler {
         if ( $post_id ) {
             update_post_meta( $post_id, 'anime_cover_image', esc_url_raw( $cdn_url ) );
 
-            // ✅ Bug 2 修正：已有 featured image 就不重複下載
             if ( ! has_post_thumbnail( $post_id ) ) {
                 $attachment_id = $this->download_and_upload( $url, $anime_title, $post_id, true );
                 if ( ! $attachment_id ) {
                     $this->logger->log( 'warning', 'cdn 模式：無法下載封面至媒體庫，改用 CDN URL', [
                         'url'   => $cdn_url,
                         'title' => $anime_title,
-                    ]);
+                    ] );
                 }
             }
         }
@@ -124,7 +118,7 @@ class Anime_Sync_Image_Handler {
         $response = wp_remote_head( $url, [
             'timeout'   => 8,
             'sslverify' => false,
-        ]);
+        ] );
 
         if ( is_wp_error( $response ) ) return false;
 
@@ -149,12 +143,12 @@ class Anime_Sync_Image_Handler {
                 $this->logger->log( 'error', '封面圖下載失敗', [
                     'url'   => $url,
                     'error' => $temp_file->get_error_message(),
-                ]);
+                ] );
             }
             return false;
         }
 
-        $alt_text  = trim( $title ) . ' 封面圖 | 動漫資料庫';
+        $alt_text  = trim( $title ) . ' 封面圖 | 動畫資料庫';
         $file_name = sanitize_file_name( $title . '-cover.jpg' );
 
         $file_array = [
@@ -171,15 +165,13 @@ class Anime_Sync_Image_Handler {
                 $this->logger->log( 'error', '封面圖上傳失敗', [
                     'title' => $title,
                     'error' => $attachment_id->get_error_message(),
-                ]);
+                ] );
             }
             return false;
         }
 
-        // 設定 Alt Text
         update_post_meta( $attachment_id, '_wp_attachment_image_alt', sanitize_text_field( $alt_text ) );
 
-        // 設定為 Featured Image
         if ( $post_id ) {
             set_post_thumbnail( $post_id, $attachment_id );
         }
@@ -188,26 +180,162 @@ class Anime_Sync_Image_Handler {
     }
 
     // ============================================================
-    // 裁切圖片至目標尺寸
+    // ✅ 修正版 resize_image()
+    //
+    // 舊版問題：
+    //   1. 另存到 /anime-covers/ 子目錄，產生孤兒檔
+    //   2. 只回傳 bool，沒更新 attachment metadata
+    //   3. WordPress 前台永遠用舊圖
+    //
+    // 修正做法：
+    //   1. 直接覆蓋原始檔案（不產生孤兒）
+    //   2. 呼叫 wp_generate_attachment_metadata() 重新產生所有尺寸
+    //   3. 呼叫 wp_update_attachment_metadata() 寫回資料庫
+    //   4. 清除 WordPress object cache，確保前台立即生效
+    //   5. 同時清理舊版遺留的 /anime-covers/ 孤兒檔
     // ============================================================
     public function resize_image( int $attachment_id, int $width = 460, int $height = 651 ): bool {
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+
         $file_path = get_attached_file( $attachment_id );
 
-        if ( ! $file_path || ! file_exists( $file_path ) ) return false;
+        if ( ! $file_path || ! file_exists( $file_path ) ) {
+            $this->logger->log( 'warning', 'resize_image：找不到附件檔案', [
+                'attachment_id' => $attachment_id,
+                'file_path'     => $file_path,
+            ] );
+            return false;
+        }
 
+        // ── 1. 取得圖片編輯器 ──────────────────────────────────────────
         $image = wp_get_image_editor( $file_path );
-        if ( is_wp_error( $image ) ) return false;
+        if ( is_wp_error( $image ) ) {
+            $this->logger->log( 'warning', 'resize_image：無法建立 Image Editor', [
+                'attachment_id' => $attachment_id,
+                'error'         => $image->get_error_message(),
+            ] );
+            return false;
+        }
 
-        $image->resize( $width, $height, true );
+        // ── 2. 取得原始尺寸，若已符合目標就跳過（避免無意義裁切）──────
+        $current_size = $image->get_size();
+        if (
+            isset( $current_size['width'], $current_size['height'] ) &&
+            (int) $current_size['width']  === $width &&
+            (int) $current_size['height'] === $height
+        ) {
+            return true; // 尺寸已正確，無需處理
+        }
 
-        $upload_dir    = wp_upload_dir();
-        $new_file_path = $upload_dir['path'] . '/anime-covers/' . basename( $file_path );
+        // ── 3. 裁切（true = 強制裁切，不留白）──────────────────────────
+        $resized = $image->resize( $width, $height, true );
+        if ( is_wp_error( $resized ) ) {
+            $this->logger->log( 'warning', 'resize_image：resize 失敗', [
+                'attachment_id' => $attachment_id,
+                'error'         => $resized->get_error_message(),
+            ] );
+            return false;
+        }
 
-        wp_mkdir_p( dirname( $new_file_path ) );
+        // ── 4. 覆蓋儲存回原始路徑（不產生孤兒檔）──────────────────────
+        $saved = $image->save( $file_path );
+        if ( is_wp_error( $saved ) ) {
+            $this->logger->log( 'warning', 'resize_image：儲存失敗', [
+                'attachment_id' => $attachment_id,
+                'file_path'     => $file_path,
+                'error'         => $saved->get_error_message(),
+            ] );
+            return false;
+        }
 
-        $saved = $image->save( $new_file_path );
+        // ── 5. 重新產生所有 WordPress intermediate sizes（thumbnail、medium 等）
+        //       並更新 attachment metadata，讓前台立即反映新尺寸 ──────────
+        $new_metadata = wp_generate_attachment_metadata( $attachment_id, $file_path );
 
-        return ! is_wp_error( $saved );
+        if ( ! empty( $new_metadata ) ) {
+            wp_update_attachment_metadata( $attachment_id, $new_metadata );
+        }
+
+        // ── 6. 清除 object cache，確保前台不讀到舊快取 ──────────────────
+        clean_attachment_cache( $attachment_id );
+
+        // ── 7. ✅ 清理舊版遺留的孤兒檔（/anime-covers/ 子目錄）──────────
+        $this->cleanup_orphan_covers( $file_path );
+
+        $this->logger->log( 'info', 'resize_image：裁切完成', [
+            'attachment_id' => $attachment_id,
+            'size'          => "{$width}x{$height}",
+            'file_path'     => $file_path,
+        ] );
+
+        return true;
+    }
+
+    // ============================================================
+    // ✅ 新增：清理舊版孤兒檔
+    //    舊版 resize_image() 把裁切圖存在 uploads/{year}/{month}/anime-covers/
+    //    這個方法會找到對應孤兒並刪除
+    // ============================================================
+    private function cleanup_orphan_covers( string $original_file_path ): void {
+        $orphan_dir  = dirname( $original_file_path ) . '/anime-covers/';
+        $orphan_file = $orphan_dir . basename( $original_file_path );
+
+        if ( file_exists( $orphan_file ) ) {
+            @unlink( $orphan_file );
+            $this->logger->log( 'info', 'resize_image：已清除孤兒檔', [
+                'orphan_file' => $orphan_file,
+            ] );
+        }
+
+        // 如果目錄已空，也一併移除
+        if ( is_dir( $orphan_dir ) ) {
+            $remaining = array_diff( scandir( $orphan_dir ), [ '.', '..' ] );
+            if ( empty( $remaining ) ) {
+                @rmdir( $orphan_dir );
+            }
+        }
+    }
+
+    // ============================================================
+    // ✅ 新增：一次性批次清理所有歷史孤兒檔
+    //    可在後台手動呼叫，或掛 WP-Cron 定期執行
+    //    回傳：刪除的檔案數量
+    // ============================================================
+    public function cleanup_all_orphan_covers(): int {
+        $upload_base = wp_upload_dir()['basedir'];
+        $deleted     = 0;
+
+        // 掃描 uploads/ 下所有 anime-covers 子目錄
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator( $upload_base, RecursiveDirectoryIterator::SKIP_DOTS ),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ( $iterator as $path => $file_info ) {
+            if ( $file_info->isDir() && $file_info->getFilename() === 'anime-covers' ) {
+                $dir_path   = $file_info->getRealPath();
+                $dir_files  = array_diff( scandir( $dir_path ), [ '.', '..' ] );
+
+                foreach ( $dir_files as $filename ) {
+                    $full_path = $dir_path . DIRECTORY_SEPARATOR . $filename;
+                    if ( is_file( $full_path ) && @unlink( $full_path ) ) {
+                        $deleted++;
+                    }
+                }
+
+                // 目錄清空後移除
+                $remaining = array_diff( scandir( $dir_path ), [ '.', '..' ] );
+                if ( empty( $remaining ) ) {
+                    @rmdir( $dir_path );
+                }
+            }
+        }
+
+        $this->logger->log( 'info', 'cleanup_all_orphan_covers：批次清理完成', [
+            'deleted_files' => $deleted,
+        ] );
+
+        return $deleted;
     }
 
     // ============================================================
