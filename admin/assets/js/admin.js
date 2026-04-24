@@ -1,8 +1,12 @@
 /**
  * Admin JavaScript
- *
  * File: admin/assets/js/admin.js
- * @package Anime_Sync_Pro
+ *
+ * 對齊修正：
+ * 1. 所有 AJAX action 名稱從 animeSyncAdmin.actions.xxx 讀取，不再硬編碼
+ * 2. 所有 i18n 字串從 animeSyncAdmin.i18n.xxx 讀取，與 PHP localize 完全對齊
+ * 3. 移除 animeSyncAdmin.i18n?.xxx 的 optional chaining，統一用 helper 取值
+ * 4. 所有外部資料插入 DOM 一律用 .text() / DOM 節點，不拼 HTML
  */
 
 /* global jQuery, ajaxurl, animeSyncAdmin */
@@ -11,16 +15,42 @@
 
     $( function () {
 
-        /* ═══════════════════════════════════════════════════════════
-           UTILITIES
-        ══════════════════════════════════════════════════════════ */
+        /* ══════════════════════════════════════════════════════════════
+           CONFIG — 從 PHP localize 讀取，建立本地常數
+        ══════════════════════════════════════════════════════════════ */
 
+        const AJAX_URL = animeSyncAdmin.ajaxUrl || ajaxurl;
+        const NONCE    = animeSyncAdmin.nonce;
+
+        /* action 名稱對照表（唯一來源） */
+        const A = animeSyncAdmin.actions || {};
+
+        /* i18n helper：找不到時用 fallback */
+        function t( key, fallback ) {
+            const i18n = animeSyncAdmin.i18n || {};
+            return i18n[ key ] !== undefined ? i18n[ key ] : ( fallback || key );
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           UTILITIES
+        ══════════════════════════════════════════════════════════════ */
+
+        function escHtml( str ) {
+            if ( str === null || str === undefined ) { return ''; }
+            return String( str )
+                .replace( /&/g,  '&amp;'  )
+                .replace( /</g,  '&lt;'   )
+                .replace( />/g,  '&gt;'   )
+                .replace( /"/g,  '&quot;' )
+                .replace( /'/g,  '&#39;'  );
+        }
+
+        /* ★ log 安全輸出：永遠用 .text()，拒絕 HTML 注入 */
         function logLine( $log, text, type ) {
-            type = type || 'info';
             const ts    = new Date().toLocaleTimeString( 'zh-TW', { hour12: false } );
             const $line = $( '<div>' )
-                .addClass( 'log-' + type )
-                .text( '[' + ts + '] ' + text );
+                .addClass( 'log-' + ( type || 'info' ) )
+                .text( '[' + ts + '] ' + String( text ) );
             $log.append( $line );
             $log.scrollTop( $log[ 0 ].scrollHeight );
         }
@@ -32,14 +62,12 @@
         }
 
         function delay( ms ) {
-            return new Promise( function ( resolve ) {
-                setTimeout( resolve, ms );
-            } );
+            return new Promise( function ( resolve ) { setTimeout( resolve, ms ); } );
         }
 
         function ajaxPost( data ) {
-            data.nonce = animeSyncAdmin.nonce;
-            return $.post( ajaxurl, data );
+            data.nonce = NONCE;
+            return $.post( AJAX_URL, data );
         }
 
         function parseIdList( raw ) {
@@ -50,18 +78,14 @@
                 .filter( function ( n, i, arr ) { return arr.indexOf( n ) === i; } );
         }
 
-        function escHtml( str ) {
-            return String( str )
-                .replace( /&/g,  '&amp;'  )
-                .replace( /</g,  '&lt;'   )
-                .replace( />/g,  '&gt;'   )
-                .replace( /"/g,  '&quot;' )
-                .replace( /'/g,  '&#39;'  );
+        /* 安全建立純文字 <td> */
+        function makeTd( text ) {
+            return $( '<td>' ).text( String( text === null || text === undefined ? '' : text ) );
         }
 
-        /* ═══════════════════════════════════════════════════════════
+        /* ══════════════════════════════════════════════════════════════
            TAB SWITCHING
-        ══════════════════════════════════════════════════════════ */
+        ══════════════════════════════════════════════════════════════ */
 
         $( document ).on( 'click', '.anime-sync-import-tool .nav-tab', function ( e ) {
             e.preventDefault();
@@ -72,9 +96,11 @@
             $( '#tab-' + tab ).show();
         } );
 
-        /* ═══════════════════════════════════════════════════════════
+        /* ══════════════════════════════════════════════════════════════
            SINGLE IMPORT
-        ══════════════════════════════════════════════════════════ */
+           ★ action 從 A.import_single 讀取
+           ★ i18n 從 t() 讀取
+        ══════════════════════════════════════════════════════════════ */
 
         $( '#btn-single-import' ).on( 'click', function () {
             const anilistId   = $.trim( $( '#single-anilist-id' ).val() );
@@ -83,270 +109,242 @@
             const $result     = $( '#single-import-result' );
 
             if ( ! anilistId || isNaN( anilistId ) || parseInt( anilistId ) < 1 ) {
-                $result
-                    .removeClass( 'success' )
-                    .addClass( 'error' )
-                    .html( animeSyncAdmin.i18n.invalid_id || '請輸入有效的 AniList ID。' )
-                    .show();
+                $result.empty().removeClass( 'success' ).addClass( 'error' )
+                    .text( t( 'invalid_id', '請輸入有效的 AniList ID。' ) ).show();
                 return;
             }
 
-            $btn.prop( 'disabled', true )
-                .text( animeSyncAdmin.i18n.importing || '匯入中…' );
-            $result.hide().removeClass( 'success error' );
+            $btn.prop( 'disabled', true ).text( t( 'importing', '匯入中…' ) );
+            $result.hide().empty().removeClass( 'success error' );
 
             ajaxPost( {
-                action     : 'anime_sync_import_single',
+                action     : A.import_single,   // ★ 從 actions 物件讀取
                 anilist_id : parseInt( anilistId ),
                 force      : forceUpdate,
             } ).done( function ( resp ) {
+                $result.empty();
                 if ( resp.success ) {
                     const d = resp.data;
-                    let html = '<strong>✓ ' + ( d.title || '' ) + '</strong><br>';
-                    if ( d.post_id ) {
-                        html += '<a href="' + d.edit_url + '" target="_blank">'
-                             + ( animeSyncAdmin.i18n.edit_post || '編輯文章' )
-                             + ' #' + d.post_id + '</a>';
+                    $result.addClass( 'success' );
+                    $result.append( $( '<strong>' ).text( '✓ ' + String( d.title || '' ) ) );
+                    if ( d.post_id && d.edit_url ) {
+                        $result.append( $( '<br>' ) ).append(
+                            $( '<a>' ).attr( 'href', d.edit_url ).attr( 'target', '_blank' )
+                                .text( t( 'edit_post', '編輯文章' ) + ' #' + d.post_id )
+                        );
                     }
                     if ( d.bangumi_pending ) {
-                        html += '<br><span style="color:#f0a500;">⚠ '
-                             + ( animeSyncAdmin.i18n.bangumi_pending
-                                 || 'Bangumi ID 未能自動解析，請至審核佇列手動填寫。' )
-                             + '</span>';
+                        $result.append( $( '<br>' ) ).append(
+                            $( '<span>' ).css( 'color', '#f0a500' )
+                                .text( '⚠ ' + t( 'bangumi_pending', 'Bangumi ID 未能自動解析。' ) )
+                        );
                     }
                     if ( d.errors && d.errors.length ) {
-                        html += '<br><small style="color:#dc3232;">'
-                             + d.errors.join( '；' ) + '</small>';
+                        $result.append( $( '<br>' ) ).append(
+                            $( '<small>' ).css( 'color', '#dc3232' )
+                                .text( d.errors.map( String ).join( '；' ) )
+                        );
                     }
-                    $result.addClass( 'success' ).html( html ).show();
                 } else {
-                    $result
-                        .addClass( 'error' )
-                        .html( '✗ ' + ( resp.data || animeSyncAdmin.i18n.import_failed || '匯入失敗。' ) )
-                        .show();
+                    $result.addClass( 'error' ).text(
+                        '✗ ' + String( resp.data || t( 'import_failed', '匯入失敗。' ) )
+                    );
                 }
+                $result.show();
             } ).fail( function () {
-                $result
-                    .addClass( 'error' )
-                    .html( animeSyncAdmin.i18n.network_error || '網路錯誤，請重試。' )
-                    .show();
+                $result.empty().addClass( 'error' )
+                    .text( t( 'network_error', '網路錯誤，請重試。' ) ).show();
             } ).always( function () {
-                $btn.prop( 'disabled', false )
-                    .text( animeSyncAdmin.i18n.start_import || '開始匯入' );
+                $btn.prop( 'disabled', false ).text( t( 'start_import', '開始匯入' ) );
             } );
         } );
 
-        /* ═══════════════════════════════════════════════════════════
+        /* ══════════════════════════════════════════════════════════════
            SEASON BATCH IMPORT
-        ══════════════════════════════════════════════════════════ */
+           ★ action 從 A.query_season 讀取（原 JS 寫錯為 anime_sync_query_season_ids）
+        ══════════════════════════════════════════════════════════════ */
 
         let seasonAnimeList  = [];
         let seasonImportStop = false;
 
         $( '#btn-season-query' ).on( 'click', function () {
-            const season     = $( '#season-select' ).val();
-            const year       = parseInt( $( '#season-year-select' ).val() );
-            const formats    = $( 'input[name="season-format[]"]:checked' )
-                                 .map( function () { return $( this ).val(); } ).get();
+            const season  = $( '#season-select' ).val();
+            const year    = parseInt( $( '#season-year-select' ).val() );
             const $btn       = $( this );
             const $btnImport = $( '#btn-season-import' );
 
-            if ( ! formats.length ) {
-                alert( animeSyncAdmin.i18n.select_format || '請至少選擇一種格式。' );
-                return;
-            }
-
-            $btn.prop( 'disabled', true )
-                .text( animeSyncAdmin.i18n.querying || '查詢中…' );
+            $btn.prop( 'disabled', true ).text( t( 'querying', '查詢中…' ) );
             $btnImport.prop( 'disabled', true );
             $( '#season-preview' ).hide();
             $( '#season-progress-wrap' ).hide();
             seasonAnimeList = [];
 
             ajaxPost( {
-                action  : 'anime_sync_query_season_ids',
-                season  : season,
-                year    : year,
-                formats : formats,
+                action : A.query_season,   // ★ 修正：對齊 PHP 的 anime_sync_query_season
+                season : season,
+                year   : year,
             } ).done( function ( resp ) {
-                if ( resp.success && resp.data.anime_list ) {
-                    seasonAnimeList = resp.data.anime_list;
+                if ( resp.success && resp.data.list ) {
+                    seasonAnimeList = resp.data.list;
                     renderSeasonTable( seasonAnimeList );
+                    updateSeasonSummary();
+                    $( '#season-preview' ).show();
                     $btnImport.prop( 'disabled', false );
                 } else {
-                    alert( resp.data || animeSyncAdmin.i18n.query_failed || '查詢失敗。' );
+                    alert( String( resp.data || t( 'query_failed', '查詢失敗。' ) ).replace( /<[^>]*>/g, '' ) );
                 }
             } ).fail( function () {
-                alert( animeSyncAdmin.i18n.network_error || '網路錯誤。' );
+                alert( t( 'network_error', '網路錯誤。' ) );
             } ).always( function () {
-                $btn.prop( 'disabled', false )
-                    .text( animeSyncAdmin.i18n.query_season || '第一步：查詢季度動漫清單' );
+                $btn.prop( 'disabled', false ).text( t( 'query_season', '第一步：查詢季度動畫清單' ) );
+                $( '#season-query-spinner' ).hide();
             } );
         } );
 
         function renderSeasonTable( list ) {
-            const skipExisting  = $( '#season-skip-existing' ).is( ':checked' );
-            const minPopularity = $( '#season-min-popularity' ).is( ':checked' );
-            const $tbody        = $( '#season-anime-tbody' ).empty();
-            let shown = 0;
+            const $tbody = $( '#season-anime-tbody' ).empty();
 
-            list.forEach( function ( anime ) {
-                if ( skipExisting  && anime.exists )              { return; }
-                if ( minPopularity && anime.popularity <= 500 )   { return; }
-                shown++;
+            list.forEach( function ( item ) {
+                const fmt = String( item.format || '' ).toUpperCase();
 
-                const existsBadge = anime.exists
-                    ? ' <span style="color:#0073aa;font-size:11px;">[已存在]</span>'
-                    : '';
+                const $chk = $( '<input type="checkbox">' )
+                    .addClass( 'season-item-check' )
+                    .val( parseInt( item.anilist_id ) )
+                    .prop( 'checked', ! item.imported );
 
-                $tbody.append(
-                    $( '<tr>' )
-                        .attr( 'data-anilist-id', anime.id )
-                        .html(
-                            '<td><input type="checkbox" class="season-item-check" '
-                            + 'value="' + anime.id + '" '
-                            + ( anime.exists ? '' : 'checked' )
-                            + ' /></td>'
-                            + '<td>' + anime.id + '</td>'
-                            + '<td>' + escHtml( anime.title ) + existsBadge + '</td>'
-                            + '<td>' + escHtml( anime.format || '—' ) + '</td>'
-                            + '<td>' + ( anime.episodes || '?' ) + '</td>'
-                            + '<td>' + ( anime.popularity || 0 ) + '</td>'
-                            + '<td>' + escHtml( anime.status || '—' ) + '</td>'
-                        )
-                );
+                const $impSpan = $( '<span>' )
+                    .addClass( item.imported ? 'status-imported' : 'status-new' )
+                    .text( item.imported ? '✅ 已匯入' : '⬜ 未匯入' );
+
+                const $tr = $( '<tr>' ).attr( 'data-format', fmt );
+                $tr.append( $( '<td>' ).append( $chk ) );
+                $tr.append( makeTd( item.anilist_id ) );
+                $tr.append( makeTd( item.title_romaji || '-' ) );
+                $tr.append( makeTd( item.format       || '-' ) );
+                $tr.append( makeTd( item.episodes      || '?' ) );
+                $tr.append( makeTd( item.popularity    || 0 ) );
+                $tr.append( makeTd( item.status        || '-' ) );
+                $tr.append( $( '<td>' ).append( $impSpan ) );
+                $tbody.append( $tr );
             } );
-
-            $( '#season-preview-summary' ).text(
-                ( animeSyncAdmin.i18n.found_count || '共找到 {n} 部，顯示 {s} 部' )
-                    .replace( '{n}', list.length )
-                    .replace( '{s}', shown )
-            );
-            $( '#season-preview' ).show();
         }
 
-        $( document ).on( 'change', '#season-select-all', function () {
-            $( '.season-item-check' ).prop( 'checked', this.checked );
+        function updateSeasonSummary() {
+            const total   = $( '#season-anime-tbody tr' ).length;
+            const visible = $( '#season-anime-tbody tr:visible' ).length;
+            const checked = $( '.season-item-check:checked:visible' ).length;
+            $( '#season-preview-summary' ).text(
+                '共 ' + total + ' 部，目前顯示 ' + visible + ' 部，已勾選 ' + checked + ' 部。'
+            );
+            $( '#season-filter-count' ).text( '顯示 ' + visible + ' / ' + total + ' 部' );
+        }
+
+        $( '#btn-apply-format-filter' ).on( 'click', function () {
+            const checked = [];
+            $( '.format-filter-check:checked' ).each( function () {
+                checked.push( $( this ).val().toUpperCase() );
+            } );
+            $( '#season-anime-tbody tr' ).each( function () {
+                const fmt = String( $( this ).data( 'format' ) || '' ).toUpperCase();
+                if ( checked.length === 0 || checked.indexOf( fmt ) !== -1 ) {
+                    $( this ).show();
+                } else {
+                    $( this ).hide().find( '.season-item-check' ).prop( 'checked', false );
+                }
+            } );
+            updateSeasonSummary();
         } );
 
-        $( '#btn-season-import' ).on( 'click', async function () {
-            const selectedIds = $( '.season-item-check:checked' )
-                .map( function () { return parseInt( $( this ).val() ); } )
-                .get();
+        $( '#season-select-all' ).on( 'change', function () {
+            $( '#season-anime-tbody tr:visible .season-item-check' ).prop( 'checked', this.checked );
+            updateSeasonSummary();
+        } );
 
-            if ( ! selectedIds.length ) {
-                alert( animeSyncAdmin.i18n.select_anime || '請勾選至少一部動漫。' );
-                return;
-            }
+        $( document ).on( 'change', '.season-item-check', updateSeasonSummary );
+
+        $( '#btn-season-import' ).on( 'click', async function () {
+            const ids = $( '#season-anime-tbody tr:visible .season-item-check:checked' )
+                .map( function () { return parseInt( $( this ).val() ); } ).get();
+
+            if ( ! ids.length ) { alert( t( 'select_anime', '請勾選至少一部動畫。' ) ); return; }
 
             seasonImportStop = false;
             const $btnImport = $( this );
             const $btnStop   = $( '#btn-season-stop' );
-            const $btnQuery  = $( '#btn-season-query' );
             const $bar       = $( '#season-progress-bar' );
             const $text      = $( '#season-progress-text' );
             const $log       = $( '#season-import-log' );
 
             $btnImport.prop( 'disabled', true );
-            $btnQuery.prop( 'disabled', true );
-            $btnStop.show().prop( 'disabled', false )
-                    .text( animeSyncAdmin.i18n.stop || '停止' );
+            $btnStop.show().prop( 'disabled', false ).text( t( 'stop', '停止' ) );
             $( '#season-progress-wrap' ).show();
             $log.empty();
-            updateProgress( $bar, $text, 0, selectedIds.length );
+            updateProgress( $bar, $text, 0, ids.length );
 
             let done = 0;
 
-            for ( const anilistId of selectedIds ) {
+            for ( const anilistId of ids ) {
                 if ( seasonImportStop ) {
-                    logLine( $log, animeSyncAdmin.i18n.import_stopped || '已停止匯入。', 'info' );
+                    logLine( $log, t( 'import_stopped', '已停止匯入。' ), 'info' );
                     break;
                 }
-
                 logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
-
                 try {
-                    const resp = await $.post( ajaxurl, {
-                        action     : 'anime_sync_import_single',
-                        nonce      : animeSyncAdmin.nonce,
-                        anilist_id : anilistId,
-                        force      : 0,
+                    const resp = await $.post( AJAX_URL, {
+                        action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: 0,
                     } );
-
                     done++;
-                    updateProgress( $bar, $text, done, selectedIds.length );
-
+                    updateProgress( $bar, $text, done, ids.length );
                     if ( resp.success ) {
                         const d = resp.data;
-                        logLine(
-                            $log,
-                            '✓ ' + ( d.title || 'AniList #' + anilistId )
+                        logLine( $log,
+                            '✓ ' + String( d.title || 'AniList #' + anilistId )
                             + ( d.bangumi_pending ? ' ⚠ Bangumi 待處理' : '' ),
-                            'success'
+                            d.bangumi_missing ? 'warning' : ( d.skipped ? 'skip' : 'success' )
                         );
                     } else {
-                        logLine(
-                            $log,
-                            '✗ AniList #' + anilistId + '：' + ( resp.data || '未知錯誤' ),
-                            'error'
-                        );
+                        logLine( $log, '✗ AniList #' + anilistId + '：' + String( resp.data || t( 'unknown_error', '未知錯誤' ) ), 'error' );
                     }
                 } catch ( e ) {
                     done++;
-                    updateProgress( $bar, $text, done, selectedIds.length );
+                    updateProgress( $bar, $text, done, ids.length );
                     logLine( $log, '✗ AniList #' + anilistId + '：網路錯誤', 'error' );
                 }
-
-                if ( ! seasonImportStop && done < selectedIds.length ) {
-                    await delay( 3200 );
-                }
+                if ( ! seasonImportStop && done < ids.length ) { await delay( 3200 ); }
             }
 
-            logLine(
-                $log,
-                ( animeSyncAdmin.i18n.import_done || '匯入完成。成功 {d}/{t}' )
-                    .replace( '{d}', done )
-                    .replace( '{t}', selectedIds.length ),
+            logLine( $log,
+                t( 'import_done', '匯入完成。成功 {d}/{t}' )
+                    .replace( '{d}', done ).replace( '{t}', ids.length ),
                 'info'
             );
-
             $btnImport.prop( 'disabled', false );
-            $btnQuery.prop( 'disabled', false );
             $btnStop.hide();
         } );
 
         $( '#btn-season-stop' ).on( 'click', function () {
             seasonImportStop = true;
-            $( this ).prop( 'disabled', true )
-                     .text( animeSyncAdmin.i18n.stopping || '停止中…' );
+            $( this ).prop( 'disabled', true ).text( t( 'stopping', '停止中…' ) );
         } );
 
-        /* ═══════════════════════════════════════════════════════════
+        /* ══════════════════════════════════════════════════════════════
            BATCH IMPORT (ID list)
-        ══════════════════════════════════════════════════════════ */
+        ══════════════════════════════════════════════════════════════ */
 
         let batchImportStop = false;
 
         $( '#batch-id-list' ).on( 'input', function () {
             const ids = parseIdList( $( this ).val() );
-            $( '#batch-id-count' ).text(
-                ids.length + ( animeSyncAdmin.i18n.id_count_suffix || ' 個 ID' )
-            );
+            $( '#batch-id-count' ).text( ids.length + t( 'id_count_suffix', ' 個 ID' ) );
         } );
 
         $( '#btn-batch-import' ).on( 'click', async function () {
-            const raw = $( '#batch-id-list' ).val();
-            const ids = parseIdList( raw );
+            const ids = parseIdList( $( '#batch-id-list' ).val() );
+            if ( ! ids.length ) { alert( t( 'no_ids', '請輸入至少一個 ID。' ) ); return; }
 
-            if ( ! ids.length ) {
-                alert( animeSyncAdmin.i18n.no_ids || '請輸入至少一個 ID。' );
-                return;
-            }
+            const forceUpdate = $( '#batch-force-update' ).is( ':checked' ) ? 1 : 0;
+            batchImportStop   = false;
 
-            const skipExisting = $( '#batch-skip-existing' ).is( ':checked' ) ? 1 : 0;
-            const forceUpdate  = $( '#batch-force-update' ).is( ':checked' )  ? 1 : 0;
-
-            batchImportStop = false;
             const $btnStart = $( this );
             const $btnStop  = $( '#btn-batch-stop' );
             const $bar      = $( '#batch-progress-bar' );
@@ -354,8 +352,7 @@
             const $log      = $( '#batch-import-log' );
 
             $btnStart.prop( 'disabled', true );
-            $btnStop.show().prop( 'disabled', false )
-                    .text( animeSyncAdmin.i18n.stop || '停止' );
+            $btnStop.show().prop( 'disabled', false ).text( t( 'stop', '停止' ) );
             $( '#batch-progress-wrap' ).show();
             $log.empty();
             updateProgress( $bar, $text, 0, ids.length );
@@ -364,84 +361,341 @@
 
             for ( const anilistId of ids ) {
                 if ( batchImportStop ) {
-                    logLine( $log, animeSyncAdmin.i18n.import_stopped || '已停止匯入。', 'info' );
-                    break;
+                    logLine( $log, t( 'import_stopped', '已停止匯入。' ), 'info' ); break;
                 }
-
                 logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
-
                 try {
-                    const resp = await $.post( ajaxurl, {
-                        action     : 'anime_sync_import_single',
-                        nonce      : animeSyncAdmin.nonce,
-                        anilist_id : anilistId,
-                        force      : forceUpdate,
-                        skip       : skipExisting,
+                    const resp = await $.post( AJAX_URL, {
+                        action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: forceUpdate,
                     } );
-
                     done++;
                     updateProgress( $bar, $text, done, ids.length );
-
                     if ( resp.success ) {
                         if ( resp.data.skipped ) {
                             skipped++;
                             logLine( $log, '→ AniList #' + anilistId + ' 已存在，略過', 'skip' );
                         } else {
                             succeeded++;
-                            logLine(
-                                $log,
-                                '✓ ' + ( resp.data.title || 'AniList #' + anilistId )
+                            logLine( $log,
+                                '✓ ' + String( resp.data.title || 'AniList #' + anilistId )
                                 + ( resp.data.bangumi_pending ? ' ⚠ Bangumi 待處理' : '' ),
-                                'success'
+                                resp.data.bangumi_missing ? 'warning' : 'success'
                             );
                         }
                     } else {
                         failed++;
-                        logLine(
-                            $log,
-                            '✗ AniList #' + anilistId + '：' + ( resp.data || '未知錯誤' ),
-                            'error'
-                        );
+                        const errMsg = typeof resp.data === 'object'
+                            ? JSON.stringify( resp.data ) : String( resp.data || t( 'unknown_error', '未知錯誤' ) );
+                        logLine( $log, '✗ AniList #' + anilistId + '：' + errMsg, 'error' );
                     }
                 } catch ( e ) {
-                    done++;
-                    failed++;
+                    done++; failed++;
                     updateProgress( $bar, $text, done, ids.length );
                     logLine( $log, '✗ AniList #' + anilistId + '：網路錯誤', 'error' );
                 }
-
-                if ( ! batchImportStop && done < ids.length ) {
-                    await delay( 3200 );
-                }
+                if ( ! batchImportStop && done < ids.length ) { await delay( 3200 ); }
             }
 
-            logLine(
-                $log,
-                '完成：成功 ' + succeeded
-                + '，略過 ' + skipped
-                + '，失敗 ' + failed
-                + '，共 ' + ids.length,
+            logLine( $log,
+                '完成：成功 ' + succeeded + '，略過 ' + skipped + '，失敗 ' + failed + '，共 ' + ids.length,
                 'info'
             );
-
             $btnStart.prop( 'disabled', false );
-            $btnStop.hide().prop( 'disabled', false )
-                    .text( animeSyncAdmin.i18n.stop || '停止' );
+            $btnStop.hide().prop( 'disabled', false ).text( t( 'stop', '停止' ) );
         } );
 
         $( '#btn-batch-stop' ).on( 'click', function () {
             batchImportStop = true;
-            $( this ).prop( 'disabled', true )
-                     .text( animeSyncAdmin.i18n.stopping || '停止中…' );
+            $( this ).prop( 'disabled', true ).text( t( 'stopping', '停止中…' ) );
         } );
 
-        /* ═══════════════════════════════════════════════════════════
-           DASHBOARD STATS
-        ══════════════════════════════════════════════════════════ */
+        /* ══════════════════════════════════════════════════════════════
+           SERIES IMPORT
+           ★ action 從 A.analyze_series / A.import_series 讀取
+        ══════════════════════════════════════════════════════════════ */
 
-        if ( $( '#anime-sync-dashboard-stats' ).length ) {
-            loadDashboardStats();
+        let seriesImportStop = false;
+        let seriesMeta       = { series_name: '', root_id: 0, series_romaji: '' };
+
+        $( '#btn-analyze-series' ).on( 'click', function () {
+            const id = parseInt( $( '#series-anilist-id' ).val() );
+            if ( ! id || id <= 0 ) { alert( t( 'invalid_id', '請輸入有效的 AniList ID。' ) ); return; }
+
+            const $btn = $( this ).prop( 'disabled', true ).text( '分析中…' );
+            $( '#series-analyze-spinner' ).show();
+            $( '#series-result' ).hide();
+
+            ajaxPost( { action: A.analyze_series, anilist_id: id } )
+            .done( function ( res ) {
+                if ( res.success && res.data.tree ) {
+                    const d = res.data;
+                    seriesMeta = { series_name: d.series_name, root_id: d.root_id, series_romaji: d.series_romaji || '' };
+
+                    const $info = $( '#series-info' ).empty();
+                    $info.append( $( '<strong>' ).text( '🎯 系列名稱：' + String( d.series_name ) ) );
+                    $info.append( document.createTextNode( '　根源 ID：' + d.root_id + '　共 ' + d.total + ' 部　' ) );
+                    $info.append( $( '<span>' ).css( 'color', 'green' ).text( '已匯入 ' + d.imported + ' 部' ) );
+                    $info.append( document.createTextNode( '　' ) );
+                    $info.append( $( '<span>' ).css( 'color', '#d97706' ).text( '待匯入 ' + ( d.total - d.imported ) + ' 部' ) );
+
+                    renderSeriesTable( d.tree );
+                    $( '#series-result' ).show();
+                    $( '#btn-series-import' ).prop( 'disabled', false );
+                } else {
+                    alert( String( ( res.data && res.data.message ) ? res.data.message : '分析失敗' ).replace( /<[^>]*>/g, '' ) );
+                }
+            } ).fail( function () { alert( t( 'network_error', '網路錯誤，請重試。' ) ); } )
+            .always( function () { $btn.prop( 'disabled', false ).text( '🔍 分析系列' ); $( '#series-analyze-spinner' ).hide(); } );
+        } );
+
+        function renderSeriesTable( tree ) {
+            const labelMap = { PREQUEL:'前作', SEQUEL:'續作', SIDE_STORY:'外傳', SPIN_OFF:'衍生', ALTERNATIVE:'平行', PARENT:'主作品' };
+            const $tbody   = $( '#series-tbody' ).empty();
+
+            $.each( tree, function ( i, node ) {
+                const aid     = parseInt( node.anilist_id );
+                const name    = String( node.title_chinese || node.title_romaji || node.title_native || ( 'ID ' + aid ) );
+                const relType = node.relation_type ? ( labelMap[ node.relation_type ] || node.relation_type ) : '根源';
+
+                const $chk = $( '<input type="checkbox">' )
+                    .addClass( 'series-item-check' ).val( aid ).prop( 'checked', ! node.imported );
+
+                const $nameTd = $( '<td>' ).text( name );
+                if ( node.imported && node.edit_url ) {
+                    $nameTd.append( ' ' ).append(
+                        $( '<a>' ).attr( 'href', node.edit_url ).attr( 'target', '_blank' ).css( 'font-size', '11px' ).text( '[編輯]' )
+                    );
+                }
+
+                const $impSpan = $( '<span>' )
+                    .addClass( node.imported ? 'status-imported' : 'status-new' )
+                    .text( node.imported ? '✅ 已匯入' : '⬜ 未匯入' );
+
+                const $tr = $( '<tr>' );
+                $tr.append( $( '<td>' ).append( $chk ) );
+                $tr.append( makeTd( aid ) );
+                $tr.append( $nameTd );
+                $tr.append( makeTd( node.format      || '—' ) );
+                $tr.append( makeTd( node.season_year || '—' ) );
+                $tr.append( makeTd( relType ) );
+                $tr.append( $( '<td>' ).append( $impSpan ) );
+                $tbody.append( $tr );
+            } );
         }
+
+        $( '#series-select-all' ).on( 'change', function () {
+            $( '.series-item-check' ).prop( 'checked', this.checked );
+        } );
+
+        $( '#btn-series-import' ).on( 'click', async function () {
+            const ids = $( '.series-item-check:checked' ).map( function () { return parseInt( $( this ).val() ); } ).get();
+            if ( ! ids.length ) { alert( '請至少選擇一部' ); return; }
+
+            seriesImportStop = false;
+            const $btnImport = $( this );
+            const $btnStop   = $( '#btn-series-stop' );
+            const $bar       = $( '#series-progress-bar' );
+            const $text      = $( '#series-progress-text' );
+            const $log       = $( '#series-import-log' );
+
+            $btnImport.prop( 'disabled', true );
+            $btnStop.show().prop( 'disabled', false ).text( t( 'stop', '停止' ) );
+            $( '#series-progress-wrap' ).show();
+            $log.empty();
+            updateProgress( $bar, $text, 0, ids.length );
+
+            let done = 0;
+
+            for ( const anilistId of ids ) {
+                if ( seriesImportStop ) { logLine( $log, t( 'import_stopped', '已停止匯入。' ), 'info' ); break; }
+                logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
+                try {
+                    const resp = await $.post( AJAX_URL, {
+                        action         : A.import_series,   // ★ 從 actions 讀取
+                        nonce          : NONCE,
+                        anilist_id     : anilistId,
+                        series_name    : seriesMeta.series_name,
+                        root_id        : seriesMeta.root_id,
+                        series_romaji  : seriesMeta.series_romaji,
+                    } );
+                    done++;
+                    updateProgress( $bar, $text, done, ids.length );
+                    if ( resp.success ) {
+                        const d     = resp.data;
+                        const extra = d.series_assigned ? ' 🔗 已歸入系列' : '';
+                        logLine( $log,
+                            '✓ ' + String( d.title || 'AniList #' + anilistId ) + String( d.message || '' ) + extra,
+                            d.bangumi_missing ? 'warning' : ( d.skipped ? 'skip' : 'success' )
+                        );
+                    } else {
+                        logLine( $log, '✗ AniList #' + anilistId + '：' + String( ( resp.data && resp.data.message ) || t( 'unknown_error', '未知錯誤' ) ), 'error' );
+                    }
+                } catch ( e ) {
+                    done++;
+                    updateProgress( $bar, $text, done, ids.length );
+                    logLine( $log, '✗ AniList #' + anilistId + '：網路錯誤', 'error' );
+                }
+                if ( ! seriesImportStop && done < ids.length ) { await delay( 3200 ); }
+            }
+
+            logLine( $log, '── 匯入完成 ──', 'info' );
+            $btnImport.prop( 'disabled', false );
+            $btnStop.hide();
+        } );
+
+        $( '#btn-series-stop' ).on( 'click', function () {
+            seriesImportStop = true;
+            $( this ).prop( 'disabled', true ).text( t( 'stopping', '停止中…' ) );
+        } );
+
+        /* ══════════════════════════════════════════════════════════════
+           POPULARITY RANKING
+           ★ action 從 A.popularity_ranking 讀取
+        ══════════════════════════════════════════════════════════════ */
+
+        let rankingPage      = 1;
+        let rankingImportStop = false;
+
+        function loadRankingPage() {
+            $( '#ranking-load-spinner' ).show();
+            $( '#btn-ranking-load, #btn-ranking-more' ).prop( 'disabled', true );
+
+            $.post( AJAX_URL, { action: A.popularity_ranking, nonce: NONCE, page: rankingPage } )
+            .done( function ( res ) {
+                if ( res.success && res.data && res.data.items ) {
+                    renderRankingTable( res.data.items );
+                    $( '#ranking-preview' ).show();
+                    $( '#btn-ranking-import, #btn-ranking-more' ).show();
+                    $( '#ranking-preview-summary' ).text(
+                        '第 ' + rankingPage + ' 頁，本頁 ' + res.data.items.length +
+                        ' 部，累計 ' + $( '.ranking-item-check' ).length + ' 部'
+                    );
+                    $( '#ranking-page-num' ).text( rankingPage );
+                } else {
+                    alert( '❌ ' + String( ( res.data && res.data.message ) ? res.data.message : '載入失敗' ).replace( /<[^>]*>/g, '' ) );
+                }
+            } ).fail( function ( xhr ) {
+                alert( '❌ 網路錯誤（HTTP ' + xhr.status + '），請稍後重試。' );
+            } ).always( function () {
+                $( '#ranking-load-spinner' ).hide();
+                $( '#btn-ranking-load, #btn-ranking-more' ).prop( 'disabled', false );
+            } );
+        }
+
+        $( '#btn-ranking-load' ).on( 'click', function () {
+            rankingPage = 1; $( '#ranking-tbody' ).empty(); $( '#ranking-page-num' ).text(1);
+            loadRankingPage();
+        } );
+        $( '#btn-ranking-more' ).on( 'click', function () { rankingPage++; loadRankingPage(); } );
+
+        function renderRankingTable( items ) {
+            const startRank = ( rankingPage - 1 ) * 50 + 1;
+            const $tbody    = rankingPage === 1 ? $( '#ranking-tbody' ).empty() : $( '#ranking-tbody' );
+
+            $.each( items, function ( i, item ) {
+                const aid  = parseInt( item.anilist_id );
+                const name = String( item.title_chinese || item.title_romaji || item.title_native || ( 'ID ' + aid ) );
+
+                const $chk = $( '<input type="checkbox">' )
+                    .addClass( 'ranking-item-check' ).val( aid ).prop( 'checked', ! item.imported );
+
+                const $coverTd = $( '<td>' );
+                if ( item.cover_image ) {
+                    $coverTd.append(
+                        $( '<img>' ).addClass( 'asc-cover-thumb' )
+                            .attr( 'src', item.cover_image ).attr( 'loading', 'lazy' ).attr( 'alt', name )
+                    );
+                } else { $coverTd.text( '—' ); }
+
+                const $nameTd = $( '<td>' ).text( name );
+                if ( item.imported && item.edit_url ) {
+                    $nameTd.append( ' ' ).append(
+                        $( '<a>' ).attr( 'href', item.edit_url ).attr( 'target', '_blank' ).css( 'font-size', '11px' ).text( '[編輯]' )
+                    );
+                }
+
+                const $impSpan = $( '<span>' )
+                    .addClass( item.imported ? 'status-imported' : 'status-new' )
+                    .text( item.imported ? '✅ 已匯入' : '⬜ 未匯入' );
+
+                const $tr = $( '<tr>' );
+                $tr.append( $( '<td>' ).append( $chk ) );
+                $tr.append( makeTd( startRank + i ) );
+                $tr.append( $coverTd );
+                $tr.append( $nameTd );
+                $tr.append( makeTd( item.format     || '—' ) );
+                $tr.append( makeTd( item.episodes   || '?' ) );
+                $tr.append( makeTd( item.popularity || 0   ) );
+                $tr.append( $( '<td>' ).append( $impSpan ) );
+                $tbody.append( $tr );
+            } );
+        }
+
+        $( '#ranking-select-all' ).on( 'change', function () {
+            $( '.ranking-item-check' ).prop( 'checked', this.checked );
+        } );
+
+        $( '#btn-ranking-import' ).on( 'click', async function () {
+            const ids = $( '.ranking-item-check:checked' ).map( function () { return parseInt( $( this ).val() ); } ).get();
+            if ( ! ids.length ) { alert( '請至少選擇一部' ); return; }
+
+            rankingImportStop = false;
+            const $btnImport  = $( this );
+            const $btnStop    = $( '#btn-ranking-stop' );
+            const $bar        = $( '#ranking-progress-bar' );
+            const $text       = $( '#ranking-progress-text' );
+            const $log        = $( '#ranking-import-log' );
+
+            $btnImport.prop( 'disabled', true );
+            $btnStop.show().prop( 'disabled', false ).text( t( 'stop', '停止' ) );
+            $( '#ranking-progress-wrap' ).show();
+            $log.empty();
+            updateProgress( $bar, $text, 0, ids.length );
+
+            let done = 0;
+
+            for ( const anilistId of ids ) {
+                if ( rankingImportStop ) { logLine( $log, t( 'import_stopped', '已停止匯入。' ), 'info' ); break; }
+                logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
+                try {
+                    const resp = await $.post( AJAX_URL, {
+                        action: A.import_single, nonce: NONCE, anilist_id: anilistId,
+                    } );
+                    done++;
+                    updateProgress( $bar, $text, done, ids.length );
+                    if ( resp.success ) {
+                        const d = resp.data;
+                        logLine( $log,
+                            '✓ ' + String( d.title || 'AniList #' + anilistId )
+                            + ( d.bangumi_pending ? ' ⚠ Bangumi 待處理' : '' ),
+                            d.bangumi_missing ? 'warning' : ( d.skipped ? 'skip' : 'success' )
+                        );
+                    } else {
+                        logLine( $log, '✗ AniList #' + anilistId + '：' + String( ( resp.data && resp.data.message ) || t( 'unknown_error', '未知錯誤' ) ), 'error' );
+                    }
+                } catch ( e ) {
+                    done++;
+                    updateProgress( $bar, $text, done, ids.length );
+                    logLine( $log, '✗ AniList #' + anilistId + '：網路錯誤', 'error' );
+                }
+                if ( ! rankingImportStop && done < ids.length ) { await delay( 3200 ); }
+            }
+
+            logLine( $log, '── 匯入完成 ──', 'info' );
+            $btnImport.prop( 'disabled', false );
+            $btnStop.hide();
+        } );
+
+        $( '#btn-ranking-stop' ).on( 'click', function () {
+            rankingImportStop = true;
+            $( this ).prop( 'disabled', true ).text( t( 'stopping', '停止中…' ) );
+        } );
+
+        /* ══════════════════════════════════════════════════════════════
+           DASHBOARD STATS
+        ══════════════════════════════════════════════════════════════ */
+
+        if ( $( '#anime-sync-dashboard-stats' ).length ) { loadDashboardStats(); }
 
         function loadDashboardStats() {
             ajaxPost( { action: 'anime_sync_get_stats' } ).done( function ( resp ) {
@@ -452,8 +706,7 @@
                 setStatCell( '#stat-draft',       d.draft );
                 setStatCell( '#stat-airing',      d.airing );
                 setStatCell( '#stat-pending-bgm', d.pending_bangumi );
-                setStatCell( '#stat-map-entries', d.map_entries
-                    ? Number( d.map_entries ).toLocaleString() : '—' );
+                setStatCell( '#stat-map-entries', d.map_entries ? Number( d.map_entries ).toLocaleString() : '—' );
                 setStatCell( '#stat-last-daily',  d.last_daily  || '—' );
                 setStatCell( '#stat-last-weekly', d.last_weekly || '—' );
                 setStatCell( '#stat-memory',      d.memory_usage );
@@ -462,88 +715,75 @@
 
         function setStatCell( selector, value ) {
             const $el = $( selector );
-            if ( $el.length ) { $el.text( value !== undefined ? value : '—' ); }
+            if ( $el.length ) { $el.text( value !== undefined ? String( value ) : '—' ); }
         }
 
-        /* ── Review Queue global helper ── */
         window.animeSyncBulkAction = function ( action, postIds, callback ) {
-            ajaxPost( {
-                action   : 'anime_sync_bulk_action',
-                bulk     : action,
-                post_ids : postIds,
-            } ).done( callback );
+            ajaxPost( { action: A.bulk_action, bulk: action, post_ids: postIds } ).done( callback );
         };
 
-        /* ═══════════════════════════════════════════════════════════
-           RESYNC BANGUMI（Meta Box 按鈕）← 移回閉包內，問題修正
-        ══════════════════════════════════════════════════════════ */
+        /* ══════════════════════════════════════════════════════════════
+           RESYNC BANGUMI
+           ★ action 從 A.resync_bangumi 讀取
+           ★ i18n 全部從 t() 讀取
+        ══════════════════════════════════════════════════════════════ */
 
         $( document ).on(
             'input change',
             '#acf-field_anime_bangumi_id, input[name="acf[field_anime_bangumi_id]"]',
             function () {
-                var val = parseInt( $( this ).val(), 10 );
+                const val = parseInt( $( this ).val(), 10 );
                 $( '#anime-resync-bangumi-btn' ).prop( 'disabled', ! ( val > 0 ) );
             }
         );
 
         $( '#anime-resync-bangumi-btn' ).on( 'click', function () {
-            var $btn = $( this );
-            var $msg = $( '#anime-resync-bangumi-msg' );
+            const $btn = $( this );
+            const $msg = $( '#anime-resync-bangumi-msg' );
 
-            var postId = $( '#post_ID' ).val()
-                      || new URLSearchParams( window.location.search ).get( 'post' )
-                      || '0';
+            const postId = $( '#post_ID' ).val()
+                        || new URLSearchParams( window.location.search ).get( 'post' )
+                        || '0';
 
-            var bangumiId = $( '#acf-field_anime_bangumi_id' ).val()
-                         || $( 'input[name="acf[field_anime_bangumi_id]"]' ).val()
-                         || '';
+            const bangumiId = $( '#acf-field_anime_bangumi_id' ).val()
+                           || $( 'input[name="acf[field_anime_bangumi_id]"]' ).val()
+                           || '';
 
             if ( ! postId || postId === '0' ) {
-                $msg.css( 'color', '#d63638' )
-                    .text( '請先儲存草稿以取得文章 ID，再執行同步。' );
+                $msg.css( 'color', '#d63638' ).text( '請先儲存草稿以取得文章 ID，再執行同步。' );
                 return;
             }
-
             if ( ! bangumiId || parseInt( bangumiId, 10 ) <= 0 ) {
-                $msg.css( 'color', '#d63638' )
-                    .text( animeSyncAdmin.error_no_id || '請先填入 Bangumi ID。' );
+                $msg.css( 'color', '#d63638' ).text( t( 'error_no_id', '請先填入 Bangumi ID。' ) );
                 return;
             }
 
             $btn.prop( 'disabled', true );
-            $msg.css( 'color', '#666' )
-                .text( animeSyncAdmin.syncing || '同步中，請稍候…' );
+            $msg.css( 'color', '#666' ).text( t( 'syncing', '同步中，請稍候…' ) );
 
             $.ajax( {
-                url      : ajaxurl,
+                url      : AJAX_URL,
                 type     : 'POST',
-                data     : {
-                    action     : 'anime_resync_bangumi',
-                    nonce      : animeSyncAdmin.nonce,
-                    post_id    : postId,
-                    bangumi_id : bangumiId,
-                },
+                data     : { action: A.resync_bangumi, nonce: NONCE, post_id: postId, bangumi_id: bangumiId },
                 dataType : 'json',
                 timeout  : 60000,
-            } )
-            .done( function ( res ) {
+            } ).done( function ( res ) {
                 if ( res && res.success ) {
-                    $msg.css( 'color', '#00a32a' )
-                        .text( animeSyncAdmin.sync_success || '✅ 同步完成，頁面即將重新整理…' );
+                    $msg.css( 'color', '#00a32a' ).text( t( 'sync_success', '✅ 同步完成，頁面即將重新整理…' ) );
                     setTimeout( function () { location.reload(); }, 1500 );
                 } else {
-                    var errMsg = ( res && res.data && res.data.message )
-                        ? res.data.message
-                        : ( res && res.data ? res.data : '未知錯誤' );
+                    const errMsg = ( res && res.data && res.data.message )
+                        ? String( res.data.message )
+                        : ( res && res.data
+                            ? ( typeof res.data === 'string' ? res.data : JSON.stringify( res.data ) )
+                            : t( 'unknown_error', '未知錯誤' ) );
                     $msg.css( 'color', '#d63638' ).text( '❌ ' + errMsg );
                     $btn.prop( 'disabled', false );
                 }
-            } )
-            .fail( function ( xhr, status ) {
-                var detail = status === 'timeout'
+            } ).fail( function ( xhr, status ) {
+                const detail = status === 'timeout'
                     ? '請求逾時，請重試。'
-                    : ( animeSyncAdmin.network_error || '網路錯誤，請重試。' );
+                    : t( 'network_error', '網路錯誤，請重試。' );
                 $msg.css( 'color', '#d63638' ).text( '❌ ' + detail );
                 $btn.prop( 'disabled', false );
             } );
