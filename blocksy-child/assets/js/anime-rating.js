@@ -380,3 +380,107 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
 });
+
+/* ============================================================
+   評分滑桿 + 送出
+   ============================================================ */
+(function () {
+    /* ── Slider 即時顯示 ── */
+    const sliders = document.querySelectorAll('.wacg-slider');
+    sliders.forEach(function (slider) {
+        const valEl = document.getElementById(slider.id + '-val');
+
+        /* 初始化顯示 */
+        if (valEl) valEl.textContent = parseFloat(slider.value).toFixed(1);
+
+        /* 拖動時即時更新 */
+        slider.addEventListener('input', function () {
+            if (valEl) valEl.textContent = parseFloat(this.value).toFixed(1);
+        });
+    });
+
+    /* ── 送出評分 ── */
+    const ratingForm = document.getElementById('wacg-rating-form');
+    const submitBtn  = document.getElementById('wacg-submit-btn');
+
+    if (!ratingForm) return;
+
+    ratingForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const cfg     = window.SmacgConfig || {};
+        const postId  = parseInt(cfg.postId, 10) || 0;
+        const ajaxUrl = cfg.ajaxUrl || '/wp-admin/admin-ajax.php';
+        const nonce   = cfg.ajaxNonce || '';
+
+        if (!postId) return;
+
+        /* 讀取四個 slider 的值 */
+        const story     = parseFloat(document.getElementById('slider-story')?.value     || 5);
+        const music     = parseFloat(document.getElementById('slider-music')?.value     || 5);
+        const animation = parseFloat(document.getElementById('slider-animation')?.value || 5);
+        const voice     = parseFloat(document.getElementById('slider-voice')?.value     || 5);
+
+        /* 平均分 */
+        const avg = ((story + music + animation + voice) / 4);
+
+        if (submitBtn) {
+            submitBtn.disabled    = true;
+            submitBtn.textContent = '送出中…';
+        }
+
+        fetch(ajaxUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                action:  'smacg_submit_rating_detail',
+                nonce:   nonce,
+                post_id: postId,
+                story:   story.toFixed(1),
+                music:   music.toFixed(1),
+                animation: animation.toFixed(1),
+                voice:   voice.toFixed(1),
+                score:   avg.toFixed(2),
+            }),
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.success) {
+                if (submitBtn) {
+                    submitBtn.textContent = '✅ 評分完成！';
+                    submitBtn.style.background = 'var(--asd-score-al, #02a9ff)';
+                }
+
+                /* 更新頁面上的顯示數值 */
+                const mainScore = data.data?.avg;
+                if (mainScore) {
+                    document.querySelectorAll('.wacg-score-main, .wacg-hero-score').forEach(function (el) {
+                        el.textContent = parseFloat(mainScore).toFixed(1);
+                    });
+                }
+                if (data.data?.story)     { const el = document.querySelector('.wacg-cat-story');     if (el) el.textContent = parseFloat(data.data.story).toFixed(1); }
+                if (data.data?.music)     { const el = document.querySelector('.wacg-cat-music');     if (el) el.textContent = parseFloat(data.data.music).toFixed(1); }
+                if (data.data?.animation) { const el = document.querySelector('.wacg-cat-animation'); if (el) el.textContent = parseFloat(data.data.animation).toFixed(1); }
+                if (data.data?.voice)     { const el = document.querySelector('.wacg-cat-voice');     if (el) el.textContent = parseFloat(data.data.voice).toFixed(1); }
+                if (data.data?.count)     { const el = document.querySelector('.wacg-vote-count');    if (el) el.textContent = data.data.count + ' 人評分'; }
+
+            } else {
+                if (submitBtn) {
+                    submitBtn.disabled    = false;
+                    submitBtn.textContent = '❌ ' + (data.data?.msg || '送出失敗，請重試');
+                    setTimeout(function () {
+                        submitBtn.textContent = '送出評分';
+                        submitBtn.style.background = '';
+                    }, 3000);
+                }
+            }
+        })
+        .catch(function () {
+            if (submitBtn) {
+                submitBtn.disabled    = false;
+                submitBtn.textContent = '網路錯誤，請重試';
+                setTimeout(function () { submitBtn.textContent = '送出評分'; }, 3000);
+            }
+        });
+    });
+})();
