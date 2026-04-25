@@ -19,6 +19,7 @@
  * ACN – filter_anime_search() 改用 posts_join + posts_where + posts_distinct
  *       取代原本 preg_replace 改 SQL 的脆弱寫法，
  *       避免與其他外掛的 posts_search hook 互相干擾造成搜尋壞掉
+ * ACO – 移除不存在的 style.css 載入，修正 404 錯誤
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -37,7 +38,6 @@ class Anime_Sync_Frontend {
         add_action( 'rest_api_init',      [ $this, 'register_rest_routes' ] );
         add_action( 'pre_get_posts',      [ $this, 'sort_series_archive' ] );
 
-        // ✅ ACN：改用 join + where + distinct 取代 preg_replace 改 SQL
         add_filter( 'posts_search',   [ $this, 'filter_anime_search' ],          10, 2 );
         add_filter( 'posts_join',     [ $this, 'filter_anime_search_join' ],      10, 2 );
         add_filter( 'posts_where',    [ $this, 'filter_anime_search_where' ],     10, 2 );
@@ -64,7 +64,6 @@ class Anime_Sync_Frontend {
         }
 
         $public_css_path  = ANIME_SYNC_PRO_DIR . 'public/assets/css/public.css';
-        $style_css_path   = ANIME_SYNC_PRO_DIR . 'public/assets/css/style.css';
         $single_css_path  = ANIME_SYNC_PRO_DIR . 'public/assets/css/anime-single.css';
         $frontend_js_path = ANIME_SYNC_PRO_DIR . 'public/assets/js/frontend.js';
 
@@ -73,13 +72,6 @@ class Anime_Sync_Frontend {
             ANIME_SYNC_PRO_URL . 'public/assets/css/public.css',
             [],
             file_exists( $public_css_path ) ? (string) filemtime( $public_css_path ) : ANIME_SYNC_PRO_VERSION
-        );
-
-        wp_enqueue_style(
-            'anime-sync-style',
-            ANIME_SYNC_PRO_URL . 'public/assets/css/style.css',
-            [ 'anime-sync-public' ],
-            file_exists( $style_css_path ) ? (string) filemtime( $style_css_path ) : ANIME_SYNC_PRO_VERSION
         );
 
         wp_enqueue_style(
@@ -112,7 +104,6 @@ class Anime_Sync_Frontend {
 
     public function load_single_template( string $template ): string {
 
-        // 強制 anime 單篇使用外掛模板，避免被主題 single-anime.php 攔截
         if ( is_singular( 'anime' ) ) {
             $plugin = ANIME_SYNC_PRO_DIR . 'public/templates/single-anime.php';
             if ( file_exists( $plugin ) ) {
@@ -120,7 +111,6 @@ class Anime_Sync_Frontend {
             }
         }
 
-        // 系列頁路由 → archive-series.php
         if ( is_tax( 'anime_series_tax' ) ) {
             $theme = locate_template( 'archive-series.php' );
             if ( $theme ) return $theme;
@@ -129,7 +119,6 @@ class Anime_Sync_Frontend {
             if ( file_exists( $plugin ) ) return $plugin;
         }
 
-        // anime 搜尋結果頁套用 archive 模板
         $is_anime_search = is_search() && get_query_var( 'post_type' ) === 'anime';
 
         if (
@@ -153,8 +142,6 @@ class Anime_Sync_Frontend {
 
     // =========================================================
     // ACG v3：系列頁排序
-    // Bug #6 修正：使用 $query->is_tax() 而非全域 is_tax()
-    // 排序：anime_season_year ASC
     // =========================================================
 
     public function sort_series_archive( \WP_Query $query ): void {
@@ -170,13 +157,8 @@ class Anime_Sync_Frontend {
 
     // =========================================================
     // 搜尋 meta 欄位擴展
-    // ACN – 改用 posts_join + posts_where + posts_distinct
-    //       取代原本 preg_replace 改 SQL 的脆弱寫法
     // =========================================================
 
-    /**
-     * 判斷是否為 anime 自訂搜尋，供四個 filter 共用
-     */
     private function is_anime_search_query( \WP_Query $query ): bool {
         if ( is_admin() ) return false;
         if ( ! $query->is_main_query() ) return false;
@@ -186,24 +168,15 @@ class Anime_Sync_Frontend {
         return true;
     }
 
-    /**
-     * posts_search：保留 WordPress 原生 title/content 搜尋不動
-     * meta 條件改由 filter_anime_search_join / filter_anime_search_where 處理
-     */
     public function filter_anime_search( string $search, \WP_Query $query ): string {
-        // ✅ ACN：不再用 preg_replace 改 SQL，直接回傳原始 $search 不動
         return $search;
     }
 
-    /**
-     * posts_join：LEFT JOIN postmeta，讓 WHERE 可以查 meta 欄位
-     */
     public function filter_anime_search_join( string $join, \WP_Query $query ): string {
         if ( ! $this->is_anime_search_query( $query ) ) return $join;
 
         global $wpdb;
 
-        // 避免重複 JOIN
         if ( strpos( $join, 'anime_meta_search' ) !== false ) return $join;
 
         $join .= " LEFT JOIN {$wpdb->postmeta} AS anime_meta_search
@@ -216,9 +189,6 @@ class Anime_Sync_Frontend {
         return $join;
     }
 
-    /**
-     * posts_where：把 meta_value LIKE 條件 OR 進去原始搜尋條件
-     */
     public function filter_anime_search_where( string $where, \WP_Query $query ): string {
         if ( ! $this->is_anime_search_query( $query ) ) return $where;
 
@@ -229,10 +199,6 @@ class Anime_Sync_Frontend {
 
         $like = '%' . $wpdb->esc_like( $term ) . '%';
 
-        // ✅ ACN：尋找 WP 產生的搜尋括號群組
-        // WP 原生搜尋 WHERE 結構為：
-        //   ((posts.post_title LIKE x) OR (posts.post_content LIKE x))
-        // 目標：在群組結尾 )) 前插入 OR (anime_meta_search.meta_value LIKE x)
         $meta_condition = $wpdb->prepare(
             " OR ( anime_meta_search.meta_value LIKE %s ) ",
             $like
@@ -240,7 +206,6 @@ class Anime_Sync_Frontend {
 
         $posts_table = preg_quote( $wpdb->posts, '/' );
 
-        // 嘗試在 WP 搜尋群組結尾插入
         $new_where = preg_replace(
             '/(\(\s*\(\s*' . $posts_table . '\.post_title\s+LIKE\s+[\'"]%.*?%[\'"].*?\)\s*\))/s',
             '$1' . $meta_condition,
@@ -248,27 +213,22 @@ class Anime_Sync_Frontend {
             1
         );
 
-        // 如果 preg_replace 成功（有實際替換），使用新結果
         if ( $new_where !== null && $new_where !== $where ) {
             return $new_where;
         }
 
-        // fallback：直接 OR 附加到整個 WHERE（最安全，不改動既有結構）
         $where .= ' OR ( anime_meta_search.meta_value LIKE ' . $wpdb->prepare( '%s', $like ) . ' ) ';
 
         return $where;
     }
 
-    /**
-     * posts_distinct：避免 LEFT JOIN 造成同一篇文章重複出現在結果
-     */
     public function filter_anime_search_distinct( string $distinct, \WP_Query $query ): string {
         if ( ! $this->is_anime_search_query( $query ) ) return $distinct;
         return 'DISTINCT';
     }
 
     // =========================================================
-    // SEO Meta（有 RankMath / Yoast 時跳過）
+    // SEO Meta
     // =========================================================
 
     public function output_seo_meta(): void {
