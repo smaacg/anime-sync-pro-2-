@@ -1388,7 +1388,7 @@ private function get_bgm_staff( int $bangumi_id ): array {
         return $chars;
     }
 
-    private function fetch_bgm_episodes( int $bangumi_id ): array {
+    public function fetch_bgm_episodes( int $bangumi_id ): array {
         $cache_key = 'anime_sync_bgm_eps_' . $bangumi_id;
         $cached    = get_transient( $cache_key );
         if ( $cached !== false ) return (array) $cached;
@@ -1430,7 +1430,7 @@ private function get_bgm_staff( int $bangumi_id ): array {
     //           ACG：統一 User-Agent
     // =========================================================================
 
-  private function fetch_animethemes( ?int $mal_id ): array {
+  public function fetch_animethemes( ?int $mal_id ): array {
     if ( ! $mal_id || $mal_id <= 0 ) return [];
 
     $cache_key = 'anime_sync_themes_' . $mal_id;
