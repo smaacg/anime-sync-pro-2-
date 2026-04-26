@@ -748,6 +748,7 @@ foreach ( $cast_list as $c ) {
                         '製作公司' => $studio,
                         '台灣代理' => $tw_dist_display,
                         '播出頻道' => $tw_broadcast,
+                        '最後更新' => get_the_modified_date( 'Y-m-d' ), //
                     );
                     foreach ( $info_rows as $label => $val ) :
                         if ( $val === '' || $val === null ) continue;
