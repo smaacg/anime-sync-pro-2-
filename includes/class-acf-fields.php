@@ -522,7 +522,7 @@ class Anime_Sync_ACF_Fields {
                 [
                     'key'           => 'field_anime_themes_json',
                     'label'         => 'OP/ED 主題曲資料（JSON）',
-                    'name'          => 'anime_themes_json',
+                    'name'          => 'anime_themes',
                     'type'          => 'textarea',
                     'instructions'  => '由 AnimeThemes API 自動抓取。請勿手動編輯。格式：[{"type":"OP1","song_title":"...","artist":"...","audio_url":"https://a.animethemes.moe/..."}]',
                     'required'      => 0,
@@ -534,7 +534,7 @@ class Anime_Sync_ACF_Fields {
                 [
                     'key'           => 'field_anime_streaming_json',
                     'label'         => '串流平台資料（JSON）',
-                    'name'          => 'anime_streaming_json',
+                    'name'          => 'anime_streaming',
                     'type'          => 'textarea',
                     'instructions'  => '由 AniList externalLinks（type: STREAMING）自動填入。請勿手動編輯。',
                     'required'      => 0,
@@ -906,7 +906,7 @@ class Anime_Sync_ACF_Fields {
             'anime_cast_json'     => 'CAST 角色資料',
             'anime_staff_json'    => 'STAFF 製作資料',
             'anime_episodes_json' => '集數列表',
-            'anime_themes_json'   => 'OP/ED 主題曲資料',
+            'anime_themes'        => 'OP/ED 主題曲資料',
         ];
     }
 }
