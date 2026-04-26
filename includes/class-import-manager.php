@@ -667,7 +667,7 @@ class Anime_Sync_Import_Manager {
 			'Disney Plus'  => 'disney',
 			'Disney+'      => 'disney',
 			'Crunchyroll'  => 'crunchyroll',
-			'Ani-One Asia' => 'ani-one',
+			'Ani-One Asia' => 'ani_one',
 			'Muse Asia'    => 'muse',
 		];
 
