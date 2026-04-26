@@ -9,6 +9,16 @@
  * - run_season_auto_import() 支援 wp_schedule_single_event 傳參
  * - fetch_season_list() 加入 429 / WP_Error 重試機制
  *
+ * [修改] 新增：
+ * - HOOK_THEMES_EPISODES_UPDATE 常數（每日主題曲＋集數同步）
+ * - activate() 加入新排程
+ * - deactivate() 加入新排程取消
+ * - get_schedule_status() 加入新排程狀態顯示
+ * - run_themes_episodes_update() 主方法（主題曲只補缺少 type、集數只補新增集數）
+ * - 主題曲鎖定：讀取 anime_themes_locked_keys，跳過已鎖定的 type+sequence
+ * - 集數鎖定：讀取 anime_episodes_locked_ids，跳過已鎖定的集數 ID
+ * - 人工新增的資料（來源標記 manual）不會被刪除
+ *
  * @package Anime_Sync_Pro
  */
 
@@ -21,32 +31,36 @@ class Anime_Sync_Cron_Manager {
     // =========================================================================
     // 排程 Hook 名稱常數
     // =========================================================================
-    const HOOK_DAILY_SCORE_UPDATE = 'anime_sync_daily_score_update';
-    const HOOK_WEEKLY_CLEANUP     = 'anime_sync_weekly_cleanup';
-    const HOOK_SEASON_IMPORT      = 'anime_sync_season_auto_import';
-    const HOOK_UPDATE_MAP         = 'anime_sync_update_anime_map';
+    const HOOK_DAILY_SCORE_UPDATE       = 'anime_sync_daily_score_update';
+    const HOOK_WEEKLY_CLEANUP           = 'anime_sync_weekly_cleanup';
+    const HOOK_SEASON_IMPORT            = 'anime_sync_season_auto_import';
+    const HOOK_UPDATE_MAP               = 'anime_sync_update_anime_map';
+    // [修改] 新增：主題曲＋集數每日同步 Hook
+    const HOOK_THEMES_EPISODES_UPDATE   = 'anime_sync_themes_episodes_update';
 
     // Lock TTL（秒）：超過此時間視為鎖已過期（防止崩潰後死鎖）
-    const LOCK_TTL_DAILY  = 1800;   // 30 分鐘
-    const LOCK_TTL_SEASON = 3600;   // 60 分鐘
+    const LOCK_TTL_DAILY          = 1800;   // 30 分鐘
+    const LOCK_TTL_SEASON         = 3600;   // 60 分鐘
+    // [修改] 新增：主題曲＋集數同步鎖 TTL
+    const LOCK_TTL_THEMES_EPISODES = 1800;  // 30 分鐘
 
     private Anime_Sync_Import_Manager $import_manager;
     private Anime_Sync_Error_Logger   $logger;
-    private Anime_Sync_Rate_Limiter   $rate_limiter; // ✅ 單例，不在 loop 內重複 new
+    private Anime_Sync_Rate_Limiter   $rate_limiter;
 
     public function __construct( Anime_Sync_Import_Manager $import_manager ) {
         $this->import_manager = $import_manager;
         $this->logger         = new Anime_Sync_Error_Logger();
-        $this->rate_limiter   = new Anime_Sync_Rate_Limiter(); // ✅ 建構時建立一次
+        $this->rate_limiter   = new Anime_Sync_Rate_Limiter();
 
         add_filter( 'cron_schedules', [ $this, 'add_custom_schedules' ] );
 
-        add_action( self::HOOK_DAILY_SCORE_UPDATE, [ $this, 'run_daily_score_update' ] );
-        add_action( self::HOOK_WEEKLY_CLEANUP,      [ $this, 'run_weekly_cleanup' ] );
-        add_action( self::HOOK_UPDATE_MAP,          [ $this, 'run_update_map' ] );
-
-        // ✅ 季度匯入支援帶參數觸發（wp_schedule_single_event）
-        add_action( self::HOOK_SEASON_IMPORT, [ $this, 'run_season_auto_import' ], 10, 2 );
+        add_action( self::HOOK_DAILY_SCORE_UPDATE,     [ $this, 'run_daily_score_update' ] );
+        add_action( self::HOOK_WEEKLY_CLEANUP,          [ $this, 'run_weekly_cleanup' ] );
+        add_action( self::HOOK_UPDATE_MAP,              [ $this, 'run_update_map' ] );
+        add_action( self::HOOK_SEASON_IMPORT,           [ $this, 'run_season_auto_import' ], 10, 2 );
+        // [修改] 新增：掛勾主題曲＋集數每日同步
+        add_action( self::HOOK_THEMES_EPISODES_UPDATE, [ $this, 'run_themes_episodes_update' ] );
     }
 
     // =========================================================================
@@ -84,6 +98,15 @@ class Anime_Sync_Cron_Manager {
         if ( ! wp_next_scheduled( self::HOOK_UPDATE_MAP ) ) {
             wp_schedule_event( strtotime( 'next monday 02:00:00' ), 'anime_sync_weekly', self::HOOK_UPDATE_MAP );
         }
+
+        // [修改] 新增：每日 05:30 執行主題曲＋集數同步（錯開評分更新時間）
+        if ( ! wp_next_scheduled( self::HOOK_THEMES_EPISODES_UPDATE ) ) {
+            $daily_hour    = (int) get_option( 'anime_sync_daily_hour', 3 );
+            $themes_hour   = $daily_hour + 2; // 比評分更新晚 2 小時，避免同時壓 API
+            $today_themes  = strtotime( gmdate( "Y-m-d {$themes_hour}:30:00" ) );
+            $start_themes  = $today_themes < time() ? $today_themes + DAY_IN_SECONDS : $today_themes;
+            wp_schedule_event( $start_themes, 'daily', self::HOOK_THEMES_EPISODES_UPDATE );
+        }
     }
 
     public static function deactivate(): void {
@@ -92,6 +115,8 @@ class Anime_Sync_Cron_Manager {
             self::HOOK_WEEKLY_CLEANUP,
             self::HOOK_SEASON_IMPORT,
             self::HOOK_UPDATE_MAP,
+            // [修改] 新增：停用時同步取消主題曲＋集數排程
+            self::HOOK_THEMES_EPISODES_UPDATE,
         ];
         foreach ( $hooks as $hook ) {
             $timestamp = wp_next_scheduled( $hook );
@@ -107,7 +132,6 @@ class Anime_Sync_Cron_Manager {
 
     public function run_daily_score_update(): void {
 
-        // ✅ Lock：防止重複執行
         if ( get_transient( 'anime_sync_lock_daily' ) ) {
             $this->logger->log( 'warning', '每日評分更新：已有另一個程序在執行，本次跳過' );
             return;
@@ -117,7 +141,6 @@ class Anime_Sync_Cron_Manager {
         try {
             $this->_run_daily_score_update_inner();
         } finally {
-            // ✅ 無論成功或例外，都釋放鎖
             delete_transient( 'anime_sync_lock_daily' );
         }
     }
@@ -134,15 +157,14 @@ class Anime_Sync_Cron_Manager {
         $failed      = 0;
         $cutoff_date = gmdate( 'Y-m-d', strtotime( '-90 days' ) );
 
-        // ✅ 分頁查詢，不再 posts_per_page => -1，避免一次載入大量 ID 爆記憶體
         do {
             $query = new WP_Query( [
                 'post_type'      => 'anime',
                 'post_status'    => 'publish',
-                'posts_per_page' => 200,         // 每頁 200 筆
+                'posts_per_page' => 200,
                 'paged'          => $paged,
                 'fields'         => 'ids',
-                'no_found_rows'  => false,        // 需要 max_num_pages
+                'no_found_rows'  => false,
                 'meta_query'     => [
                     'relation' => 'OR',
                     [
@@ -177,7 +199,7 @@ class Anime_Sync_Cron_Manager {
                     $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
                     if ( ! $anilist_id ) return;
 
-                    $this->rate_limiter->wait_if_needed( 'anilist' ); // ✅ 使用單例
+                    $this->rate_limiter->wait_if_needed( 'anilist' );
 
                     $result = $this->import_manager->import_single( $anilist_id, null, 'anilist' );
 
@@ -229,9 +251,10 @@ class Anime_Sync_Cron_Manager {
                 OR option_name LIKE '_transient_timeout_anime_sync_last_request_%'"
         );
 
-        // ✅ 順便清理殘留 lock（理論上不應存在，但崩潰後可能留下）
         delete_transient( 'anime_sync_lock_daily' );
         delete_transient( 'anime_sync_lock_season' );
+        // [修改] 新增：每週清理順便清除主題曲＋集數同步殘留鎖
+        delete_transient( 'anime_sync_lock_themes_episodes' );
 
         $this->logger->log( 'info', '每週清理完成' );
         update_option( 'anime_sync_last_weekly_cleanup', current_time( 'mysql' ) );
@@ -241,16 +264,8 @@ class Anime_Sync_Cron_Manager {
     // 任務三：季度自動匯入
     // =========================================================================
 
-    /**
-     * @param string $season  WINTER/SPRING/SUMMER/FALL（空字串 = 自動判斷）
-     * @param int    $year    年份（0 = 自動判斷）
-     *
-     * 排程觸發範例（排定下季）：
-     *   wp_schedule_single_event( $timestamp, Anime_Sync_Cron_Manager::HOOK_SEASON_IMPORT, [ 'SUMMER', 2026 ] );
-     */
     public function run_season_auto_import( string $season = '', int $year = 0 ): array {
 
-        // ✅ Lock：防止重複執行
         if ( get_transient( 'anime_sync_lock_season' ) ) {
             $this->logger->log( 'warning', '季度匯入：已有另一個程序在執行，本次跳過' );
             return [ 'success' => false, 'message' => '已鎖定，跳過', 'imported' => 0 ];
@@ -285,14 +300,13 @@ class Anime_Sync_Cron_Manager {
         $skipped  = 0;
         $failed   = 0;
 
-        // ✅ 使用 batch_process 分批，每批結束清記憶體
         Anime_Sync_Performance::batch_process(
             $media_list,
             function( array $media ) use ( &$imported, &$skipped, &$failed ): void {
                 $anilist_id = (int) ( $media['id'] ?? 0 );
                 if ( ! $anilist_id ) return;
 
-                $this->rate_limiter->wait_if_needed( 'anilist' ); // ✅ 使用單例
+                $this->rate_limiter->wait_if_needed( 'anilist' );
 
                 $result = $this->import_manager->import_single( $anilist_id, null, 'anilist' );
 
@@ -308,7 +322,7 @@ class Anime_Sync_Cron_Manager {
                     ] );
                 }
             },
-            15 // batch_size：每15部清一次記憶體
+            15
         );
 
         $summary = [
@@ -343,6 +357,255 @@ class Anime_Sync_Cron_Manager {
     }
 
     // =========================================================================
+    // [修改] 任務五：每日主題曲＋集數同步（新增整個方法）
+    //
+    // 設計原則：
+    //   主題曲 — 以 type+sequence（如 OP1、ED2）為唯一鍵，
+    //             只補 API 回傳但本地沒有的項目；
+    //             anime_themes_locked_keys（JSON 陣列，存 "OP1"、"ED1" 等）
+    //             中的鍵會跳過，永不覆寫；
+    //             來源標記為 manual 的項目（source === 'manual'）永不刪除。
+    //
+    //   集數   — 以集數 ID（Bangumi ep.id）為唯一鍵，
+    //             只補 API 回傳但本地沒有的項目；
+    //             anime_episodes_locked_ids（JSON 陣列，存 ep.id）
+    //             中的 ID 會跳過；
+    //             本地有但 API 沒有的項目（含人工新增）一律保留不刪除。
+    // =========================================================================
+
+    public function run_themes_episodes_update(): void {
+
+        // 防止重複執行
+        if ( get_transient( 'anime_sync_lock_themes_episodes' ) ) {
+            $this->logger->log( 'warning', '主題曲＋集數同步：已有另一個程序在執行，本次跳過' );
+            return;
+        }
+        set_transient( 'anime_sync_lock_themes_episodes', 1, self::LOCK_TTL_THEMES_EPISODES );
+
+        try {
+            $this->_run_themes_episodes_inner();
+        } finally {
+            delete_transient( 'anime_sync_lock_themes_episodes' );
+        }
+    }
+
+    private function _run_themes_episodes_inner(): void {
+        Anime_Sync_Performance::set_time_limit( 600 );
+        Anime_Sync_Performance::increase_memory_limit( '256M' );
+
+        // 取得當前季節，只同步本季連載中的新番
+        [ $season, $year ] = $this->get_current_season();
+
+        $this->logger->log( 'info', "主題曲＋集數同步開始：{$year} {$season}" );
+
+        // 查詢本季所有 RELEASING 狀態的已發布文章
+        $post_ids = get_posts( [
+            'post_type'      => 'anime',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_query'     => [
+                'relation' => 'AND',
+                [
+                    'key'     => 'anime_status',
+                    'value'   => 'RELEASING',
+                    'compare' => '=',
+                ],
+                [
+                    'key'     => 'anime_season',
+                    'value'   => $season,
+                    'compare' => '=',
+                ],
+                [
+                    'key'     => 'anime_season_year',
+                    'value'   => (string) $year,
+                    'compare' => '=',
+                ],
+            ],
+        ] );
+
+        if ( empty( $post_ids ) ) {
+            $this->logger->log( 'info', "主題曲＋集數同步：本季無連載中作品，跳過" );
+            return;
+        }
+
+        $themes_updated   = 0;
+        $episodes_updated = 0;
+        $total            = count( $post_ids );
+
+        $this->logger->log( 'info', "主題曲＋集數同步：共 {$total} 部作品待處理" );
+
+        foreach ( $post_ids as $post_id ) {
+
+            // ----------------------------------------------------------------
+            // 主題曲同步
+            // ----------------------------------------------------------------
+            $mal_id = (int) get_post_meta( $post_id, 'anime_mal_id', true );
+
+            if ( $mal_id ) {
+                $this->rate_limiter->wait_if_needed( 'animethemes' );
+
+                // [修改] 呼叫 import_manager 的公開包裝方法（需在 class-import-manager.php 新增）
+                $api_result = $this->import_manager->fetch_themes_only( $mal_id );
+
+                if ( ! empty( $api_result['themes'] ) && is_array( $api_result['themes'] ) ) {
+
+                    // 讀取現有主題曲（本地）
+                    $old_json   = (string) get_post_meta( $post_id, 'anime_themes', true );
+                    $old_themes = json_decode( $old_json, true );
+                    if ( ! is_array( $old_themes ) ) {
+                        $old_themes = [];
+                    }
+
+                    // [修改] 讀取已鎖定的 type+sequence 鍵（例如 ["OP1","ED1"]）
+                    // 鎖定後，即使 API 回傳新資料也不會覆寫該鍵
+                    $locked_keys_json = (string) get_post_meta( $post_id, 'anime_themes_locked_keys', true );
+                    $locked_keys      = json_decode( $locked_keys_json, true );
+                    if ( ! is_array( $locked_keys ) ) {
+                        $locked_keys = [];
+                    }
+                    $locked_keys_index = array_flip( $locked_keys ); // 快速查表
+
+                    // 建立本地主題曲索引（type+sequence → 陣列位置）
+                    // 同時保留 source=manual 的項目（人工新增）
+                    $old_index = []; // key => true
+                    foreach ( $old_themes as $t ) {
+                        $key             = ( $t['type'] ?? '' ) . ( $t['sequence'] ?? '' );
+                        $old_index[$key] = true;
+                    }
+
+                    $added = 0;
+                    foreach ( $api_result['themes'] as $new_theme ) {
+                        $key = ( $new_theme['type'] ?? '' ) . ( $new_theme['sequence'] ?? '' );
+
+                        // [修改] 若該鍵已鎖定，跳過（不新增也不覆寫）
+                        if ( isset( $locked_keys_index[$key] ) ) {
+                            continue;
+                        }
+
+                        // 本地已存在該 type+sequence，跳過（保留人工整理的資料）
+                        if ( isset( $old_index[$key] ) ) {
+                            continue;
+                        }
+
+                        // 新鍵，補入
+                        $old_themes[]    = $new_theme;
+                        $old_index[$key] = true;
+                        $added++;
+                    }
+
+                    // [修改] 人工新增的項目（source === 'manual'）已包含在 old_themes 中，
+                    // 因為我們只做 append，不做 replace，所以永遠不會被刪除
+
+                    if ( $added > 0 ) {
+                        update_post_meta(
+                            $post_id,
+                            'anime_themes',
+                            wp_json_encode( array_values( $old_themes ), JSON_UNESCAPED_UNICODE )
+                        );
+                        // 更新同步時間戳（ACF 欄位 anime_themes_synced_at 已在 class-acf-fields.php 定義）
+                        update_post_meta( $post_id, 'anime_themes_synced_at', current_time( 'mysql' ) );
+                        $this->logger->log( 'info', "主題曲新增 {$added} 首", [
+                            'post_id' => $post_id,
+                            'mal_id'  => $mal_id,
+                        ] );
+                        $themes_updated++;
+                    }
+                }
+            }
+
+            // ----------------------------------------------------------------
+            // 集數同步
+            // ----------------------------------------------------------------
+            $bangumi_id = (int) get_post_meta( $post_id, 'anime_bangumi_id', true );
+
+            if ( $bangumi_id ) {
+                $this->rate_limiter->wait_if_needed( 'bangumi' );
+
+                // [修改] 呼叫 import_manager 的公開包裝方法（需在 class-import-manager.php 新增）
+                $api_episodes = $this->import_manager->fetch_episodes_only( $bangumi_id );
+
+                if ( ! empty( $api_episodes ) && is_array( $api_episodes ) ) {
+
+                    // 讀取現有集數（本地）
+                    $old_ep_json  = (string) get_post_meta( $post_id, 'anime_episodes_json', true );
+                    $old_episodes = json_decode( $old_ep_json, true );
+                    if ( ! is_array( $old_episodes ) ) {
+                        $old_episodes = [];
+                    }
+
+                    // [修改] 讀取已鎖定的集數 ID 陣列（例如 [1001, 1002]）
+                    // 鎖定後即使 API 有新資料也不覆寫該集數
+                    $locked_ep_json = (string) get_post_meta( $post_id, 'anime_episodes_locked_ids', true );
+                    $locked_ep_ids  = json_decode( $locked_ep_json, true );
+                    if ( ! is_array( $locked_ep_ids ) ) {
+                        $locked_ep_ids = [];
+                    }
+                    $locked_ep_index = array_flip( $locked_ep_ids ); // 快速查表
+
+                    // 建立本地集數索引（ep.id → true）
+                    // [修改] 所有本地集數（含 source=manual 人工新增）都加入索引，
+                    // 因為我們只做 append，不做 replace，人工新增的永遠不會被刪除
+                    $old_ep_index = [];
+                    foreach ( $old_episodes as $ep ) {
+                        $ep_id = $ep['id'] ?? null;
+                        if ( $ep_id !== null ) {
+                            $old_ep_index[$ep_id] = true;
+                        }
+                    }
+
+                    $added_eps = 0;
+                    foreach ( $api_episodes as $new_ep ) {
+                        $ep_id = $new_ep['id'] ?? null;
+                        if ( $ep_id === null ) continue;
+
+                        // [修改] 若該集數 ID 已鎖定，跳過（不新增也不覆寫）
+                        if ( isset( $locked_ep_index[$ep_id] ) ) {
+                            continue;
+                        }
+
+                        // 本地已有該集數，跳過（保留已翻譯內容）
+                        if ( isset( $old_ep_index[$ep_id] ) ) {
+                            continue;
+                        }
+
+                        // 新集數，補入
+                        $old_episodes[]      = $new_ep;
+                        $old_ep_index[$ep_id] = true;
+                        $added_eps++;
+                    }
+
+                    if ( $added_eps > 0 ) {
+                        update_post_meta(
+                            $post_id,
+                            'anime_episodes_json',
+                            wp_json_encode( array_values( $old_episodes ), JSON_UNESCAPED_UNICODE )
+                        );
+                        // 更新同步時間戳（ACF 欄位 anime_episodes_synced_at 已在 class-acf-fields.php 定義）
+                        update_post_meta( $post_id, 'anime_episodes_synced_at', current_time( 'mysql' ) );
+                        $this->logger->log( 'info', "集數新增 {$added_eps} 集", [
+                            'post_id'    => $post_id,
+                            'bangumi_id' => $bangumi_id,
+                        ] );
+                        $episodes_updated++;
+                    }
+                }
+            }
+
+            // 每篇文章處理完休息 1 秒，避免 API 速率限制
+            sleep( 1 );
+        }
+
+        $this->logger->log( 'info', sprintf(
+            '主題曲＋集數同步完成：主題曲更新 %d 部 / 集數更新 %d 部',
+            $themes_updated,
+            $episodes_updated
+        ) );
+
+        update_option( 'anime_sync_last_themes_episodes_run', current_time( 'mysql' ) );
+    }
+
+    // =========================================================================
     // 輔助方法
     // =========================================================================
 
@@ -361,10 +624,6 @@ class Anime_Sync_Cron_Manager {
         return [ $season, $year ];
     }
 
-    /**
-     * 透過 AniList GraphQL 抓取季度媒體清單。
-     * ✅ 新增 429 / WP_Error 重試（最多 3 次，指數退避）
-     */
     private function fetch_season_list( string $season, int $year ): array {
         $query = <<<'GQL'
         query ($season: MediaSeason, $year: Int, $page: Int) {
@@ -400,7 +659,6 @@ class Anime_Sync_Cron_Manager {
             ] );
 
             if ( $body === null ) {
-                // 重試三次都失敗，停止翻頁
                 $this->logger->log( 'error', "fetch_season_list 第 {$page} 頁請求失敗，停止" );
                 break;
             }
@@ -417,12 +675,6 @@ class Anime_Sync_Cron_Manager {
         return $all_media;
     }
 
-    /**
-     * 帶重試的 AniList POST 請求。
-     * ✅ 最多重試 3 次，指數退避（2s → 4s → 8s）
-     *
-     * @return array|null  解碼後的 JSON body，失敗返回 null
-     */
     private function anilist_request( string $gql, array $variables, int $max_retries = 3 ): ?array {
         $attempt = 0;
 
@@ -444,20 +696,18 @@ class Anime_Sync_Cron_Manager {
                 $this->logger->log( 'warning', 'AniList 請求 WP_Error，第 ' . $attempt . ' 次重試', [
                     'error' => $response->get_error_message(),
                 ] );
-                sleep( 2 ** $attempt ); // 2s, 4s, 8s
+                sleep( 2 ** $attempt );
                 continue;
             }
 
             $code = (int) wp_remote_retrieve_response_code( $response );
 
-            // 429 Rate Limit
             if ( $code === 429 ) {
                 $this->rate_limiter->handle_rate_limit_error( $response, 'anilist' );
                 $attempt++;
                 continue;
             }
 
-            // 其他非 200
             if ( $code !== 200 ) {
                 $attempt++;
                 $this->logger->log( 'warning', "AniList 回應 HTTP {$code}，第 {$attempt} 次重試" );
@@ -484,10 +734,12 @@ class Anime_Sync_Cron_Manager {
 
     public static function get_schedule_status(): array {
         $hooks = [
-            self::HOOK_DAILY_SCORE_UPDATE => '每日評分更新',
-            self::HOOK_WEEKLY_CLEANUP      => '每週清理',
-            self::HOOK_UPDATE_MAP          => 'Bangumi 地圖更新',
-            self::HOOK_SEASON_IMPORT       => '季度自動匯入',
+            self::HOOK_DAILY_SCORE_UPDATE       => '每日評分更新',
+            self::HOOK_WEEKLY_CLEANUP            => '每週清理',
+            self::HOOK_UPDATE_MAP                => 'Bangumi 地圖更新',
+            self::HOOK_SEASON_IMPORT             => '季度自動匯入',
+            // [修改] 新增：顯示主題曲＋集數同步排程狀態
+            self::HOOK_THEMES_EPISODES_UPDATE   => '每日主題曲＋集數同步',
         ];
 
         $status = [];
