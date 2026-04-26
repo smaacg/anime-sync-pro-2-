@@ -140,7 +140,7 @@ class Anime_Sync_ID_Mapper {
             $this->load_mal_index();
             $bgm_id = $this->mal_index[ $mal_id ] ?? null;
             if ( $bgm_id ) {
-                $validated = $this->validate_bangumi_id( (int) $bgm_id, $title_native, $season_year );
+                $validated = $this->validate_bangumi_id( (int) $bgm_id, $title_native, $season_year, $season, $episodes );
                 if ( $validated ) {
                     $this->write_bgm_id( $post_id, $validated );
                     return $validated;
@@ -162,18 +162,12 @@ class Anime_Sync_ID_Mapper {
             }
         }
 
-        // ── Layer 1.6：BangumiExtLinker 日文名 ───────────────────────────────
+        // ── Layer 1.6：BangumiExtLinker 日文名（含新番 / 續作變體）───────────
         if ( $title_native !== '' ) {
-            $this->load_bgm_ext_name_index();
-            $key   = $this->normalize_name_light( $title_native );
-            $entry = $this->bgm_ext_name_index[ $key ] ?? null;
-            if ( $entry ) {
-                $bgm_id   = (int) ( $entry['bgm_id'] ?? 0 );
-                $ext_year = (int) substr( $entry['date'] ?? '', 0, 4 );
-                if ( $bgm_id > 0 && ( $season_year === 0 || $ext_year === 0 || abs( $ext_year - $season_year ) <= 1 ) ) {
-                    $this->write_bgm_id( $post_id, $bgm_id );
-                    return $bgm_id;
-                }
+            $bgm_id = $this->resolve_bgm_ext_name_match( $title_native, $season_year, $season );
+            if ( $bgm_id ) {
+                $this->write_bgm_id( $post_id, $bgm_id );
+                return $bgm_id;
             }
         }
 
@@ -573,106 +567,158 @@ class Anime_Sync_ID_Mapper {
     // =========================================================================
 
     private function search_bangumi_by_title( string $title, int $year, string $season = '', int $episodes = 0 ): ?int {
+        $title = trim( $title );
+        if ( $title === '' ) return null;
+
+        $subject_map = [];
         foreach ( $this->build_search_variants( $title ) as $variant ) {
             $results = $this->query_bangumi_search( $variant );
-            $best    = $this->match_best_result( $results, $variant, $year, $season, $episodes );
-            if ( $best ) return $best;
+            foreach ( $results as $subject ) {
+                $bgm_id = (int) ( $subject['id'] ?? 0 );
+                if ( $bgm_id <= 0 ) continue;
+                if ( ! isset( $subject_map[ $bgm_id ] ) ) {
+                    $subject_map[ $bgm_id ] = $subject;
+                }
+            }
         }
-        return null;
+
+        if ( empty( $subject_map ) ) {
+            return null;
+        }
+
+        return $this->match_best_result( array_values( $subject_map ), $title, $year, $season, $episodes );
     }
 
     private function build_search_variants( string $title ): array {
         $title = trim( $title );
         if ( $title === '' ) return [];
 
-        $variants = [ $title ];
+        $variants = [
+            $title,
+            $this->normalize_title_preserve_season( $title ),
+            $this->normalize_title( $title ),
+        ];
 
-        $normalized = $this->normalize_title( $title );
-        if ( $normalized !== '' ) $variants[] = $normalized;
-
-        $without_brackets = preg_replace( '/[\(\（\[【].*?[\)\）\]】]/u', ' ', $title );
-        $without_brackets = trim( preg_replace( '/\s+/u', ' ', (string) $without_brackets ) );
-        if ( $without_brackets !== '' ) {
+        $without_brackets = $this->strip_bracket_text( $title );
+        if ( $without_brackets !== '' && $without_brackets !== $title ) {
             $variants[] = $without_brackets;
+            $variants[] = $this->normalize_title_preserve_season( $without_brackets );
             $variants[] = $this->normalize_title( $without_brackets );
         }
 
-        $base_title = preg_replace(
-            [
-                '/\b\d+(?:st|nd|rd|th)\s+season\b/ui',
-                '/\bseason\s*\d+\b/ui',
-                '/\bpart\s*\d+\b/ui',
-                '/\bcour\s*\d+\b/ui',
-                '/第\s*\d+\s*(?:期|季|部|クール)\b/u',
-                '/\b(?:special\s*edition|special\s*edit(?:ion)?|digest|compilation)\b/ui',
-                '/(?:特別編集版|特別編輯版|総集編|總集篇|总集篇|先行上映|先行上映版|劇場先行版)/u',
-            ],
-            ' ',
-            $title
-        );
-        $base_title = trim( preg_replace( '/\s+/u', ' ', (string) $base_title ) );
-        if ( $base_title !== '' && $base_title !== $title ) {
+        $base_title = $this->strip_season_markers( $without_brackets ?: $title );
+        if ( $base_title !== '' ) {
             $variants[] = $base_title;
+            $variants[] = $this->normalize_title_preserve_season( $base_title );
             $variants[] = $this->normalize_title( $base_title );
+        }
+
+        $signal = $this->extract_season_signal( $title );
+        if ( ! empty( $signal['number'] ) && $base_title !== '' ) {
+            $number = (int) $signal['number'];
+            if ( $number > 1 ) {
+                $variants[] = $base_title . ' ' . $number;
+                $variants[] = $base_title . ' season ' . $number;
+                $variants[] = $base_title . ' ' . $this->ordinalize( $number ) . ' season';
+            }
         }
 
         $cleaned = [];
         foreach ( $variants as $v ) {
             $v = trim( preg_replace( '/\s+/u', ' ', (string) $v ) );
-            if ( $v !== '' ) $cleaned[ $v ] = true;
+            if ( $v !== '' ) {
+                $cleaned[ $v ] = true;
+            }
         }
 
         return array_keys( $cleaned );
     }
 
-    private function query_bangumi_search( string $keyword ): array {
-        $url = add_query_arg( [ 'limit' => 25, 'offset' => 0 ], self::BGM_SEARCH_URL );
+    private function resolve_bgm_ext_name_match( string $title, int $season_year, string $season = '' ): ?int {
+        if ( $title === '' ) return null;
 
-        $response = wp_remote_post( $url, [
+        $this->load_bgm_ext_name_index();
+
+        foreach ( $this->build_search_variants( $title ) as $variant ) {
+            $key   = $this->normalize_name_light( $variant );
+            $entry = $this->bgm_ext_name_index[ $key ] ?? null;
+            if ( ! $entry ) continue;
+
+            $bgm_id   = (int) ( $entry['bgm_id'] ?? 0 );
+            $ext_year = (int) substr( $entry['date'] ?? '', 0, 4 );
+            if ( $bgm_id <= 0 ) continue;
+            if ( $season_year > 0 && $ext_year > 0 && abs( $ext_year - $season_year ) > 2 ) continue;
+
+            return $bgm_id;
+        }
+
+        return null;
+    }
+
+    private function query_bangumi_search( string $keyword ): array {
+        $keyword = trim( $keyword );
+        if ( $keyword === '' ) return [];
+
+        $url = add_query_arg( [ 'limit' => 25, 'offset' => 0 ], self::BGM_SEARCH_URL );
+        $args = [
             'timeout'    => 15,
             'user-agent' => 'AnimeSync-Pro/1.0 (WordPress)',
             'headers'    => [ 'Content-Type' => 'application/json', 'Accept' => 'application/json' ],
             'body'       => wp_json_encode( [ 'keyword' => $keyword, 'filter' => [ 'type' => [ 2 ] ] ] ),
-        ] );
+        ];
 
-        if ( is_wp_error( $response ) ) return [];
-        if ( (int) wp_remote_retrieve_response_code( $response ) !== 200 ) return [];
+        for ( $attempt = 1; $attempt <= 2; $attempt++ ) {
+            $response = wp_remote_post( $url, $args );
+            if ( ! is_wp_error( $response ) ) {
+                $code = (int) wp_remote_retrieve_response_code( $response );
+                if ( $code === 200 ) {
+                    $data = json_decode( wp_remote_retrieve_body( $response ), true );
+                    return is_array( $data['data'] ?? null ) ? $data['data'] : [];
+                }
+                $this->last_error = "Bangumi search HTTP {$code} for keyword: {$keyword}";
+            } else {
+                $this->last_error = 'Bangumi search failed: ' . $response->get_error_message();
+            }
 
-        $data = json_decode( wp_remote_retrieve_body( $response ), true );
-        return $data['data'] ?? [];
+            if ( $attempt < 2 ) {
+                sleep( 1 );
+            }
+        }
+
+        return [];
     }
 
     private function match_best_result( array $results, string $title, int $year, string $season = '', int $episodes = 0 ): ?int {
         if ( empty( $results ) ) return null;
 
-        $normalized_input = $this->normalize_title( $title );
-        $input_quarter    = $this->season_to_quarter( $season );
+        $normalized_input_base     = $this->normalize_title( $title );
+        $normalized_input_preserve = $this->normalize_title_preserve_season( $title );
+        $input_quarter             = $this->season_to_quarter( $season );
+        $input_signal              = $this->extract_season_signal( $title );
 
-        $p1 = $p2 = $p3 = $p4 = $candidates_secondary = $candidates_no_year = $all_candidates = [];
+        $candidates = [];
 
         foreach ( $results as $subject ) {
             $bgm_id = (int) ( $subject['id'] ?? 0 );
-            if ( ! $bgm_id ) continue;
+            if ( $bgm_id <= 0 ) continue;
 
             $bgm_title_cn = (string) ( $subject['name_cn'] ?? '' );
-            $bgm_title_ja = (string) ( $subject['name']    ?? '' );
+            $bgm_title_ja = (string) ( $subject['name'] ?? '' );
+            $cn_base      = $this->normalize_title( $bgm_title_cn );
+            $ja_base      = $this->normalize_title( $bgm_title_ja );
+            $cn_full      = $this->normalize_title_preserve_season( $bgm_title_cn );
+            $ja_full      = $this->normalize_title_preserve_season( $bgm_title_ja );
 
-            $sim_cn = $sim_ja = $sim_cn_rev = $sim_ja_rev = 0.0;
-            similar_text( $normalized_input, $this->normalize_title( $bgm_title_cn ), $sim_cn );
-            similar_text( $normalized_input, $this->normalize_title( $bgm_title_ja ), $sim_ja );
-            if ( $bgm_title_cn !== '' )
-                similar_text( $this->normalize_title( $bgm_title_cn ), $normalized_input, $sim_cn_rev );
-            if ( $bgm_title_ja !== '' )
-                similar_text( $this->normalize_title( $bgm_title_ja ), $normalized_input, $sim_ja_rev );
+            $sim_a = $sim_b = $sim_c = $sim_d = $sim_e = $sim_f = 0.0;
+            similar_text( $normalized_input_base, $cn_base, $sim_a );
+            similar_text( $normalized_input_base, $ja_base, $sim_b );
+            similar_text( $normalized_input_preserve, $cn_full, $sim_c );
+            similar_text( $normalized_input_preserve, $ja_full, $sim_d );
+            if ( $bgm_title_cn !== '' ) similar_text( $cn_base, $normalized_input_base, $sim_e );
+            if ( $bgm_title_ja !== '' ) similar_text( $ja_base, $normalized_input_base, $sim_f );
 
-            $sim = max( $sim_cn, $sim_ja, $sim_cn_rev, $sim_ja_rev );
-
-            if ( self::DEBUG_LOG ) {
-                error_log( sprintf( '[BGM MATCH] INPUT: %s | BGM: %s / %s | SIM: %.1f%%',
-                    $normalized_input, $bgm_title_ja, $bgm_title_cn, $sim ) );
-            }
-
-            if ( $sim < 45.0 ) continue;
+            $sim = max( $sim_a, $sim_b, $sim_c, $sim_d, $sim_e, $sim_f );
+            if ( $sim < 42.0 ) continue;
 
             $bgm_year     = $this->get_bangumi_year( $subject );
             $year_diff    = ( $year > 0 && $bgm_year > 0 ) ? abs( $bgm_year - $year ) : 999;
@@ -680,54 +726,92 @@ class Anime_Sync_ID_Mapper {
             $quarter_diff = ( $input_quarter > 0 && $bgm_quarter > 0 ) ? abs( $input_quarter - $bgm_quarter ) : 999;
             $bgm_eps      = (int) ( $subject['eps'] ?? 0 );
             $eps_diff     = ( $episodes > 0 && $bgm_eps > 0 ) ? abs( $bgm_eps - $episodes ) : 999;
-            $eps_ok       = ( $eps_diff === 999 || $eps_diff <= 3 );
 
-            $candidate = [ 'id' => $bgm_id, 'sim' => $sim, 'year_diff' => $year_diff,
-                           'quarter_diff' => $quarter_diff, 'eps_diff' => $eps_diff ];
-
-            $all_candidates[] = $candidate;
-
-            if ( $year_diff === 999 ) {
-                $candidates_no_year[] = $candidate;
-            } elseif ( $year_diff <= 1 ) {
-                if ( ( $quarter_diff === 999 || $quarter_diff === 0 ) && $eps_ok ) $p1[] = $candidate;
-                elseif ( $quarter_diff === 1 && $eps_ok )                          $p2[] = $candidate;
-                elseif ( $eps_ok )                                                 $p3[] = $candidate;
-                elseif ( $eps_diff <= 6 )                                          $p4[] = $candidate;
-                else                                                               $candidates_secondary[] = $candidate;
-            } else {
-                $candidates_secondary[] = $candidate;
+            $subject_signal = $this->extract_subject_season_signal( $subject );
+            $season_match   = $this->matches_season_signal( $input_signal, $subject_signal );
+            if ( ! $season_match && ! empty( $input_signal['number'] ) && ! empty( $subject_signal['number'] ) && $sim < 90.0 ) {
+                continue;
             }
-        }
 
-        foreach ( [ $p1, $p2, $p3, $p4 ] as $pool ) {
-            if ( ! empty( $pool ) ) {
-                usort( $pool, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
-                if ( self::DEBUG_LOG ) error_log( '[BGM MATCH] Selected ID=' . $pool[0]['id'] . ' sim=' . $pool[0]['sim'] );
-                return $pool[0]['id'];
+            $score = $sim;
+
+            if ( $year_diff !== 999 ) {
+                if ( $year_diff === 0 )      $score += 8;
+                elseif ( $year_diff === 1 )  $score += 5;
+                elseif ( $year_diff === 2 )  $score += 2;
+                elseif ( $year_diff === 3 )  $score -= 4;
+                else                         $score -= 10;
             }
-        }
 
-        if ( ! empty( $candidates_secondary ) ) {
-            usort( $candidates_secondary, fn( $a, $b ) =>
-                $a['year_diff'] !== $b['year_diff'] ? $a['year_diff'] <=> $b['year_diff'] : $b['sim'] <=> $a['sim'] );
-            if ( $candidates_secondary[0]['year_diff'] <= 3 ) return $candidates_secondary[0]['id'];
-        }
-
-        if ( ! empty( $candidates_no_year ) ) {
-            usort( $candidates_no_year, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
-            if ( $candidates_no_year[0]['sim'] >= 80.0 ) return $candidates_no_year[0]['id'];
-        }
-
-        if ( ! empty( $all_candidates ) ) {
-            usort( $all_candidates, fn( $a, $b ) => $b['sim'] <=> $a['sim'] );
-            if ( $all_candidates[0]['sim'] >= 65.0 ) {
-                if ( self::DEBUG_LOG ) error_log( '[BGM MATCH] fallback ID=' . $all_candidates[0]['id'] . ' sim=' . $all_candidates[0]['sim'] );
-                return $all_candidates[0]['id'];
+            if ( $quarter_diff !== 999 ) {
+                if ( $quarter_diff === 0 )      $score += 4;
+                elseif ( $quarter_diff === 1 )  $score += 2;
+                else                            $score -= 3;
             }
+
+            if ( $eps_diff !== 999 ) {
+                if ( $eps_diff <= 1 )       $score += 3;
+                elseif ( $eps_diff <= 3 )   $score += 2;
+                elseif ( $eps_diff > 12 )   $score -= 6;
+            }
+
+            if ( ! empty( $input_signal['number'] ) ) {
+                if ( $season_match ) {
+                    $score += 14;
+                } elseif ( ! empty( $subject_signal['number'] ) ) {
+                    $score -= 18;
+                }
+            }
+
+            if ( self::DEBUG_LOG ) {
+                error_log( sprintf(
+                    '[BGM MATCH] INPUT=%s | BGM=%s / %s | SIM=%.1f | SCORE=%.1f | YD=%s | QD=%s | ED=%s | SIGNAL=%s/%s',
+                    $normalized_input_preserve,
+                    $bgm_title_ja,
+                    $bgm_title_cn,
+                    $sim,
+                    $score,
+                    $year_diff,
+                    $quarter_diff,
+                    $eps_diff,
+                    wp_json_encode( $input_signal, JSON_UNESCAPED_UNICODE ),
+                    wp_json_encode( $subject_signal, JSON_UNESCAPED_UNICODE )
+                ) );
+            }
+
+            $candidates[] = [
+                'id'           => $bgm_id,
+                'sim'          => $sim,
+                'score'        => $score,
+                'year_diff'    => $year_diff,
+                'quarter_diff' => $quarter_diff,
+                'eps_diff'     => $eps_diff,
+            ];
+        }
+
+        if ( empty( $candidates ) ) {
+            return null;
+        }
+
+        usort( $candidates, [ $this, 'compare_candidate_priority' ] );
+
+        if ( self::DEBUG_LOG ) {
+            error_log( '[BGM MATCH] Selected ID=' . $candidates[0]['id'] . ' score=' . $candidates[0]['score'] . ' sim=' . $candidates[0]['sim'] );
+        }
+
+        if ( $candidates[0]['score'] >= 56 || $candidates[0]['sim'] >= 68.0 ) {
+            return $candidates[0]['id'];
         }
 
         return null;
+    }
+
+    private function compare_candidate_priority( array $a, array $b ): int {
+        return $b['score'] <=> $a['score']
+            ?: $a['year_diff'] <=> $b['year_diff']
+            ?: $a['quarter_diff'] <=> $b['quarter_diff']
+            ?: $a['eps_diff'] <=> $b['eps_diff']
+            ?: $b['sim'] <=> $a['sim'];
     }
 
     // =========================================================================
@@ -775,7 +859,19 @@ class Anime_Sync_ID_Mapper {
     private function normalize_title( string $title ): string {
         if ( $title === '' ) return '';
 
-        $title = mb_strtolower( $title );
+        $title = $this->normalize_title_preserve_season( $title );
+        $title = $this->strip_season_markers( $title );
+        $title = preg_replace( '/\s+\d+$/u', '', (string) $title );
+        $title = preg_replace( '/\s+/u', ' ', (string) $title );
+
+        return trim( (string) $title );
+    }
+
+    private function normalize_title_preserve_season( string $title ): string {
+        if ( $title === '' ) return '';
+
+        $title = str_replace( '　', ' ', $title );
+        $title = mb_strtolower( $title, 'UTF-8' );
 
         $roman_map = [
             'ⅻ' => '12', 'ⅺ' => '11', 'ⅹ' => '10',
@@ -784,25 +880,127 @@ class Anime_Sync_ID_Mapper {
             'ⅲ' => '3',  'ⅱ' => '2',  'ⅰ' => '1',
         ];
         $title = str_replace( array_keys( $roman_map ), array_values( $roman_map ), $title );
-
-        $title = preg_replace( '/[\(\（][^\)\）]*[\)\）]/', '', $title );
-        $title = preg_replace( '/[\[【][^\]】]*[\]】]/',   '', $title );
-        $title = preg_replace( '/\b(?:season|part|cour|chapter|arc)\s*\d+\b/i', '', $title );
-        $title = preg_replace( '/\b\d+(?:st|nd|rd|th)\s+season\b/i', '', $title );
-        $title = preg_replace( '/第\s*\d+\s*[期季クール]/u', '', $title );
-        $title = preg_replace( '/\s+\d+$/', '', $title );
-        $title = preg_replace( '/\b(19|20)\d{2}\b/', '', $title );
+        $title = preg_replace_callback( '/\b([ivxlcdm]+)\b/u', fn( $m ) => (string) $this->roman_to_int( $m[1] ), $title );
+        $title = str_replace( [ '＆', '&amp;', '&' ], ' and ', $title );
+        $title = str_replace( [ '＋', '+' ], ' plus ', $title );
+        $title = str_replace( [ '：', ':', '・', '／', '/', '—', '–', '―', '〜', '~', '“', '”', '「', '」', '『', '』', '【', '】', '[', ']' ], ' ', $title );
+        $title = preg_replace( '/[\(\（][^\)\）]*[\)\）]/u', ' ', $title );
+        $title = preg_replace( '/\b(19|20)\d{2}\b/u', ' ', $title );
         $title = preg_replace( '/[^\p{L}\p{N}\s]/u', ' ', $title );
-        $title = preg_replace( '/\s+/', ' ', $title );
+        $title = preg_replace( '/\s+/u', ' ', $title );
 
-        return trim( $title );
+        return trim( (string) $title );
     }
 
     private function normalize_name_light( string $name ): string {
         if ( $name === '' ) return '';
-        $name = str_replace( '　', ' ', $name );
-        $name = mb_strtolower( $name );
-        return trim( $name );
+        return $this->normalize_title_preserve_season( $name );
+    }
+
+    private function strip_bracket_text( string $title ): string {
+        $title = preg_replace( '/[\(\（\[【].*?[\)\）\]】]/u', ' ', $title );
+        $title = preg_replace( '/\s+/u', ' ', (string) $title );
+        return trim( (string) $title );
+    }
+
+    private function strip_season_markers( string $title ): string {
+        $title = preg_replace(
+            [
+                '/\b\d+(?:st|nd|rd|th)\s+season\b/ui',
+                '/\bseason\s*\d+\b/ui',
+                '/\bpart\s*\d+\b/ui',
+                '/\bcour\s*\d+\b/ui',
+                '/第\s*\d+\s*(?:期|季|部|クール)\b/u',
+                '/\b(?:special\s*edition|special\s*edit(?:ion)?|digest|compilation)\b/ui',
+                '/(?:特別編集版|特別編輯版|総集編|總集篇|总集篇|先行上映|先行上映版|劇場先行版)/u',
+            ],
+            ' ',
+            $title
+        );
+        $title = preg_replace( '/\s+/u', ' ', (string) $title );
+        return trim( (string) $title );
+    }
+
+    private function extract_season_signal( string $title ): array {
+        $title = mb_strtolower( trim( $title ), 'UTF-8' );
+        if ( $title === '' ) return [];
+
+        $patterns = [
+            '/\b(\d+)(?:st|nd|rd|th)\s+season\b/u' => 'season',
+            '/\bseason\s*(\d+)\b/u'               => 'season',
+            '/\bpart\s*(\d+)\b/u'                 => 'part',
+            '/\bcour\s*(\d+)\b/u'                 => 'cour',
+            '/第\s*(\d+)\s*(?:期|季|部|クール)\b/u' => 'season',
+            '/\bact\s*([ivxlcdm]+|\d+)\b/u'       => 'act',
+        ];
+
+        foreach ( $patterns as $pattern => $kind ) {
+            if ( preg_match( $pattern, $title, $m ) ) {
+                $number = $this->normalize_season_number_token( $m[1] ?? '' );
+                if ( $number > 0 ) {
+                    return [ 'kind' => $kind, 'number' => $number ];
+                }
+            }
+        }
+
+        return [];
+    }
+
+    private function extract_subject_season_signal( array $subject ): array {
+        foreach ( [ (string) ( $subject['name'] ?? '' ), (string) ( $subject['name_cn'] ?? '' ) ] as $candidate ) {
+            $signal = $this->extract_season_signal( $candidate );
+            if ( ! empty( $signal ) ) {
+                return $signal;
+            }
+        }
+        return [];
+    }
+
+    private function matches_season_signal( array $input_signal, array $subject_signal ): bool {
+        if ( empty( $input_signal['number'] ) || empty( $subject_signal['number'] ) ) {
+            return true;
+        }
+        return (int) $input_signal['number'] === (int) $subject_signal['number'];
+    }
+
+    private function normalize_season_number_token( string $token ): int {
+        $token = trim( mb_strtolower( $token, 'UTF-8' ) );
+        if ( $token === '' ) return 0;
+        if ( ctype_digit( $token ) ) return (int) $token;
+        return $this->roman_to_int( $token );
+    }
+
+    private function roman_to_int( string $roman ): int {
+        $roman = strtoupper( trim( $roman ) );
+        if ( $roman === '' ) return 0;
+
+        $map = [ 'I' => 1, 'V' => 5, 'X' => 10, 'L' => 50, 'C' => 100, 'D' => 500, 'M' => 1000 ];
+        $total = 0;
+        $prev = 0;
+        foreach ( array_reverse( str_split( $roman ) ) as $char ) {
+            $value = $map[ $char ] ?? 0;
+            if ( $value === 0 ) return 0;
+            if ( $value < $prev ) {
+                $total -= $value;
+            } else {
+                $total += $value;
+                $prev = $value;
+            }
+        }
+        return $total;
+    }
+
+    private function ordinalize( int $number ): string {
+        $suffix = 'th';
+        if ( $number % 100 < 11 || $number % 100 > 13 ) {
+            $suffix = match ( $number % 10 ) {
+                1 => 'st',
+                2 => 'nd',
+                3 => 'rd',
+                default => 'th',
+            };
+        }
+        return $number . $suffix;
     }
 
     // =========================================================================
@@ -851,8 +1049,8 @@ class Anime_Sync_ID_Mapper {
     // PRIVATE – Bangumi ID 驗證
     // =========================================================================
 
-    private function validate_bangumi_id( int $bgm_id, string $title, int $year ): ?int {
-        $cache_key = 'anime_sync_bgm_validate_' . $bgm_id;
+    private function validate_bangumi_id( int $bgm_id, string $title, int $year, string $season = '', int $episodes = 0 ): ?int {
+        $cache_key = 'anime_sync_bgm_validate_' . $bgm_id . '_' . md5( $title . '|' . $year . '|' . $season . '|' . $episodes );
         $cached    = get_transient( $cache_key );
         if ( $cached !== false ) return $cached > 0 ? (int) $cached : null;
 
@@ -874,14 +1072,42 @@ class Anime_Sync_ID_Mapper {
         }
 
         $bgm_year = $this->get_bangumi_year( $subject );
-        if ( $year > 0 && $bgm_year > 0 && abs( $bgm_year - $year ) > 2 ) {
+        if ( $year > 0 && $bgm_year > 0 && abs( $bgm_year - $year ) > 3 ) {
             set_transient( $cache_key, 0, DAY_IN_SECONDS );
             return null;
         }
 
-        $sim = 0.0;
-        similar_text( $this->normalize_title( $title ), $this->normalize_title( $subject['name'] ?? '' ), $sim );
-        if ( $sim < 30.0 ) {
+        $input_signal   = $this->extract_season_signal( $title );
+        $subject_signal = $this->extract_subject_season_signal( $subject );
+        if ( ! $this->matches_season_signal( $input_signal, $subject_signal ) ) {
+            set_transient( $cache_key, 0, DAY_IN_SECONDS );
+            return null;
+        }
+
+        $input_base = $this->normalize_title( $title );
+        $input_full = $this->normalize_title_preserve_season( $title );
+        $name_ja    = (string) ( $subject['name'] ?? '' );
+        $name_cn    = (string) ( $subject['name_cn'] ?? '' );
+
+        $sim_a = $sim_b = $sim_c = $sim_d = 0.0;
+        similar_text( $input_base, $this->normalize_title( $name_ja ), $sim_a );
+        similar_text( $input_base, $this->normalize_title( $name_cn ), $sim_b );
+        similar_text( $input_full, $this->normalize_title_preserve_season( $name_ja ), $sim_c );
+        similar_text( $input_full, $this->normalize_title_preserve_season( $name_cn ), $sim_d );
+        $sim = max( $sim_a, $sim_b, $sim_c, $sim_d );
+
+        if ( $sim < 25.0 ) {
+            set_transient( $cache_key, 0, DAY_IN_SECONDS );
+            return null;
+        }
+
+        $bgm_eps = (int) ( $subject['eps'] ?? 0 );
+        if ( $episodes > 0 && $bgm_eps > 0 && abs( $bgm_eps - $episodes ) > 12 && $sim < 85.0 ) {
+            set_transient( $cache_key, 0, DAY_IN_SECONDS );
+            return null;
+        }
+
+        if ( $year > 0 && $bgm_year > 0 && abs( $bgm_year - $year ) > 1 && $sim < 55.0 ) {
             set_transient( $cache_key, 0, DAY_IN_SECONDS );
             return null;
         }
