@@ -104,7 +104,7 @@ while ( have_posts() ) :
         'crunchyroll' => $get_meta( 'anime_tw_streaming_url_crunchyroll' ),
         'hulu'        => $get_meta( 'anime_tw_streaming_url_hulu' ),
         'hidive'      => $get_meta( 'anime_tw_streaming_url_hidive' ),
-        'ani-one'     => $get_meta( 'anime_tw_streaming_url_ani_one' ),
+        'ani_one'     => $get_meta( 'anime_tw_streaming_url_ani_one' ),
         'muse'        => $get_meta( 'anime_tw_streaming_url_muse' ),
         'viu'         => $get_meta( 'anime_tw_streaming_url_viu' ),
         'wetv'        => $get_meta( 'anime_tw_streaming_url_wetv' ),
@@ -133,7 +133,7 @@ while ( have_posts() ) :
         'kktv'        => 'KKTV',     'friday'      => 'friDay影音',
         'catchplay'   => 'CatchPlay+','bilibili'   => 'Bilibili',
         'crunchyroll' => 'Crunchyroll','hulu'       => 'Hulu',
-        'hidive'      => 'HIDIVE',   'ani-one'     => 'Ani-One',
+        'hidive'      => 'HIDIVE',   'ani_one'     => 'Ani-One',
         'muse'        => 'Muse Asia','viu'         => 'Viu',
         'wetv'        => 'WeTV',     'youtube'     => 'YouTube',
     ];
@@ -143,6 +143,9 @@ while ( have_posts() ) :
         $raw_arr = is_array( $tw_streaming_raw ) ? $tw_streaming_raw : [ $tw_streaming_raw ];
         foreach ( $raw_arr as $key ) {
             $key = trim( (string) $key );
+            if ( $key === 'ani-one' ) {
+                $key = 'ani_one'; // 向後相容舊資料
+            }
             if ( $key === '' ) continue;
             $tw_streaming_items[] = [
                 'label' => $tw_stream_labels[ $key ] ?? $key,
