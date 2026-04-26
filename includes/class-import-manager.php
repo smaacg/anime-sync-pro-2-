@@ -399,7 +399,9 @@ class Anime_Sync_Import_Manager {
 			update_post_meta( $post_id, $key, $this->prepare_meta_value( $key, $value ) );
 		}
 
-		$this->map_streaming_to_tw_fields( $post_id, $data['anime_external_links'] ?? '[]' );
+		// 停用：不要自動把 AniList externalLinks 映射到台灣欄位。
+		// 台灣平台改為完全由人工在 ACF 欄位維護。
+		// $this->map_streaming_to_tw_fields( $post_id, $data['anime_external_links'] ?? '[]' );
 
 		$bgm_id_raw        = $data['bangumi_id'] ?? null;
 		$bgm_id            = $bgm_id_raw !== null ? abs( intval( $bgm_id_raw ) ) : 0;
