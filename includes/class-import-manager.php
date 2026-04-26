@@ -14,6 +14,11 @@
  * ACK – 新增 map_streaming_to_tw_fields()：解析 externalLinks 自動寫入台灣串流平台欄位。
  * ACL – import_single() enrich 排程改為依 post_id 尾數錯開時間，
  *        避免批量匯入時同時觸發大量 API 請求撞 rate limit。
+ *
+ * [修改] 新增：
+ * - import_single() 更新時保留現有文章標題，不讓 API 覆寫人工編輯的標題
+ * - fetch_themes_only()：公開包裝方法，供 class-cron-manager.php 呼叫 AnimeThemes API
+ * - fetch_episodes_only()：公開包裝方法，供 class-cron-manager.php 呼叫 Bangumi 集數 API
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -82,9 +87,22 @@ class Anime_Sync_Import_Manager {
 			'⏳ 待補抓：聲優/主題曲/Wikipedia',
 		] ) );
 
-		$post_title = ! empty( $anime_data['anime_title_chinese'] )
-			? (string) $anime_data['anime_title_chinese']
-			: ( $anime_data['anime_title_romaji'] ?? "Anime {$anilist_id}" );
+		// [修改] 標題邏輯：
+		// - 首次匯入（!$is_update）：使用 API 回傳的中文標題或 Romaji，行為與原本相同。
+		// - 更新（$is_update）：優先保留現有文章的 post_title（人工編輯過的標題），
+		//   避免每日排程覆寫人工修改。只有在現有標題為空時才 fallback 至 API 標題。
+		if ( $is_update ) {
+			$existing_post = get_post( $existing_id );
+			$post_title    = ( $existing_post && trim( $existing_post->post_title ) !== '' )
+				? $existing_post->post_title
+				: ( ! empty( $anime_data['anime_title_chinese'] )
+					? (string) $anime_data['anime_title_chinese']
+					: ( $anime_data['anime_title_romaji'] ?? "Anime {$anilist_id}" ) );
+		} else {
+			$post_title = ! empty( $anime_data['anime_title_chinese'] )
+				? (string) $anime_data['anime_title_chinese']
+				: ( $anime_data['anime_title_romaji'] ?? "Anime {$anilist_id}" );
+		}
 
 		$post_slug   = $this->generate_slug( $anime_data, $existing_id );
 		$post_fields = $this->extract_post_fields( $anime_data, $existing_id );
@@ -225,6 +243,50 @@ class Anime_Sync_Import_Manager {
 		}
 
 		return true;
+	}
+
+	// =========================================================================
+	// [修改] PUBLIC – 主題曲 API 公開包裝方法
+	//
+	// 供 class-cron-manager.php 的 run_themes_episodes_update() 呼叫。
+	// 直接委派給 api_handler->fetch_animethemes()，
+	// 該方法在 class-api-handler.php 中需確保為 public 存取修飾詞。
+	//
+	// 回傳格式範例：
+	// [
+	//   'themes' => [
+	//     [ 'type' => 'OP', 'sequence' => '1', 'title' => '...', 'audio_url' => '...' ],
+	//     [ 'type' => 'ED', 'sequence' => '1', 'title' => '...', 'audio_url' => '...' ],
+	//   ]
+	// ]
+	// =========================================================================
+
+	public function fetch_themes_only( int $mal_id ): array {
+		if ( $mal_id <= 0 ) {
+			return [];
+		}
+		return $this->api_handler->fetch_animethemes( $mal_id );
+	}
+
+	// =========================================================================
+	// [修改] PUBLIC – 集數列表 API 公開包裝方法
+	//
+	// 供 class-cron-manager.php 的 run_themes_episodes_update() 呼叫。
+	// 直接委派給 api_handler->fetch_bgm_episodes()，
+	// 該方法在 class-api-handler.php 中需確保為 public 存取修飾詞。
+	//
+	// 回傳格式範例：
+	// [
+	//   [ 'id' => 1001, 'ep' => 1, 'name' => '第一話', 'name_cn' => '...' ],
+	//   [ 'id' => 1002, 'ep' => 2, 'name' => '第二話', 'name_cn' => '...' ],
+	// ]
+	// =========================================================================
+
+	public function fetch_episodes_only( int $bangumi_id ): array {
+		if ( $bangumi_id <= 0 ) {
+			return [];
+		}
+		return $this->api_handler->fetch_bgm_episodes( $bangumi_id );
 	}
 
 	// =========================================================================
