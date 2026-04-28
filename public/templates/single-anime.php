@@ -388,7 +388,56 @@ while ( have_posts() ) :
 
     /* ── ✅ 使用者既有評分（注入給 JS）── */
     $user_rating = [ 'story' => 5.0, 'music' => 5.0, 'animation' => 5.0, 'voice' => 5.0 ];
-    if ( is_user_logged_in() ) {
+
+    /* ── 站台平均評分 ── */
+    $site_score = $site_story = $site_music = $site_animation = $site_voice = 0.0;
+    $site_count = 0;
+
+    if ( class_exists( 'Anime_Sync_Rating_Manager' ) ) {
+        $rating_manager = new Anime_Sync_Rating_Manager();
+        $site_stats     = $rating_manager->get_stats( $post_id );
+
+        if ( is_array( $site_stats ) ) {
+            $site_score     = (float) ( $site_stats['score']         ?? 0 );
+            $site_story     = (float) ( $site_stats['avg_story']     ?? 0 );
+            $site_music     = (float) ( $site_stats['avg_music']     ?? 0 );
+            $site_animation = (float) ( $site_stats['avg_animation'] ?? 0 );
+            $site_voice     = (float) ( $site_stats['avg_voice']     ?? 0 );
+            $site_count     = (int)   ( $site_stats['vote_count']    ?? 0 );
+        }
+
+        if ( is_user_logged_in() ) {
+            $uid          = get_current_user_id();
+            $saved_rating = $rating_manager->get_user_rating( $post_id, $uid );
+
+            if ( is_array( $saved_rating ) ) {
+                $user_rating['story']     = (float) ( $saved_rating['score_story']     ?? 5 );
+                $user_rating['music']     = (float) ( $saved_rating['score_music']     ?? 5 );
+                $user_rating['animation'] = (float) ( $saved_rating['score_animation'] ?? 5 );
+                $user_rating['voice']     = (float) ( $saved_rating['score_voice']     ?? 5 );
+            }
+        }
+    }
+
+    if ( $site_score <= 0 ) {
+        $site_score = (float) get_post_meta( $post_id, 'anime_score_site', true );
+    }
+    if ( $site_count <= 0 ) {
+        $site_count = (int) get_post_meta( $post_id, 'anime_score_site_count', true );
+    }
+
+    if ( $site_score <= 0 ) {
+        $site_score     = (float) get_post_meta( $post_id, 'smacg_site_score',           true );
+        $site_story     = (float) get_post_meta( $post_id, 'smacg_site_score_story',     true );
+        $site_music     = (float) get_post_meta( $post_id, 'smacg_site_score_music',     true );
+        $site_animation = (float) get_post_meta( $post_id, 'smacg_site_score_animation', true );
+        $site_voice     = (float) get_post_meta( $post_id, 'smacg_site_score_voice',     true );
+        if ( $site_count <= 0 ) {
+            $site_count = (int) get_post_meta( $post_id, 'smacg_site_score_count', true );
+        }
+    }
+
+    if ( is_user_logged_in() && $user_rating === [ 'story' => 5.0, 'music' => 5.0, 'animation' => 5.0, 'voice' => 5.0 ] ) {
         $uid          = get_current_user_id();
         $saved_detail = get_user_meta( $uid, "smacg_rating_detail_{$post_id}", true );
         if ( is_array( $saved_detail ) ) {
@@ -398,14 +447,6 @@ while ( have_posts() ) :
             $user_rating['voice']     = (float) ( $saved_detail['voice']     ?? 5 );
         }
     }
-
-    /* ── 站台平均評分 ── */
-    $site_score     = (float) get_post_meta( $post_id, 'smacg_site_score',           true );
-    $site_story     = (float) get_post_meta( $post_id, 'smacg_site_score_story',     true );
-    $site_music     = (float) get_post_meta( $post_id, 'smacg_site_score_music',     true );
-    $site_animation = (float) get_post_meta( $post_id, 'smacg_site_score_animation', true );
-    $site_voice     = (float) get_post_meta( $post_id, 'smacg_site_score_voice',     true );
-    $site_count     = (int)   get_post_meta( $post_id, 'smacg_site_score_count',     true );
 
 ?>
 <script type="application/ld+json"><?php echo wp_json_encode( $schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
