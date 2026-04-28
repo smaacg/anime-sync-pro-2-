@@ -20,6 +20,105 @@ class Anime_Sync_Review_Queue {
         $this->table_name = $wpdb->prefix . 'anime_review_queue';
     }
 
+
+    private function get_preferred_title( array $api_data ): string {
+        $title = $api_data['anime_title_chinese']
+            ?? $api_data['anime_title_native']
+            ?? $api_data['anime_title_romaji']
+            ?? '';
+
+        if ( $title === '' && ! empty( $api_data['title'] ) && is_array( $api_data['title'] ) ) {
+            $title = $api_data['title']['chinese_traditional']
+                ?? $api_data['title']['native']
+                ?? $api_data['title']['romaji']
+                ?? '';
+        }
+
+        return sanitize_text_field( (string) $title );
+    }
+
+    private function decode_json_array( $value ): array {
+        if ( is_array( $value ) ) {
+            return $value;
+        }
+
+        if ( ! is_string( $value ) || trim( $value ) === '' ) {
+            return [];
+        }
+
+        $decoded = json_decode( $value, true );
+        return is_array( $decoded ) ? $decoded : [];
+    }
+
+    private function normalize_api_data( array $api_data ): array {
+        $data = $api_data;
+
+        $data['title'] = is_array( $data['title'] ?? null ) ? $data['title'] : [];
+        $data['title']['chinese_traditional'] = $data['title']['chinese_traditional'] ?? ( $data['anime_title_chinese'] ?? '' );
+        $data['title']['romaji']              = $data['title']['romaji'] ?? ( $data['anime_title_romaji'] ?? '' );
+        $data['title']['english']             = $data['title']['english'] ?? ( $data['anime_title_english'] ?? '' );
+        $data['title']['native']              = $data['title']['native'] ?? ( $data['anime_title_native'] ?? '' );
+
+        $data['cover_image'] = $data['cover_image'] ?? ( $data['anime_cover_image'] ?? '' );
+        $data['format']      = $data['format'] ?? ( $data['anime_format'] ?? 'TV' );
+        $data['season']      = $data['season'] ?? ( $data['anime_season'] ?? '' );
+        $data['year']        = $data['year'] ?? ( $data['anime_season_year'] ?? 0 );
+        $data['episodes']    = $data['episodes'] ?? ( $data['anime_episodes'] ?? 0 );
+        $data['duration']    = $data['duration'] ?? ( $data['anime_duration'] ?? 0 );
+        $data['popularity']  = $data['popularity'] ?? ( $data['anime_popularity'] ?? 0 );
+        $data['source']      = $data['source'] ?? ( $data['anime_source'] ?? '' );
+        $data['status']      = $data['status'] ?? ( $data['anime_status'] ?? '' );
+
+        $data['score'] = is_array( $data['score'] ?? null ) ? $data['score'] : [];
+        $data['score']['anilist'] = $data['score']['anilist'] ?? ( $data['anime_score_anilist'] ?? 0 );
+        $data['score']['mal']     = $data['score']['mal'] ?? ( $data['anime_score_mal'] ?? 0 );
+        $data['score']['bangumi'] = $data['score']['bangumi'] ?? ( $data['anime_score_bangumi'] ?? 0 );
+
+        $data['synopsis'] = is_array( $data['synopsis'] ?? null ) ? $data['synopsis'] : [];
+        $data['synopsis']['chinese_traditional'] = $data['synopsis']['chinese_traditional'] ?? ( $data['anime_synopsis_chinese'] ?? '' );
+        $data['synopsis']['english']             = $data['synopsis']['english'] ?? ( $data['anime_synopsis_english'] ?? '' );
+
+        $data['id_anilist'] = $data['id_anilist'] ?? ( $data['anilist_id'] ?? 0 );
+        $data['id_mal']     = $data['id_mal'] ?? ( $data['mal_id'] ?? 0 );
+        $data['id_bangumi'] = $data['id_bangumi'] ?? ( $data['bangumi_id'] ?? 0 );
+
+        if ( empty( $data['studios'] ) && ! empty( $data['anime_studios'] ) ) {
+            $studios = array_filter( array_map( 'trim', explode( ',', (string) $data['anime_studios'] ) ) );
+            $data['studios'] = array_map( static fn( $name ) => [ 'name' => $name ], $studios );
+        }
+
+        if ( empty( $data['genres'] ) && ! empty( $data['anime_genres'] ) && is_array( $data['anime_genres'] ) ) {
+            $data['genres'] = array_values( $data['anime_genres'] );
+        }
+
+        if ( empty( $data['music'] ) || ! is_array( $data['music'] ) ) {
+            $themes = $this->decode_json_array( $data['anime_themes'] ?? [] );
+            $music  = [ 'openings' => [], 'endings' => [] ];
+
+            foreach ( $themes as $theme ) {
+                if ( ! is_array( $theme ) ) {
+                    continue;
+                }
+
+                $type  = strtoupper( (string) ( $theme['type'] ?? '' ) );
+                $entry = [
+                    'title'  => (string) ( $theme['title'] ?? '' ),
+                    'artist' => (string) ( $theme['artist'] ?? '' ),
+                ];
+
+                if ( strpos( $type, 'OP' ) === 0 ) {
+                    $music['openings'][] = $entry;
+                } elseif ( strpos( $type, 'ED' ) === 0 ) {
+                    $music['endings'][] = $entry;
+                }
+            }
+
+            $data['music'] = $music;
+        }
+
+        return $data;
+    }
+
     // =========================================================================
     // 新增
     // =========================================================================
@@ -38,15 +137,8 @@ class Anime_Sync_Review_Queue {
             return false;
         }
 
-        // ✅ 修正：從正確的 key 取得標題（merge_api_data 輸出格式）
-        $title = '';
-        if ( ! empty( $api_data['anime_title_chinese'] ) ) {
-            $title = $api_data['anime_title_chinese'];
-        } elseif ( ! empty( $api_data['anime_title_native'] ) ) {
-            $title = $api_data['anime_title_native'];
-        } elseif ( ! empty( $api_data['anime_title_romaji'] ) ) {
-            $title = $api_data['anime_title_romaji'];
-        }
+        $api_data = $this->normalize_api_data( $api_data );
+        $title    = $this->get_preferred_title( $api_data );
 
         // 壓縮 JSON 資料
         $compressed_data = gzcompress(
@@ -58,7 +150,7 @@ class Anime_Sync_Review_Queue {
             $this->table_name,
             [
                 'anilist_id' => absint( $anilist_id ),
-                'title'      => sanitize_text_field( $title ), // ✅ 獨立儲存標題欄位
+                'title'      => $title, // ✅ 獨立儲存標題欄位
                 'api_data'   => $compressed_data,
                 'status'     => 'pending',
                 'source'     => sanitize_text_field( $source ),
@@ -136,10 +228,17 @@ class Anime_Sync_Review_Queue {
 
         // 解壓縮 JSON
         if ( ! empty( $item['api_data'] ) ) {
-            $decompressed    = gzuncompress( $item['api_data'] );
-            $item['api_data'] = $decompressed
-                ? json_decode( $decompressed, true )
-                : null;
+            $decompressed = gzuncompress( $item['api_data'] );
+            if ( false === $decompressed ) {
+                $decompressed = $item['api_data'];
+            }
+
+            $decoded = json_decode( $decompressed, true );
+            $item['api_data'] = is_array( $decoded )
+                ? $this->normalize_api_data( $decoded )
+                : [];
+        } else {
+            $item['api_data'] = [];
         }
 
         return $item;
@@ -230,22 +329,20 @@ class Anime_Sync_Review_Queue {
      * @return bool           成功返回 true。
      */
     public function update_api_data( int $queue_id, array $api_data ): bool {
+        $api_data   = $this->normalize_api_data( $api_data );
         $compressed = gzcompress(
             wp_json_encode( $api_data, JSON_UNESCAPED_UNICODE ),
             9
         );
 
         // 同步更新標題
-        $title = $api_data['anime_title_chinese']
-            ?? $api_data['anime_title_native']
-            ?? $api_data['anime_title_romaji']
-            ?? '';
+        $title = $this->get_preferred_title( $api_data );
 
         $result = $this->wpdb->update(
             $this->table_name,
             [
                 'api_data' => $compressed,
-                'title'    => sanitize_text_field( $title ),
+                'title'    => $title,
             ],
             [ 'id' => absint( $queue_id ) ],
             [ '%s', '%s' ],
