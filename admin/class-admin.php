@@ -40,33 +40,40 @@ class Anime_Sync_Admin {
     // Internal Helper: import_single + auto enrich
     // =========================================================================
 
-    private function import_and_enrich( int $anilist_id ): array {
-        $result = $this->import_manager->import_single( $anilist_id );
+    private function import_and_enrich( int $anilist_id, array $args = [] ): array {
+        $source = sanitize_key( $args['source'] ?? 'manual' );
+        $force  = ! empty( $args['force'] );
 
-        if ( ! empty( $result['success'] ) && ! empty( $result['post_id'] ) ) {
-            $post_id = (int) $result['post_id'];
+        $result = $this->import_manager->import_single( $anilist_id, null, $source ?: 'manual', [
+            'force' => $force,
+        ] );
 
-            wp_cache_flush();
-
-            if ( ! empty( $result['mal_id'] ) ) {
-                update_post_meta( $post_id, 'anime_mal_id', (int) $result['mal_id'] );
-            }
-
-            if ( class_exists( 'Anime_Sync_API_Handler' ) ) {
-                delete_post_meta( $post_id, '_enriched_at' );
-
-                $api    = new Anime_Sync_API_Handler();
-                $enrich = $api->enrich_anime_data( $post_id );
-
-                if ( ! is_wp_error( $enrich ) ) {
-                    $result['enriched'] = array_keys( $enrich );
-                } else {
-                    $result['enrich_error'] = $enrich->get_error_message();
-                }
-            }
-
-            delete_transient( 'anime_sync_series_gaps' );
+        if ( empty( $result['success'] ) || empty( $result['post_id'] ) || ! empty( $result['skip_enrich'] ) ) {
+            return $result;
         }
+
+        $post_id = (int) $result['post_id'];
+
+        wp_cache_flush();
+
+        if ( ! empty( $result['mal_id'] ) ) {
+            update_post_meta( $post_id, 'anime_mal_id', (int) $result['mal_id'] );
+        }
+
+        if ( class_exists( 'Anime_Sync_API_Handler' ) ) {
+            delete_post_meta( $post_id, '_enriched_at' );
+
+            $api    = new Anime_Sync_API_Handler();
+            $enrich = $api->enrich_anime_data( $post_id );
+
+            if ( ! is_wp_error( $enrich ) ) {
+                $result['enriched'] = array_keys( $enrich );
+            } else {
+                $result['enrich_error'] = $enrich->get_error_message();
+            }
+        }
+
+        delete_transient( 'anime_sync_series_gaps' );
 
         return $result;
     }
@@ -331,9 +338,18 @@ class Anime_Sync_Admin {
         @set_time_limit( 180 );
 
         $anilist_id = isset( $_POST['anilist_id'] ) ? intval( $_POST['anilist_id'] ) : 0;
+        $force      = ! empty( $_POST['force'] ) || ! empty( $_POST['force_update'] );
         if ( ! $anilist_id ) wp_send_json_error( [ 'message' => '無效的 ID' ] );
 
-        $result = $this->import_and_enrich( $anilist_id );
+        $result = $this->import_and_enrich( $anilist_id, [
+            'source' => 'manual',
+            'force'  => $force,
+        ] );
+
+        if ( empty( $result['success'] ) ) {
+            wp_send_json_error( [ 'message' => $result['message'] ?? '匯入失敗' ] );
+        }
+
         wp_send_json_success( $result );
     }
 
@@ -517,7 +533,7 @@ class Anime_Sync_Admin {
                 case 'refetch':
                     $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
                     if ( $anilist_id ) {
-                        $r = $this->import_and_enrich( $anilist_id );
+                        $r = $this->import_and_enrich( $anilist_id, [ 'source' => 'refetch' ] );
                         if ( ! empty( $r['success'] ) ) $count++;
                     }
                     break;
@@ -653,7 +669,11 @@ class Anime_Sync_Admin {
 
         if ( ! $anilist_id ) wp_send_json_error( [ 'message' => '無效的 AniList ID' ] );
 
-        $result = $this->import_and_enrich( $anilist_id );
+        $force  = ! empty( $_POST['force'] ) || ! empty( $_POST['force_update'] );
+        $result = $this->import_and_enrich( $anilist_id, [
+            'source' => 'series',
+            'force'  => $force,
+        ] );
 
         if ( ! empty( $result['success'] ) && ! empty( $result['post_id'] ) && $series_name !== '' ) {
             $this->import_manager->assign_series_taxonomy(
@@ -663,6 +683,10 @@ class Anime_Sync_Admin {
                 $series_romaji
             );
             $result['series_assigned'] = true;
+        }
+
+        if ( empty( $result['success'] ) ) {
+            wp_send_json_error( [ 'message' => $result['message'] ?? '系列匯入失敗' ] );
         }
 
         wp_send_json_success( $result );
