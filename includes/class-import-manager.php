@@ -40,10 +40,43 @@ class Anime_Sync_Import_Manager {
 	// PUBLIC – 單筆匯入（ACD：新增第三參數 $source）
 	// =========================================================================
 
-	public function import_single( int $anilist_id, ?int $bangumi_id = null, string $source = 'manual' ): array {
+	public function import_single( int $anilist_id, ?int $bangumi_id = null, string $source = 'manual', array $args = [] ): array {
 
-		$existing_id = $this->find_existing( $anilist_id );
-		$is_update   = (bool) $existing_id;
+		$force      = ! empty( $args['force'] );
+		$lock_token = $this->acquire_import_lock( $anilist_id, $force );
+
+		if ( $lock_token === '' ) {
+			$existing_id = $this->find_existing( $anilist_id );
+
+			if ( $existing_id > 0 ) {
+				$existing_bangumi_id = (int) get_post_meta( $existing_id, 'anime_bangumi_id', true );
+				if ( $existing_bangumi_id <= 0 ) {
+					$existing_bangumi_id = (int) get_post_meta( $existing_id, 'bangumi_id', true );
+				}
+
+				return [
+					'success'         => true,
+					'skipped'         => true,
+					'skip_enrich'     => true,
+					'message'         => '此作品已有同步程序，已直接沿用既有草稿',
+					'post_id'         => $existing_id,
+					'title'           => get_the_title( $existing_id ) ?: "ID {$anilist_id}",
+					'edit_url'        => get_edit_post_link( $existing_id, 'raw' ),
+					'bangumi_missing' => $existing_bangumi_id <= 0,
+					'needs_enrich'    => ! (bool) get_post_meta( $existing_id, '_enriched_at', true ),
+				];
+			}
+
+			return [
+				'success' => false,
+				'message' => '此作品正在同步中，請稍後再試',
+				'locked'  => true,
+			];
+		}
+
+		try {
+			$existing_id = $this->find_existing( $anilist_id );
+			$is_update   = (bool) $existing_id;
 
 		// 先重用既有文章已保存的 Bangumi ID，讓 API Handler / ID Mapper 的 Layer 0 真正生效。
 		if ( ( ! $bangumi_id || $bangumi_id <= 0 ) && $existing_id > 0 ) {
@@ -86,6 +119,11 @@ class Anime_Sync_Import_Manager {
 			$has_streaming ? '✅ 串流'     : null,
 			'⏳ 待補抓：聲優/主題曲/Wikipedia',
 		] ) );
+
+		if ( ! $is_update ) {
+			$existing_id = $this->find_existing( $anilist_id );
+			$is_update   = (bool) $existing_id;
+		}
 
 		// [修改] 標題邏輯：
 		// - 首次匯入（!$is_update）：使用 API 回傳的中文標題或 Romaji，行為與原本相同。
@@ -179,6 +217,9 @@ class Anime_Sync_Import_Manager {
 			'bangumi_missing' => $bangumi_missing,
 			'needs_enrich'    => true,
 		];
+		} finally {
+			$this->release_import_lock( $anilist_id, $lock_token );
+		}
 	}
 
 	// =========================================================================
@@ -904,6 +945,56 @@ class Anime_Sync_Import_Manager {
 		];
 	}
 
+
+	// =========================================================================
+	// PRIVATE – 匯入鎖（避免同 AniList ID 併發建立重複草稿）
+	// =========================================================================
+
+	private function get_import_lock_key( int $anilist_id ): string {
+		return 'anime_sync_import_lock_' . $anilist_id;
+	}
+
+	private function acquire_import_lock( int $anilist_id, bool $force = false ): string {
+		if ( $anilist_id <= 0 ) {
+			return '';
+		}
+
+		$key      = $this->get_import_lock_key( $anilist_id );
+		$existing = get_transient( $key );
+
+		if ( is_array( $existing ) && ! empty( $existing['token'] ) ) {
+			$age = time() - absint( $existing['created_at'] ?? 0 );
+			if ( ! $force || $age < 30 ) {
+				return '';
+			}
+		}
+
+		$token = wp_generate_uuid4();
+		set_transient( $key, [
+			'token'      => $token,
+			'created_at' => time(),
+		], 2 * MINUTE_IN_SECONDS );
+
+		$stored = get_transient( $key );
+		if ( is_array( $stored ) && ( $stored['token'] ?? '' ) === $token ) {
+			return $token;
+		}
+
+		return '';
+	}
+
+	private function release_import_lock( int $anilist_id, string $token ): void {
+		if ( $anilist_id <= 0 || $token === '' ) {
+			return;
+		}
+
+		$key    = $this->get_import_lock_key( $anilist_id );
+		$stored = get_transient( $key );
+		if ( is_array( $stored ) && ( $stored['token'] ?? '' ) === $token ) {
+			delete_transient( $key );
+		}
+	}
+
 	// =========================================================================
 	// PRIVATE – 查找現有文章
 	// =========================================================================
@@ -914,7 +1005,9 @@ class Anime_Sync_Import_Manager {
 		$query = new WP_Query( [
 			'post_type'      => 'anime',
 			'post_status'    => 'any',
-			'posts_per_page' => 1,
+			'posts_per_page' => 5,
+			'orderby'        => 'ID',
+			'order'          => 'ASC',
 			'meta_query'     => [
 				[
 					'key'     => 'anime_anilist_id',
@@ -926,6 +1019,13 @@ class Anime_Sync_Import_Manager {
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
 		] );
+
+		if ( count( $query->posts ) > 1 && class_exists( 'Anime_Sync_Error_Logger' ) ) {
+			Anime_Sync_Error_Logger::log( 'warning', '偵測到重複 anime_anilist_id 文章', [
+				'anilist_id' => $anilist_id,
+				'post_ids'   => array_map( 'intval', $query->posts ),
+			] );
+		}
 
 		return ! empty( $query->posts ) ? (int) $query->posts[0] : 0;
 	}
