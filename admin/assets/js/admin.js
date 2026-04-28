@@ -15,6 +15,11 @@
 
     $( function () {
 
+        if ( window.animeSyncAdminBooted ) {
+            return;
+        }
+        window.animeSyncAdminBooted = true;
+
         /* ══════════════════════════════════════════════════════════════
            CONFIG — 從 PHP localize 讀取，建立本地常數
         ══════════════════════════════════════════════════════════════ */
@@ -87,14 +92,28 @@
            TAB SWITCHING
         ══════════════════════════════════════════════════════════════ */
 
+        function switchTab( tab ) {
+            $( '.anime-sync-import-tool .nav-tab' ).removeClass( 'nav-tab-active' );
+            $( '.anime-sync-import-tool .nav-tab[data-tab="' + tab + '"]' ).addClass( 'nav-tab-active' );
+            $( '.anime-sync-tab-content' ).hide();
+            $( '#tab-' + tab ).show();
+        }
+
         $( document ).on( 'click', '.anime-sync-import-tool .nav-tab', function ( e ) {
             e.preventDefault();
             const tab = $( this ).data( 'tab' );
-            $( '.anime-sync-import-tool .nav-tab' ).removeClass( 'nav-tab-active' );
-            $( this ).addClass( 'nav-tab-active' );
-            $( '.anime-sync-tab-content' ).hide();
-            $( '#tab-' + tab ).show();
+            switchTab( tab );
+            if ( tab ) {
+                window.location.hash = tab;
+            }
         } );
+
+        const initialTab = window.location.hash.replace( '#', '' );
+        if ( initialTab && $( '.anime-sync-import-tool .nav-tab[data-tab="' + initialTab + '"]' ).length ) {
+            switchTab( initialTab );
+        } else {
+            switchTab( 'single' );
+        }
 
         /* ══════════════════════════════════════════════════════════════
            SINGLE IMPORT
@@ -121,6 +140,7 @@
                 action     : A.import_single,   // ★ 從 actions 物件讀取
                 anilist_id : parseInt( anilistId ),
                 force      : forceUpdate,
+                force_update: forceUpdate,
             } ).done( function ( resp ) {
                 $result.empty();
                 if ( resp.success ) {
@@ -291,7 +311,7 @@
                 logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
                 try {
                     const resp = await $.post( AJAX_URL, {
-                        action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: 0,
+                        action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: 0, force_update: 0,
                     } );
                     done++;
                     updateProgress( $bar, $text, done, ids.length );
@@ -299,7 +319,7 @@
                         const d = resp.data;
                         logLine( $log,
                             '✓ ' + String( d.title || 'AniList #' + anilistId )
-                            + ( d.bangumi_pending ? ' ⚠ Bangumi 待處理' : '' ),
+                            + ( ( d.bangumi_pending || d.bangumi_missing ) ? ' ⚠ Bangumi 待處理' : '' ),
                             d.bangumi_missing ? 'warning' : ( d.skipped ? 'skip' : 'success' )
                         );
                     } else {
@@ -366,7 +386,7 @@
                 logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
                 try {
                     const resp = await $.post( AJAX_URL, {
-                        action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: forceUpdate,
+                        action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: forceUpdate, force_update: forceUpdate,
                     } );
                     done++;
                     updateProgress( $bar, $text, done, ids.length );
@@ -378,7 +398,7 @@
                             succeeded++;
                             logLine( $log,
                                 '✓ ' + String( resp.data.title || 'AniList #' + anilistId )
-                                + ( resp.data.bangumi_pending ? ' ⚠ Bangumi 待處理' : '' ),
+                                + ( ( resp.data.bangumi_pending || resp.data.bangumi_missing ) ? ' ⚠ Bangumi 待處理' : '' ),
                                 resp.data.bangumi_missing ? 'warning' : 'success'
                             );
                         }
@@ -659,7 +679,7 @@
                 logLine( $log, 'AniList #' + anilistId + ' …', 'info' );
                 try {
                     const resp = await $.post( AJAX_URL, {
-                        action: A.import_single, nonce: NONCE, anilist_id: anilistId,
+                        action: A.import_single, nonce: NONCE, anilist_id: anilistId, force: 0, force_update: 0,
                     } );
                     done++;
                     updateProgress( $bar, $text, done, ids.length );
@@ -667,7 +687,7 @@
                         const d = resp.data;
                         logLine( $log,
                             '✓ ' + String( d.title || 'AniList #' + anilistId )
-                            + ( d.bangumi_pending ? ' ⚠ Bangumi 待處理' : '' ),
+                            + ( ( d.bangumi_pending || d.bangumi_missing ) ? ' ⚠ Bangumi 待處理' : '' ),
                             d.bangumi_missing ? 'warning' : ( d.skipped ? 'skip' : 'success' )
                         );
                     } else {
