@@ -22,7 +22,18 @@ if (!$item) {
     wp_die('找不到佇列項目');
 }
 
-$data = $item['api_data'];
+$data = is_array( $item['api_data'] ?? null ) ? $item['api_data'] : [];
+
+$title       = is_array( $data['title'] ?? null ) ? $data['title'] : [];
+$score       = is_array( $data['score'] ?? null ) ? $data['score'] : [];
+$synopsis    = is_array( $data['synopsis'] ?? null ) ? $data['synopsis'] : [];
+$music       = is_array( $data['music'] ?? null ) ? $data['music'] : [];
+$studios     = is_array( $data['studios'] ?? null ) ? $data['studios'] : [];
+$genres      = is_array( $data['genres'] ?? null ) ? $data['genres'] : [];
+$cover_image = $data['cover_image'] ?? ( $data['anime_cover_image'] ?? '' );
+$anilist_id  = (int) ( $data['id_anilist'] ?? ( $data['anilist_id'] ?? 0 ) );
+$mal_id      = (int) ( $data['id_mal'] ?? ( $data['mal_id'] ?? 0 ) );
+$bangumi_id  = (int) ( $data['id_bangumi'] ?? ( $data['bangumi_id'] ?? 0 ) );
 ?>
 
 <div class="wrap">
@@ -32,7 +43,7 @@ $data = $item['api_data'];
         
         <!-- 頂部操作列 -->
         <div class="preview-actions">
-            <a href="<?php echo admin_url('admin.php?page=anime-sync-queue'); ?>" 
+            <a href="<?php echo esc_url( admin_url( 'admin.php?page=anime-sync-queue' ) ); ?>" 
                class="button">
                 ← 返回佇列
             </a>
@@ -57,27 +68,27 @@ $data = $item['api_data'];
             
             <!-- 封面與基本資訊 -->
             <div class="preview-header">
-                <?php if (!empty($data['cover_image'])): ?>
+                <?php if (!empty($cover_image)): ?>
                 <div class="preview-cover">
-                    <img src="<?php echo esc_url($data['cover_image']); ?>" 
-                         alt="<?php echo esc_attr($data['title']['romaji'] ?? ''); ?>">
+                    <img src="<?php echo esc_url($cover_image); ?>" 
+                         alt="<?php echo esc_attr($title['romaji'] ?? ''); ?>">
                 </div>
                 <?php endif; ?>
                 
                 <div class="preview-title-block">
-                    <h2><?php echo esc_html($data['title']['chinese_traditional'] ?? $data['title']['romaji'] ?? ''); ?></h2>
+                    <h2><?php echo esc_html($title['chinese_traditional'] ?? $title['romaji'] ?? ''); ?></h2>
                     
                     <div class="title-variants">
-                        <?php if (!empty($data['title']['romaji'])): ?>
-                            <p><strong>羅馬拼音：</strong><?php echo esc_html($data['title']['romaji']); ?></p>
+                        <?php if (!empty($title['romaji'])): ?>
+                            <p><strong>羅馬拼音：</strong><?php echo esc_html($title['romaji']); ?></p>
                         <?php endif; ?>
                         
-                        <?php if (!empty($data['title']['english'])): ?>
-                            <p><strong>英文：</strong><?php echo esc_html($data['title']['english']); ?></p>
+                        <?php if (!empty($title['english'])): ?>
+                            <p><strong>英文：</strong><?php echo esc_html($title['english']); ?></p>
                         <?php endif; ?>
                         
-                        <?php if (!empty($data['title']['native'])): ?>
-                            <p><strong>原文：</strong><?php echo esc_html($data['title']['native']); ?></p>
+                        <?php if (!empty($title['native'])): ?>
+                            <p><strong>原文：</strong><?php echo esc_html($title['native']); ?></p>
                         <?php endif; ?>
                     </div>
                     
@@ -96,15 +107,15 @@ $data = $item['api_data'];
                 <div class="score-grid">
                     <div class="score-item">
                         <span class="score-label">AniList</span>
-                        <span class="score-value"><?php echo esc_html($data['score']['anilist'] ?? 0); ?>/100</span>
+                        <span class="score-value"><?php echo esc_html($score['anilist'] ?? 0); ?>/100</span>
                     </div>
                     <div class="score-item">
                         <span class="score-label">MyAnimeList</span>
-                        <span class="score-value"><?php echo esc_html($data['score']['mal'] ?? 0); ?>/10</span>
+                        <span class="score-value"><?php echo esc_html($score['mal'] ?? 0); ?>/10</span>
                     </div>
                     <div class="score-item">
                         <span class="score-label">Bangumi</span>
-                        <span class="score-value"><?php echo esc_html($data['score']['bangumi'] ?? 0); ?>/10</span>
+                        <span class="score-value"><?php echo esc_html($score['bangumi'] ?? 0); ?>/10</span>
                     </div>
                     <div class="score-item">
                         <span class="score-label">人氣</span>
@@ -116,17 +127,17 @@ $data = $item['api_data'];
             <!-- 簡介 -->
             <div class="preview-section">
                 <h3>簡介</h3>
-                <?php if (!empty($data['synopsis']['chinese_traditional'])): ?>
+                <?php if (!empty($synopsis['chinese_traditional'])): ?>
                     <div class="synopsis-block">
                         <h4>繁體中文</h4>
-                        <p><?php echo wp_kses_post($data['synopsis']['chinese_traditional']); ?></p>
+                        <p><?php echo wp_kses_post($synopsis['chinese_traditional']); ?></p>
                     </div>
                 <?php endif; ?>
                 
-                <?php if (!empty($data['synopsis']['english'])): ?>
+                <?php if (!empty($synopsis['english'])): ?>
                     <div class="synopsis-block">
                         <h4>English</h4>
-                        <p><?php echo wp_kses_post($data['synopsis']['english']); ?></p>
+                        <p><?php echo wp_kses_post($synopsis['english']); ?></p>
                     </div>
                 <?php endif; ?>
             </div>
@@ -139,9 +150,9 @@ $data = $item['api_data'];
                         <th style="width: 150px;">製作公司</th>
                         <td>
                             <?php 
-                            if (!empty($data['studios'])) {
-                                $studios = array_column($data['studios'], 'name');
-                                echo esc_html(implode(', ', $studios));
+                            if (!empty($studios)) {
+                                $studio_names = array_column($studios, 'name');
+                                echo esc_html(implode(', ', $studio_names));
                             } else {
                                 echo '—';
                             }
@@ -152,8 +163,8 @@ $data = $item['api_data'];
                         <th>類型</th>
                         <td>
                             <?php 
-                            if (!empty($data['genres'])) {
-                                echo esc_html(implode(', ', $data['genres']));
+                            if (!empty($genres)) {
+                                echo esc_html(implode(', ', $genres));
                             } else {
                                 echo '—';
                             }
@@ -172,15 +183,15 @@ $data = $item['api_data'];
             </div>
             
             <!-- 音樂 -->
-            <?php if (!empty($data['music']['openings']) || !empty($data['music']['endings'])): ?>
+            <?php if (!empty($music['openings']) || !empty($music['endings'])): ?>
             <div class="preview-section">
                 <h3>音樂</h3>
                 
-                <?php if (!empty($data['music']['openings'])): ?>
+                <?php if (!empty($music['openings'])): ?>
                 <div class="music-block">
                     <h4>OP 片頭曲</h4>
                     <ul>
-                        <?php foreach ($data['music']['openings'] as $op): ?>
+                        <?php foreach ($music['openings'] as $op): ?>
                             <li>
                                 <?php echo esc_html($op['title'] ?? ''); ?>
                                 <?php if (!empty($op['artist'])): ?>
@@ -192,11 +203,11 @@ $data = $item['api_data'];
                 </div>
                 <?php endif; ?>
                 
-                <?php if (!empty($data['music']['endings'])): ?>
+                <?php if (!empty($music['endings'])): ?>
                 <div class="music-block">
                     <h4>ED 片尾曲</h4>
                     <ul>
-                        <?php foreach ($data['music']['endings'] as $ed): ?>
+                        <?php foreach ($music['endings'] as $ed): ?>
                             <li>
                                 <?php echo esc_html($ed['title'] ?? ''); ?>
                                 <?php if (!empty($ed['artist'])): ?>
@@ -217,19 +228,19 @@ $data = $item['api_data'];
                     <tr>
                         <th style="width: 150px;">AniList</th>
                         <td>
-                            <a href="https://anilist.co/anime/<?php echo esc_attr($data['id_anilist'] ?? 0); ?>" 
+                            <a href="https://anilist.co/anime/<?php echo esc_attr($anilist_id); ?>" 
                                target="_blank">
-                                <?php echo esc_html($data['id_anilist'] ?? 0); ?>
+                                <?php echo esc_html($anilist_id); ?>
                             </a>
                         </td>
                     </tr>
                     <tr>
                         <th>MyAnimeList</th>
                         <td>
-                            <?php if (!empty($data['id_mal'])): ?>
-                                <a href="https://myanimelist.net/anime/<?php echo esc_attr($data['id_mal']); ?>" 
+                            <?php if (!empty($mal_id)): ?>
+                                <a href="https://myanimelist.net/anime/<?php echo esc_attr($mal_id); ?>" 
                                    target="_blank">
-                                    <?php echo esc_html($data['id_mal']); ?>
+                                    <?php echo esc_html($mal_id); ?>
                                 </a>
                             <?php else: ?>
                                 —
@@ -239,10 +250,10 @@ $data = $item['api_data'];
                     <tr>
                         <th>Bangumi</th>
                         <td>
-                            <?php if (!empty($data['id_bangumi'])): ?>
-                                <a href="https://bgm.tv/subject/<?php echo esc_attr($data['id_bangumi']); ?>" 
+                            <?php if (!empty($bangumi_id)): ?>
+                                <a href="https://bgm.tv/subject/<?php echo esc_attr($bangumi_id); ?>" 
                                    target="_blank">
-                                    <?php echo esc_html($data['id_bangumi']); ?>
+                                    <?php echo esc_html($bangumi_id); ?>
                                 </a>
                             <?php else: ?>
                                 —
@@ -258,7 +269,7 @@ $data = $item['api_data'];
                 <details>
                     <summary>點擊展開</summary>
                     <pre style="background: #f5f5f5; padding: 15px; overflow-x: auto;"><?php 
-                        echo esc_html(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); 
+                        echo esc_html(wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE )); 
                     ?></pre>
                 </details>
             </div>
