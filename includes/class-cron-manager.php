@@ -154,6 +154,7 @@ class Anime_Sync_Cron_Manager {
         $batch_size  = (int) get_option( 'anime_sync_batch_size', 15 );
         $paged       = 1;
         $updated     = 0;
+        $skipped     = 0;
         $failed      = 0;
         $cutoff_date = gmdate( 'Y-m-d', strtotime( '-90 days' ) );
 
@@ -195,7 +196,7 @@ class Anime_Sync_Cron_Manager {
 
             Anime_Sync_Performance::batch_process(
                 $query->posts,
-                function( int $post_id ) use ( &$updated, &$failed ): void {
+                function( int $post_id ) use ( &$updated, &$skipped, &$failed ): void {
                     $anilist_id = (int) get_post_meta( $post_id, 'anime_anilist_id', true );
                     if ( ! $anilist_id ) return;
 
@@ -203,7 +204,9 @@ class Anime_Sync_Cron_Manager {
 
                     $result = $this->import_manager->import_single( $anilist_id, null, 'anilist' );
 
-                    if ( ! empty( $result['success'] ) ) {
+                    if ( ! empty( $result['skipped'] ) ) {
+                        $skipped++;
+                    } elseif ( ! empty( $result['success'] ) ) {
                         $updated++;
                     } else {
                         $failed++;
@@ -223,8 +226,9 @@ class Anime_Sync_Cron_Manager {
         } while ( $paged <= $max_pages );
 
         $this->logger->log( 'info', sprintf(
-            '每日評分更新完成：成功 %d / 失敗 %d',
+            '每日評分更新完成：成功 %d / 略過 %d / 失敗 %d',
             $updated,
+            $skipped,
             $failed
         ) );
 
@@ -248,7 +252,9 @@ class Anime_Sync_Cron_Manager {
         $wpdb->query(
             "DELETE FROM {$wpdb->options}
              WHERE option_name LIKE '_transient_anime_sync_last_request_%'
-                OR option_name LIKE '_transient_timeout_anime_sync_last_request_%'"
+                OR option_name LIKE '_transient_timeout_anime_sync_last_request_%'
+                OR option_name LIKE '_transient_anime_sync_import_lock_%'
+                OR option_name LIKE '_transient_timeout_anime_sync_import_lock_%'"
         );
 
         delete_transient( 'anime_sync_lock_daily' );
@@ -310,10 +316,10 @@ class Anime_Sync_Cron_Manager {
 
                 $result = $this->import_manager->import_single( $anilist_id, null, 'anilist' );
 
-                if ( ! empty( $result['success'] ) ) {
-                    $imported++;
-                } elseif ( ! empty( $result['skipped'] ) ) {
+                if ( ! empty( $result['skipped'] ) ) {
                     $skipped++;
+                } elseif ( ! empty( $result['success'] ) ) {
+                    $imported++;
                 } else {
                     $failed++;
                     $this->logger->log( 'warning', '季度匯入單筆失敗', [
