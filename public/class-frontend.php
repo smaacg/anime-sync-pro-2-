@@ -92,9 +92,13 @@ class Anime_Sync_Frontend {
         wp_script_add_data( 'anime-sync-frontend', 'defer', true );
 
         wp_localize_script( 'anime-sync-frontend', 'animeSyncData', [
-            'restUrl' => esc_url_raw( rest_url( 'anime-sync/v1/' ) ),
-            'nonce'   => wp_create_nonce( 'wp_rest' ),
-            'debug'   => defined( 'WP_DEBUG' ) && WP_DEBUG,
+            // 向後相容：restUrl 仍保留給既有 anime-sync/v1 前台 API 使用
+            'restUrl'       => esc_url_raw( rest_url( 'anime-sync/v1/' ) ),
+            'animeRestUrl'  => esc_url_raw( rest_url( 'anime-sync/v1/' ) ),
+            // 評分系統實際 REST namespace
+            'ratingRestUrl' => esc_url_raw( rest_url( 'smileacg/v1/' ) ),
+            'nonce'         => wp_create_nonce( 'wp_rest' ),
+            'debug'         => defined( 'WP_DEBUG' ) && WP_DEBUG,
         ] );
     }
 
