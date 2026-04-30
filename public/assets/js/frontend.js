@@ -23,7 +23,8 @@ function asdInit() {
     safeInit('toggle-expand', initToggleExpand);
     safeInit('music-player', initMusicPlayer);
     safeInit('countdown', initCountdown);
-
+    safeInit('pv-tabs', initPvTabs);
+    
     window.__asdFrontendInited = true;
     window.__asdFrontendBootedAt = Date.now();
 
@@ -379,7 +380,7 @@ function initMusicPlayer() {
             cancelProgress();
 
             if (openLink && openLink.href) {
-                alert('此瀏覽器無法直接播放此主題曲，請改用「開啟原檔」。');
+                alert('此瀏覽器無法直接播放此主題曲，請改點「看片」。');
             } else {
                 alert('目前無可播放來源。');
             }
@@ -439,4 +440,93 @@ function initCountdown() {
 
     updateCountdowns();
     setInterval(updateCountdowns, 1000);
+}
+/* ── Header scroll glass effect ── */
+(function () {
+  var header = document.querySelector('.site-header');
+  if (!header) return;
+  var cls = 'asd-header--scrolled';
+  function onScroll() {
+    if (window.scrollY > 40) {
+      header.classList.add(cls);
+    } else {
+      header.classList.remove(cls);
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+// ========================================
+// PV Tabs（多支預告片切換 + lazy iframe）
+// ========================================
+function initPvTabs() {
+    var boxes = document.querySelectorAll('.asd-pv-box');
+    if (!boxes.length) return;
+
+    boxes.forEach(function (box) {
+        var tabs   = Array.prototype.slice.call(box.querySelectorAll('.asd-pv-tab'));
+        var panels = Array.prototype.slice.call(box.querySelectorAll('.asd-pv-panel'));
+
+        // 點擊縮圖播放（注入 iframe）
+        box.addEventListener('click', function (e) {
+            var playBtn = e.target.closest('.asd-pv-play');
+            if (!playBtn) return;
+
+            var holder = playBtn.closest('.asd-trailer-wrap');
+            if (!holder) return;
+
+            var vid   = playBtn.getAttribute('data-pv-id') || '';
+            var title = playBtn.getAttribute('data-pv-title') || '';
+            if (!vid) return;
+
+            var iframe = document.createElement('iframe');
+            iframe.src = 'https://www.youtube.com/embed/' + vid +
+                         '?rel=0&modestbranding=1&autoplay=1';
+            iframe.title = title;
+            iframe.setAttribute('frameborder', '0');
+            iframe.setAttribute('allow',
+                'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+            iframe.setAttribute('allowfullscreen', '');
+            iframe.loading = 'lazy';
+
+            holder.innerHTML = '';
+            holder.appendChild(iframe);
+        });
+
+        // Tab 切換
+        if (!tabs.length) return;
+
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                var idx = tab.getAttribute('data-pv-index');
+
+                tabs.forEach(function (t) {
+                    var active = t.getAttribute('data-pv-index') === idx;
+                    t.classList.toggle('is-active', active);
+                    t.setAttribute('aria-selected', active ? 'true' : 'false');
+                });
+
+                panels.forEach(function (p) {
+                    p.classList.toggle('is-active',
+                        p.getAttribute('data-pv-index') === idx);
+                });
+
+                // 切換到非當前播放的 tab，停掉其他 tab 的 iframe（避免背景繼續播）
+                panels.forEach(function (p) {
+                    if (p.getAttribute('data-pv-index') === idx) return;
+                    var iframes = p.querySelectorAll('iframe');
+                    iframes.forEach(function (f) {
+                        try {
+                            // 透過 postMessage 暫停（YouTube IFrame API 通用法）
+                            f.contentWindow.postMessage(
+                                '{"event":"command","func":"pauseVideo","args":""}',
+                                '*'
+                            );
+                        } catch (_) {}
+                    });
+                });
+            });
+        });
+    });
 }
