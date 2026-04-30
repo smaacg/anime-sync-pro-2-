@@ -93,22 +93,27 @@ while ( have_posts() ) :
     $tw_broadcast       = $get_meta( 'anime_tw_broadcast' );
 
     $tw_stream_url_map = [
-        'bahamut'     => $get_meta( 'anime_tw_streaming_url_bahamut' ),
-        'netflix'     => $get_meta( 'anime_tw_streaming_url_netflix' ),
-        'disney'      => $get_meta( 'anime_tw_streaming_url_disney' ),
-        'amazon'      => $get_meta( 'anime_tw_streaming_url_amazon' ),
-        'kktv'        => $get_meta( 'anime_tw_streaming_url_kktv' ),
-        'friday'      => $get_meta( 'anime_tw_streaming_url_friday' ),
-        'catchplay'   => $get_meta( 'anime_tw_streaming_url_catchplay' ),
-        'bilibili'    => $get_meta( 'anime_tw_streaming_url_bilibili' ),
-        'crunchyroll' => $get_meta( 'anime_tw_streaming_url_crunchyroll' ),
-        'hulu'        => $get_meta( 'anime_tw_streaming_url_hulu' ),
-        'hidive'      => $get_meta( 'anime_tw_streaming_url_hidive' ),
-        'ani_one'     => $get_meta( 'anime_tw_streaming_url_ani_one' ),
-        'muse'        => $get_meta( 'anime_tw_streaming_url_muse' ),
-        'viu'         => $get_meta( 'anime_tw_streaming_url_viu' ),
-        'wetv'        => $get_meta( 'anime_tw_streaming_url_wetv' ),
-        'youtube'     => $get_meta( 'anime_tw_streaming_url_youtube' ),
+        'bahamut'      => $get_meta( 'anime_tw_streaming_url_bahamut' ),
+        'hami'         => $get_meta( 'anime_tw_streaming_url_hami' ),
+        'myvideo'      => $get_meta( 'anime_tw_streaming_url_myvideo' ),
+        'linetv'       => $get_meta( 'anime_tw_streaming_url_linetv' ),
+        'friday'       => $get_meta( 'anime_tw_streaming_url_friday' ),
+        'ofiii'        => $get_meta( 'anime_tw_streaming_url_ofiii' ),
+        'catchplay'    => $get_meta( 'anime_tw_streaming_url_catchplay' ),
+        'bilibili'     => $get_meta( 'anime_tw_streaming_url_bilibili' ),
+        'ani_one'      => $get_meta( 'anime_tw_streaming_url_ani_one' ),
+        'muse'         => $get_meta( 'anime_tw_streaming_url_muse' ),
+        'mighty'       => $get_meta( 'anime_tw_streaming_url_mighty' ),
+        'ani_mi'       => $get_meta( 'anime_tw_streaming_url_ani_mi' ),
+        'netflix'      => $get_meta( 'anime_tw_streaming_url_netflix' ),
+        'disney'       => $get_meta( 'anime_tw_streaming_url_disney' ),
+        'litv'         => $get_meta( 'anime_tw_streaming_url_litv' ),
+        'tropicsanime' => $get_meta( 'anime_tw_streaming_url_tropicsanime' ),
+        'iqiyi'        => $get_meta( 'anime_tw_streaming_url_iqiyi' ),
+        'renta'        => $get_meta( 'anime_tw_streaming_url_renta' ),
+        'anipass'      => $get_meta( 'anime_tw_streaming_url_anipass' ),
+        'amazon'       => $get_meta( 'anime_tw_streaming_url_amazon' ),
+        'crunchyroll'  => $get_meta( 'anime_tw_streaming_url_crunchyroll' ),
     ];
 
     $tw_dist_labels = [
@@ -127,36 +132,114 @@ while ( have_posts() ) :
         $tw_dist_display = $tw_dist_labels[ $tw_distributor ] ?? $tw_distributor;
     }
 
-    $tw_stream_labels = [
-        'bahamut'     => '巴哈姆特', 'netflix'     => 'Netflix',
-        'disney'      => 'Disney+',  'amazon'      => 'Amazon Prime Video',
-        'kktv'        => 'KKTV',     'friday'      => 'friDay影音',
-        'catchplay'   => 'CatchPlay+','bilibili'   => 'Bilibili',
-        'crunchyroll' => 'Crunchyroll','hulu'       => 'Hulu',
-        'hidive'      => 'HIDIVE',   'ani_one'     => 'Ani-One',
-        'muse'        => 'Muse Asia','viu'         => 'Viu',
-        'wetv'        => 'WeTV',     'youtube'     => 'YouTube',
+    $provider_icon_base = trailingslashit( ANIME_SYNC_PRO_URL . 'public/assets/img/providers' );
+    $provider_icon_map  = [
+        'bahamut'      => 'anigamer_icon.webp',
+        'hami'         => 'hami_icon.webp',
+        'myvideo'      => 'myvideo_icon.webp',
+        'linetv'       => 'linetv_icon.webp',
+        'friday'       => 'friday_icon.webp',
+        'ofiii'        => 'ofiii_icon.webp',
+        'catchplay'    => 'catchplay_icon.webp',
+        'bilibili'     => 'bilibili_icon.webp',
+        'ani_one'      => 'ani-one.webp',
+        'muse'         => 'Muse.webp',
+        'mighty'       => 'Mighty.webp',
+        'ani_mi'       => 'ani-mi.webp',
+        'netflix'      => 'netflix_icon.webp',
+        'disney'       => 'disneyplus_icon.webp',
+        'litv'         => 'litv_icon.webp',
+        'tropicsanime' => 'tropicsanime.webp',
+        'iqiyi'        => 'iqiyi_icon.webp',
+        'renta'        => 'renta.webp',
+        'anipass'      => 'anipass_icon.webp',
+        'amazon'       => 'amazon_prime_video_icon.webp',
+        'crunchyroll'  => 'crunchyroll_icon.webp',
     ];
 
+    $tw_stream_labels = [
+        'bahamut'      => '巴哈姆特動畫瘋',
+        'hami'         => '中華電信Hami Video',
+        'myvideo'      => '台灣大哥大MyVideo',
+        'linetv'       => 'LINE TV',
+        'friday'       => 'friDay影音',
+        'ofiii'        => 'Ofiii 歐飛',
+        'catchplay'    => 'CatchPlay+',
+        'bilibili'     => 'Bilibili台灣',
+        'ani_one'      => 'Ani-One 羚邦集團 YouTube（官方頻道）',
+        'muse'         => 'Muse 木棉花 YouTube（官方頻道）',
+        'mighty'       => '曼迪 YouTube（官方頻道）',
+        'ani_mi'       => 'Ani-Mi動漫迷動畫頻道（官方頻道）',
+        'netflix'      => 'Netflix',
+        'disney'       => 'Disney+',
+        'litv'         => 'LiTV 立視線上影視',
+        'tropicsanime' => '回歸線娛樂YouTube（官方頻道）',
+        'iqiyi'        => '愛奇藝',
+        'renta'        => 'renta!亂搭',
+        'anipass'      => 'AniPASS 車庫娛樂旗下',
+        'amazon'       => 'Amazon Prime Video',
+        'crunchyroll'  => 'Crunchyroll',
+    ];
+
+    $tw_stream_legacy_aliases = [
+        'ani-one'  => 'ani_one',
+        'myVideo'  => 'myvideo',
+        'my_video' => 'myvideo',
+        'line_tv'  => 'linetv',
+    ];
+
+    $streaming_list = $decode_json( $get_meta( 'anime_streaming' ) );
+
     $tw_streaming_items = [];
+    $tw_streaming_keys  = [];
     if ( ! empty( $tw_streaming_raw ) ) {
         $raw_arr = is_array( $tw_streaming_raw ) ? $tw_streaming_raw : [ $tw_streaming_raw ];
         foreach ( $raw_arr as $key ) {
             $key = trim( (string) $key );
-            if ( $key === 'ani-one' ) {
-                $key = 'ani_one'; // 向後相容舊資料
+            if ( isset( $tw_stream_legacy_aliases[ $key ] ) ) {
+                $key = $tw_stream_legacy_aliases[ $key ];
             }
-            if ( $key === '' ) continue;
+            if ( $key === '' || ! isset( $tw_stream_labels[ $key ] ) || isset( $tw_streaming_keys[ $key ] ) ) continue;
+
+            $tw_streaming_keys[ $key ] = true;
             $tw_streaming_items[] = [
-                'label' => $tw_stream_labels[ $key ] ?? $key,
-                'url'   => $tw_stream_url_map[ $key ] ?? '',
+                'key'       => $key,
+                'label'     => $tw_stream_labels[ $key ],
+                'url'       => $tw_stream_url_map[ $key ] ?? '',
+                'icon_url'  => isset( $provider_icon_map[ $key ] ) ? $provider_icon_base . $provider_icon_map[ $key ] : '',
+                'icon_only' => false,
             ];
         }
     }
     if ( $tw_streaming_other ) {
         foreach ( array_map( 'trim', explode( ',', $tw_streaming_other ) ) as $extra ) {
-            if ( $extra !== '' ) $tw_streaming_items[] = [ 'label' => $extra, 'url' => '' ];
+            if ( $extra !== '' ) {
+                $tw_streaming_items[] = [
+                    'key'       => '',
+                    'label'     => $extra,
+                    'url'       => '',
+                    'icon_url'  => '',
+                    'icon_only' => false,
+                ];
+            }
         }
+    }
+
+    $auto_crunchyroll_item = null;
+    foreach ( $streaming_list as $sl ) {
+        $sl_site = strtolower( trim( $sl['site'] ?? '' ) );
+        if ( $sl_site !== 'crunchyroll' || isset( $tw_streaming_keys['crunchyroll'] ) ) {
+            continue;
+        }
+
+        $auto_crunchyroll_item = [
+            'key'       => 'crunchyroll',
+            'label'     => $tw_stream_labels['crunchyroll'],
+            'url'       => trim( $sl['url'] ?? '' ),
+            'icon_url'  => $provider_icon_base . $provider_icon_map['crunchyroll'],
+            'icon_only' => true,
+        ];
+        break;
     }
 
     $start_date = $format_date( $get_meta( 'anime_start_date' ) );
@@ -178,19 +261,45 @@ while ( have_posts() ) :
     $banner_image = $get_meta( 'anime_banner_image' );
     $trailer_url  = $get_meta( 'anime_trailer_url' );
 
-    $youtube_id = '';
-    if ( $trailer_url ) {
-        foreach ( preg_split( '/[,\n]+/', (string) $trailer_url ) as $t_url ) {
-            $t_url = trim( $t_url );
-            if ( $t_url === '' ) continue;
-            if ( preg_match( '/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/))([A-Za-z0-9_-]{11})/', $t_url, $m ) ) {
-                $youtube_id = $m[1]; break;
-            }
-            if ( preg_match( '/^[A-Za-z0-9_-]{11}$/', $t_url ) ) {
-                $youtube_id = $t_url; break;
-            }
+/* ── 解析多支 PV ── */
+$trailer_items = [];   // [ ['id' => 'xxx', 'label' => 'PV 1'], ... ]
+if ( $trailer_url ) {
+    $idx = 0;
+    foreach ( preg_split( '/[,，、;；\r\n]+/u', (string) $trailer_url ) as $t_url ) {
+        $t_url = trim( $t_url );
+        if ( $t_url === '' ) continue;
+
+        // 支援 "URL|標題" 格式
+        $custom_label = '';
+        if ( strpos( $t_url, '|' ) !== false ) {
+            list( $t_url, $custom_label ) = array_map( 'trim', explode( '|', $t_url, 2 ) );
         }
+
+        $vid = '';
+        if ( preg_match( '/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([A-Za-z0-9_-]{11})/', $t_url, $m ) ) {
+            $vid = $m[1];
+        } elseif ( preg_match( '/^[A-Za-z0-9_-]{11}$/', $t_url ) ) {
+            $vid = $t_url;
+        }
+        if ( $vid === '' ) continue;
+
+        // 去重
+        foreach ( $trailer_items as $exist ) {
+            if ( $exist['id'] === $vid ) { $vid = ''; break; }
+        }
+        if ( $vid === '' ) continue;
+
+        $idx++;
+        $trailer_items[] = [
+            'id'    => $vid,
+            'label' => $custom_label !== '' ? $custom_label : ( 'PV ' . $idx ),
+        ];
     }
+}
+// 向後相容：保留 $youtube_id 給其他地方用（例如 hero 按鈕、tab 條件）
+$youtube_id = ! empty( $trailer_items ) ? $trailer_items[0]['id'] : '';
+$has_trailer = ! empty( $trailer_items );
+
 
     $official_site  = $get_meta( 'anime_official_site' );
     $twitter_url    = $get_meta( 'anime_twitter_url' );
@@ -210,7 +319,6 @@ while ( have_posts() ) :
     if ( empty( $synopsis_raw ) ) $synopsis_raw = get_the_content();
     $synopsis = trim( (string) $synopsis_raw );
 
-    $streaming_list = $decode_json( $get_meta( 'anime_streaming' ) );
     $themes_list    = $decode_json( $get_meta( 'anime_themes' ) );
     $cast_list      = $decode_json( $get_meta( 'anime_cast_json' ) );
     $staff_list     = $decode_json( $get_meta( 'anime_staff_json' ) );
@@ -564,7 +672,7 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
     <?php if ( $youtube_id ) : ?>
         <a href="#asd-sec-trailer" class="asd-action-btn asd-action-btn--primary">▶ 觀看預告</a>
     <?php endif; ?>
-    <?php if ( ! empty( $tw_streaming_items ) || ! empty( $streaming_list ) ) : ?>
+    <?php if ( ! empty( $tw_streaming_items ) || $auto_crunchyroll_item ) : ?>
         <a href="#asd-sec-stream" class="asd-action-btn asd-action-btn--ghost" title="<?php echo esc_attr( $display_title ); ?> 線上觀看">📺 線上觀看</a>
     <?php endif; ?>
     <a href="<?php echo esc_url( home_url('/contact/') . '?type=bug&ref=' . urlencode( get_permalink() ) ); ?>" target="_blank" rel="noopener noreferrer" class="asd-action-btn asd-action-btn--ghost">✏ 糾錯回報</a>
@@ -830,19 +938,63 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     </section>
                 <?php endif; ?>
 
-                <?php /* ── 預告片 ── */ ?>
-                <?php if ( $youtube_id ) : ?>
-                    <section class="asd-section" id="asd-sec-trailer">
-                        <h2 class="asd-section-title">🎞 預告片</h2>
+<?php if ( $has_trailer ) : ?>
+    <section class="asd-section" id="asd-sec-trailer">
+        <h2 class="asd-section-title">🎞 預告片<?php echo count( $trailer_items ) > 1 ? ' <span class="asd-pv-count">（' . count( $trailer_items ) . '）</span>' : ''; ?></h2>
+
+        <div class="asd-pv-box" data-pv-count="<?php echo count( $trailer_items ); ?>">
+
+            <?php if ( count( $trailer_items ) > 1 ) : ?>
+                <div class="asd-pv-tabs" role="tablist" aria-label="預告片切換">
+                    <?php foreach ( $trailer_items as $i => $pv ) : ?>
+                        <button type="button"
+                                class="asd-pv-tab<?php echo $i === 0 ? ' is-active' : ''; ?>"
+                                role="tab"
+                                aria-selected="<?php echo $i === 0 ? 'true' : 'false'; ?>"
+                                aria-controls="asd-pv-panel-<?php echo (int) $i; ?>"
+                                data-pv-index="<?php echo (int) $i; ?>"
+                                data-pv-id="<?php echo esc_attr( $pv['id'] ); ?>">
+                            <span class="asd-pv-tab-icon">▶</span>
+                            <span class="asd-pv-tab-label"><?php echo esc_html( $pv['label'] ); ?></span>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="asd-pv-panels">
+                <?php foreach ( $trailer_items as $i => $pv ) : ?>
+                    <div class="asd-pv-panel<?php echo $i === 0 ? ' is-active' : ''; ?>"
+                         id="asd-pv-panel-<?php echo (int) $i; ?>"
+                         role="tabpanel"
+                         data-pv-index="<?php echo (int) $i; ?>"
+                         data-pv-id="<?php echo esc_attr( $pv['id'] ); ?>">
                         <div class="asd-trailer-wrap">
-                            <iframe src="https://www.youtube.com/embed/<?php echo esc_attr( $youtube_id ); ?>?rel=0&modestbranding=1"
-                                    title="<?php echo esc_attr( $display_title ); ?> 預告片"
-                                    frameborder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowfullscreen loading="lazy"></iframe>
+                            <?php if ( $i === 0 ) : ?>
+                                <iframe src="https://www.youtube.com/embed/<?php echo esc_attr( $pv['id'] ); ?>?rel=0&modestbranding=1"
+                                        title="<?php echo esc_attr( $display_title . ' ' . $pv['label'] ); ?>"
+                                        frameborder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowfullscreen loading="lazy"></iframe>
+                            <?php else : ?>
+                                <?php /* 非首張延後載入：點擊 tab 才注入 iframe，省流量 */ ?>
+                                <div class="asd-pv-placeholder"
+                                     style="background-image:url('https://i.ytimg.com/vi/<?php echo esc_attr( $pv['id'] ); ?>/hqdefault.jpg')">
+                                    <button type="button" class="asd-pv-play"
+                                            data-pv-id="<?php echo esc_attr( $pv['id'] ); ?>"
+                                            data-pv-title="<?php echo esc_attr( $display_title . ' ' . $pv['label'] ); ?>"
+                                            aria-label="播放 <?php echo esc_attr( $pv['label'] ); ?>">
+                                        <span class="asd-pv-play-icon">▶</span>
+                                    </button>
+                                </div>
+                            <?php endif; ?>
                         </div>
-                    </section>
-                <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+        </div>
+    </section>
+<?php endif; ?>
 
                 <?php /* ── 集數列表 ── */ ?>
                 <?php if ( ! empty( $episodes_list ) ) : ?>
@@ -1025,76 +1177,53 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     </section>
                 <?php endif; ?>
 <?php /* ── 串流平台 ── */ ?>
-<?php if ( ! empty( $tw_streaming_items ) || ! empty( $streaming_list ) ) : ?>
+<?php if ( ! empty( $tw_streaming_items ) || $auto_crunchyroll_item ) : ?>
     <section class="asd-section" id="asd-sec-stream">
         <h2 class="asd-section-title">📺 串流平台</h2>
 
-        <?php /* 台灣地區：手動 ACF 欄位控制 */ ?>
-        <?php if ( ! empty( $tw_streaming_items ) ) : ?>
-            <div class="asd-stream-region asd-stream-region--tw">
-                <div class="asd-stream-region-head">
-                    <span class="asd-stream-dot asd-stream-dot--tw"></span><span>台灣地區</span>
-                </div>
-                <div class="asd-stream-list">
-                    <?php foreach ( $tw_streaming_items as $si ) :
-                        $si_label = $si['label'] ?? '';
-                        $si_url   = $si['url']   ?? '';
-                    ?>
-                        <?php if ( $si_url ) : ?>
-                            <a href="<?php echo esc_url( $si_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-btn"><?php echo esc_html( $si_label ); ?></a>
-                        <?php else : ?>
-                            <span class="asd-stream-btn asd-stream-btn--no-link"><?php echo esc_html( $si_label ); ?></span>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </div>
+        <div class="asd-stream-region asd-stream-region--tw">
+            <div class="asd-stream-region-head">
+                <span class="asd-stream-dot asd-stream-dot--tw"></span><span>台灣地區</span>
             </div>
-        <?php endif; ?>
+            <div class="asd-stream-list">
+                <?php foreach ( $tw_streaming_items as $si ) :
+                    $si_label     = $si['label'] ?? '';
+                    $si_url       = $si['url'] ?? '';
+                    $si_icon_url  = $si['icon_url'] ?? '';
+                    $si_icon_only = ! empty( $si['icon_only'] );
+                    if ( $si_label === '' ) continue;
+                    $btn_class = 'asd-stream-btn' . ( $si_icon_only ? ' asd-stream-btn--icon-only' : '' ) . ( $si_url ? '' : ' asd-stream-btn--no-link' );
+                ?>
+                    <?php if ( $si_url ) : ?>
+                        <a href="<?php echo esc_url( $si_url ); ?>" target="_blank" rel="noopener noreferrer" class="<?php echo esc_attr( $btn_class ); ?>" title="<?php echo esc_attr( $si_label ); ?>">
+                            <?php if ( $si_icon_url ) : ?><img src="<?php echo esc_url( $si_icon_url ); ?>" alt="<?php echo esc_attr( $si_label ); ?>" class="asd-stream-icon"><?php endif; ?>
+                            <?php if ( ! $si_icon_only ) : ?><span class="asd-stream-label"><?php echo esc_html( $si_label ); ?></span><?php endif; ?>
+                        </a>
+                    <?php else : ?>
+                        <span class="<?php echo esc_attr( $btn_class ); ?>" title="<?php echo esc_attr( $si_label ); ?>">
+                            <?php if ( $si_icon_url ) : ?><img src="<?php echo esc_url( $si_icon_url ); ?>" alt="<?php echo esc_attr( $si_label ); ?>" class="asd-stream-icon"><?php endif; ?>
+                            <?php if ( ! $si_icon_only ) : ?><span class="asd-stream-label"><?php echo esc_html( $si_label ); ?></span><?php endif; ?>
+                        </span>
+                    <?php endif; ?>
+                <?php endforeach; ?>
 
-        <?php /* 國際地區：AniList 原資料，過濾掉台灣已手動顯示的平台 */ ?>
-        <?php if ( ! empty( $streaming_list ) ) :
-
-            // 收集台灣已顯示的平台標籤（小寫），用來比對過濾
-            $tw_shown = array_map(
-                fn( $si ) => strtolower( trim( $si['label'] ?? '' ) ),
-                $tw_streaming_items
-            );
-
-            $intl_list = array_filter( $streaming_list, function( $sl ) use ( $tw_shown ) {
-                $site = strtolower( trim( $sl['site'] ?? '' ) );
-                if ( $site === '' ) return false;
-                foreach ( $tw_shown as $tw_label ) {
-                    if ( $tw_label === '' ) continue;
-                    // 名稱包含對方即視為重複
-                    if ( str_contains( $site, $tw_label ) || str_contains( $tw_label, $site ) ) {
-                        return false;
-                    }
-                }
-                return true;
-            } );
-
-        ?>
-            <?php if ( ! empty( $intl_list ) ) : ?>
-                <div class="asd-stream-region asd-stream-region--intl">
-                    <div class="asd-stream-region-head">
-                        <span class="asd-stream-dot asd-stream-dot--intl"></span><span>國際地區</span>
-                    </div>
-                    <div class="asd-stream-list">
-                        <?php foreach ( $intl_list as $sl ) :
-                            $sl_site = trim( $sl['site'] ?? '' );
-                            $sl_url  = trim( $sl['url']  ?? '' );
-                            if ( ! $sl_site ) continue;
-                        ?>
-                            <?php if ( $sl_url ) : ?>
-                                <a href="<?php echo esc_url( $sl_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-btn"><?php echo esc_html( $sl_site ); ?></a>
-                            <?php else : ?>
-                                <span class="asd-stream-btn asd-stream-btn--no-link"><?php echo esc_html( $sl_site ); ?></span>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            <?php endif; ?>
-        <?php endif; ?>
-
+                <?php if ( $auto_crunchyroll_item ) :
+                    $cr_label = $auto_crunchyroll_item['label'];
+                    $cr_url   = $auto_crunchyroll_item['url'];
+                    $cr_icon  = $auto_crunchyroll_item['icon_url'];
+                ?>
+                    <?php if ( $cr_url ) : ?>
+                        <a href="<?php echo esc_url( $cr_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-btn asd-stream-btn--icon-only asd-stream-btn--auto" title="<?php echo esc_attr( $cr_label ); ?>">
+                            <img src="<?php echo esc_url( $cr_icon ); ?>" alt="<?php echo esc_attr( $cr_label ); ?>" class="asd-stream-icon">
+                        </a>
+                    <?php else : ?>
+                        <span class="asd-stream-btn asd-stream-btn--icon-only asd-stream-btn--auto asd-stream-btn--no-link" title="<?php echo esc_attr( $cr_label ); ?>">
+                            <img src="<?php echo esc_url( $cr_icon ); ?>" alt="<?php echo esc_attr( $cr_label ); ?>" class="asd-stream-icon">
+                        </span>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
     </section>
 <?php endif; ?>
 
