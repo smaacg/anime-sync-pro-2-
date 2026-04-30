@@ -430,15 +430,24 @@ class Anime_Sync_ACF_Fields {
                     'required'      => 0,
                     'wrapper'       => [ 'width' => '100' ],
                 ],
-                [
-                    'key'           => 'field_anime_trailer_url',
-                    'label'         => 'YouTube 預告片網址',
-                    'name'          => 'anime_trailer_url',
-                    'type'          => 'url',
-                    'instructions'  => '請填入 YouTube 完整網址（例：https://www.youtube.com/watch?v=XXXXX）。',
-                    'required'      => 0,
-                    'wrapper'       => [ 'width' => '100' ],
-                ],
+[
+    'key'           => 'field_anime_trailer_url',
+    'label'         => 'YouTube 預告片網址（支援多支 PV）',
+    'name'          => 'anime_trailer_url',
+    'type'          => 'textarea',
+    'instructions'  => '可填一支或多支 YouTube 網址，分隔方式：換行 / 逗號 / 分號 / 空格 皆可。' . "\n"
+                     . '可選擇加標題（用 | 分隔），未填標題會自動編號 PV 1、PV 2…' . "\n\n"
+                     . '範例（單支）：https://www.youtube.com/watch?v=XXXXX' . "\n"
+                     . '範例（多支，每行一筆，建議寫法）：' . "\n"
+                     . 'https://youtu.be/abc12345678 | 主視覺PV' . "\n"
+                     . 'https://youtu.be/def09876543 | 第二彈PV' . "\n"
+                     . 'https://youtu.be/ghi13579246 | 角色PV',
+    'rows'          => 4,
+    'new_lines'     => '',
+    'required'      => 0,
+    'wrapper'       => [ 'width' => '100' ],
+],
+
             ],
             'location'    => [
                 [ [ 'param' => 'post_type', 'operator' => '==', 'value' => 'anime' ] ],
@@ -657,7 +666,7 @@ class Anime_Sync_ACF_Fields {
                         'label'         => '其他串流平台（自訂）',
                         'name'          => 'anime_tw_streaming_other',
                         'type'          => 'text',
-                        'instructions'  => '上方 16 個平台以外的服務，多個請用逗號分隔。',
+                        'instructions'  => '上方平台以外的服務，多個請用逗號分隔。',
                         'required'      => 0,
                         'wrapper'       => [ 'width' => '100' ],
                     ],
@@ -859,28 +868,31 @@ class Anime_Sync_ACF_Fields {
     }
 
     // =========================================================================
-    // Helper：16 個台灣串流平台定義
-    // ★ 修改：所有 key 改為 underscore 格式，消除隱性 str_replace 轉換
-    //   checkbox 儲存值 = URL 欄位後綴，兩端完全一致，自我解釋
+    // Helper：台灣串流平台定義（僅調整顯示與欄位，不動既有同步邏輯）
+    // ★ 所有 key 維持 underscore 格式，checkbox 儲存值 = URL 欄位後綴
     // =========================================================================
     private function get_tw_platforms(): array {
         return [
-            'bahamut'     => '巴哈姆特動漫瘋',
-            'kktv'        => 'KKTV',
-            'friday'      => 'friDay 影音',
-            'catchplay'   => 'CatchPlay+',
-            'bilibili'    => 'Bilibili 台灣',
-            'ani_one'     => 'Ani-One',       // ★ 原 'ani-one'，改為 underscore
-            'muse'        => 'Muse 木棉花',
-            'viu'         => 'Viu',
-            'wetv'        => 'WeTV',
-            'youtube'     => 'YouTube（官方頻道）',
-            'netflix'     => 'Netflix',
-            'disney'      => 'Disney+',
-            'crunchyroll' => 'Crunchyroll',
-            'amazon'      => 'Amazon Prime Video',
-            'hulu'        => 'Hulu',
-            'hidive'      => 'HIDIVE',
+            'bahamut'      => '巴哈姆特動畫瘋',
+            'hami'         => '中華電信 Hami Video',
+            'myvideo'      => '台灣大哥大 MyVideo',
+            'linetv'       => 'LINE TV',
+            'friday'       => 'friDay影音',
+            'ofiii'        => 'Ofiii 歐飛',
+            'catchplay'    => 'CatchPlay+',
+            'bilibili'     => 'Bilibili 台灣',
+            'ani_one'      => 'Ani-One 羚邦集團 YouTube（官方頻道）',
+            'muse'         => 'Muse 木棉花 YouTube（官方頻道）',
+            'mighty'       => '曼迪 YouTube（官方頻道）',
+            'ani_mi'       => 'Ani-Mi 動漫迷動畫頻道（官方頻道）',
+            'netflix'      => 'Netflix',
+            'disney'       => 'Disney+',
+            'litv'         => 'LiTV 立視線上影視',
+            'tropicsanime' => '回歸線娛樂 YouTube（官方頻道）',
+            'iqiyi'        => '愛奇藝',
+            'renta'        => 'renta!亂搭',
+            'anipass'      => 'AniPASS 車庫娛樂旗下',
+            'amazon'       => 'Amazon Prime Video',
         ];
     }
 
