@@ -1,0 +1,361 @@
+/* ============================================================
+   微笑動漫 — Search Page
+   ============================================================ */
+
+/* ── Hero 搜尋區 ── */
+.search-hero {
+  padding: 48px 0 36px;
+  border-bottom: 1px solid var(--glass-border);
+  background: linear-gradient(180deg, rgba(99,168,255,.06) 0%, transparent 100%);
+}
+
+.search-hero-label {
+  text-align: center;
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin: 0 0 20px;
+  line-height: 1.6;
+}
+
+.search-hero-label strong { color: var(--text-primary); font-size: 17px; }
+
+.search-hero-kw {
+  color: var(--accent-blue);
+  font-weight: 700;
+}
+
+/* ── 搜尋框 ── */
+.search-hero-form { max-width: 640px; margin: 0 auto; }
+
+.search-hero-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 0 20px;
+  height: 54px;
+  border-radius: var(--radius-pill);
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--glass-border-h);
+  transition: border-color .18s, box-shadow .18s;
+}
+
+.search-hero-box:focus-within {
+  border-color: rgba(99,168,255,.5);
+  box-shadow: 0 0 0 3px rgba(99,168,255,.08);
+}
+
+.search-hero-box > i {
+  color: var(--text-muted);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.search-hero-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  min-width: 0;
+}
+
+.search-hero-input::placeholder { color: var(--text-muted); }
+
+.search-hero-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  background: rgba(255,255,255,.06);
+  flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+
+.search-hero-clear:hover { background: rgba(255,255,255,.12); color: var(--text-primary); }
+
+.search-hero-submit {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px;
+  height: 38px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, #3B82F6, #2563EB);
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .18s, transform .15s;
+  font-family: var(--font-main);
+  white-space: nowrap;
+}
+
+.search-hero-submit:hover { opacity: .88; transform: translateY(-1px); }
+
+/* ── 搜尋結果主體 ── */
+.search-body { padding-top: 36px; padding-bottom: 60px; }
+
+/* ── 結果卡片 Grid ── */
+.search-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+/* ── 單張結果卡片 ── */
+.search-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: transform .28s, box-shadow .28s, border-color .18s;
+  text-decoration: none;
+  color: inherit;
+}
+
+.search-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--glass-shadow-h);
+  border-color: var(--glass-border-h);
+}
+
+/* 縮圖 */
+.search-card-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--glass-bg-mid);
+  flex-shrink: 0;
+}
+
+.search-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .45s ease;
+}
+
+.search-card:hover .search-card-img { transform: scale(1.05); }
+
+.search-card-img-ph {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: var(--text-muted);
+  background: linear-gradient(135deg, rgba(99,168,255,.07), rgba(143,107,255,.07));
+}
+
+/* 內容 */
+.search-card-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.search-card-cat {
+  align-self: flex-start;
+  font-size: 10px !important;
+}
+
+.search-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.45;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.search-card-title a {
+  color: inherit;
+  text-decoration: none;
+  transition: color .18s;
+}
+
+.search-card-title a:hover { color: var(--accent-blue); }
+
+.search-card-excerpt {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+.search-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.search-card-meta span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.search-card-meta i { font-size: 10px; }
+
+/* ── 分頁 ── */
+.search-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.search-pagination .page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.search-pagination .page-numbers li a,
+.search-pagination .page-numbers li span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .18s, color .18s, border-color .18s;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  gap: 5px;
+}
+
+.search-pagination .page-numbers li a:hover {
+  background: rgba(99,168,255,.12);
+  border-color: rgba(99,168,255,.35);
+  color: var(--accent-blue);
+}
+
+.search-pagination .page-numbers li span.current {
+  background: rgba(99,168,255,.18);
+  border-color: rgba(99,168,255,.45);
+  color: var(--accent-blue);
+}
+
+.search-pagination .page-numbers li span.dots {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+/* ── 無結果 ── */
+.search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 80px 20px;
+  gap: 16px;
+}
+
+.search-empty-icon {
+  font-size: 64px;
+  line-height: 1;
+  filter: grayscale(.3);
+}
+
+.search-empty-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.search-empty-desc {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  margin: 0;
+  max-width: 440px;
+}
+
+.search-empty-desc strong { color: var(--text-primary); }
+
+.search-empty-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.search-empty-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 20px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .18s, border-color .18s, color .18s, transform .15s;
+  white-space: nowrap;
+}
+
+.search-empty-btn:hover {
+  background: rgba(99,168,255,.12);
+  border-color: rgba(99,168,255,.35);
+  color: var(--accent-blue);
+  transform: translateY(-2px);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .search-hero { padding: 32px 0 24px; }
+  .search-hero-box { height: 48px; }
+  .search-hero-submit span { display: none; }
+  .search-hero-submit { padding: 0 14px; }
+  .search-results-grid { grid-template-columns: 1fr; gap: 14px; }
+}
+
+@media (max-width: 480px) {
+  .search-hero-label { font-size: 13px; }
+  .search-empty { padding: 48px 16px; }
+  .search-empty-title { font-size: 20px; }
+}
