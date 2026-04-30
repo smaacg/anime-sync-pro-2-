@@ -494,7 +494,7 @@ $has_trailer = ! empty( $trailer_items );
         }
     }
 
-    /* ── ✅ 使用者既有評分（注入給 JS）── */
+    /* ── ✅ 使用者既有評分（注入給 JS，預設 5.0，前端 JS 會動態覆寫）── */
     $user_rating = [ 'story' => 5.0, 'music' => 5.0, 'animation' => 5.0, 'voice' => 5.0 ];
 
     /* ── 站台平均評分 ── */
@@ -513,19 +513,11 @@ $has_trailer = ! empty( $trailer_items );
             $site_voice     = (float) ( $site_stats['avg_voice']     ?? 0 );
             $site_count     = (int)   ( $site_stats['vote_count']    ?? 0 );
         }
+    } // ✅ 補上這個 }，原本缺失導致 endwhile 被吃掉
 
-        if ( is_user_logged_in() ) {
-            $uid          = get_current_user_id();
-            $saved_rating = $rating_manager->get_user_rating( $post_id, $uid );
-
-            if ( is_array( $saved_rating ) ) {
-                $user_rating['story']     = (float) ( $saved_rating['score_story']     ?? 5 );
-                $user_rating['music']     = (float) ( $saved_rating['score_music']     ?? 5 );
-                $user_rating['animation'] = (float) ( $saved_rating['score_animation'] ?? 5 );
-                $user_rating['voice']     = (float) ( $saved_rating['score_voice']     ?? 5 );
-            }
-        }
-    }
+    /* ⚠️ 不從 PHP 讀取使用者評分（會破壞 LiteSpeed 快取）
+       改由前端 JS 透過 admin-ajax 動態載入
+       預設值維持 [story=>5, music=>5, animation=>5, voice=>5] */
 
     if ( $site_score <= 0 ) {
         $site_score = (float) get_post_meta( $post_id, 'anime_score_site', true );
@@ -545,17 +537,6 @@ $has_trailer = ! empty( $trailer_items );
         }
     }
 
-    if ( is_user_logged_in() && $user_rating === [ 'story' => 5.0, 'music' => 5.0, 'animation' => 5.0, 'voice' => 5.0 ] ) {
-        $uid          = get_current_user_id();
-        $saved_detail = get_user_meta( $uid, "smacg_rating_detail_{$post_id}", true );
-        if ( is_array( $saved_detail ) ) {
-            $user_rating['story']     = (float) ( $saved_detail['story']     ?? 5 );
-            $user_rating['music']     = (float) ( $saved_detail['music']     ?? 5 );
-            $user_rating['animation'] = (float) ( $saved_detail['animation'] ?? 5 );
-            $user_rating['voice']     = (float) ( $saved_detail['voice']     ?? 5 );
-        }
-    }
-
 ?>
 <script type="application/ld+json"><?php echo wp_json_encode( $schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
 <script type="application/ld+json"><?php echo wp_json_encode( $breadcrumb_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
@@ -563,9 +544,32 @@ $has_trailer = ! empty( $trailer_items );
 <script type="application/ld+json"><?php echo wp_json_encode( $faq_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ); ?></script>
 <?php endif; ?>
 
-<?php /* ✅ 注入使用者評分給 JS */ ?>
+<?php /* ✅ 預設使用者評分（HTML 對所有人一致，可被 LiteSpeed 快取） */ ?>
 <script>
 window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
+<?php if ( is_user_logged_in() ) : ?>
+/* ── 動態載入當前使用者評分（繞過全頁快取） ── */
+(function(){
+    var url = '<?php echo esc_url_raw( admin_url( 'admin-ajax.php' ) ); ?>'
+            + '?action=smacg_get_my_rating&post_id=<?php echo (int) $post_id; ?>';
+    fetch(url, { credentials: 'same-origin' })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(res){
+        if (!res || !res.success || !res.data || !res.data.rated) return;
+        var d = res.data;
+        window.SmacgUserRating = {
+            story:     parseFloat(d.story)     || 5,
+            music:     parseFloat(d.music)     || 5,
+            animation: parseFloat(d.animation) || 5,
+            voice:     parseFloat(d.voice)     || 5
+        };
+        document.dispatchEvent(new CustomEvent('smacg:userRatingReady', {
+            detail: window.SmacgUserRating
+        }));
+    })
+    .catch(function(){});
+})();
+<?php endif; ?>
 </script>
 
 <div class="asd-wrap">
