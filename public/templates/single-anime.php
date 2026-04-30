@@ -788,7 +788,7 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
 
     </div><!-- /.asd-hero-new -->
 
-    <?php /* ── 追蹤列 ── */ ?>
+     <?php /* ── 追蹤列 ── */ ?>
     <div class="smacg-track-bar"
          data-post-id="<?php echo esc_attr( $post_id ); ?>"
          data-episodes="<?php echo esc_attr( $episodes ); ?>"
@@ -800,54 +800,79 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
         <div class="smacg-track-main">
 
             <div class="smacg-status-group">
-                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'want'      ? 'is-active' : ''; ?>" data-action="status" data-value="want"      title="想看"><i class="fa-regular fa-bookmark"></i><span>想看</span></button>
-                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'watching'  ? 'is-active' : ''; ?>" data-action="status" data-value="watching"  title="追番中"><i class="fa-solid fa-play"></i><span>追番中</span></button>
-                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'completed' ? 'is-active' : ''; ?>" data-action="status" data-value="completed" title="已看完"><i class="fa-solid fa-check"></i><span>已看完</span></button>
-                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'dropped'   ? 'is-active' : ''; ?>" data-action="status" data-value="dropped"   title="棄坑"><i class="fa-solid fa-xmark"></i><span>棄坑</span></button>
+                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'want'      ? 'is-active' : ''; ?>" data-action="status" data-value="want"      title="想看"><span class="smacg-ico">🔖</span><span>想看</span></button>
+                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'watching'  ? 'is-active' : ''; ?>" data-action="status" data-value="watching"  title="追番中"><span class="smacg-ico">▶</span><span>追番中</span></button>
+                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'completed' ? 'is-active' : ''; ?>" data-action="status" data-value="completed" title="已看完"><span class="smacg-ico">✓</span><span>已看完</span></button>
+                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'dropped'   ? 'is-active' : ''; ?>" data-action="status" data-value="dropped"   title="棄坑"><span class="smacg-ico">✕</span><span>棄坑</span></button>
             </div>
 
             <div class="smacg-track-sep"></div>
 
-            <?php if ( $episodes > 0 ) :
-                $prog_val = intval( $user_anime_entry['progress'] ?? 0 );
-                $prog_pct = min( 100, round( ( $prog_val / $episodes ) * 100 ) );
-                $is_full  = ! empty( $user_anime_entry['fullcleared'] );
+            <?php
+                $prog_val      = intval( $user_anime_entry['progress'] ?? 0 );
+                $is_full       = ! empty( $user_anime_entry['fullcleared'] );
+                $has_total     = ( $episodes > 0 );
+                $prog_pct      = $has_total ? min( 100, round( ( $prog_val / max( 1, $episodes ) ) * 100 ) ) : 0;
+                // 連載中沒有總集數時，用已播出集數當參考總數（如果有）
+                $display_total = $has_total ? $episodes : ( $ep_aired > 0 ? $ep_aired : '?' );
             ?>
             <div class="smacg-progress-group">
                 <div class="smacg-prog-top">
-                    <span class="smacg-prog-label"><?php if ( $is_full ) { echo '🎉 已全破！'; } elseif ( $prog_val > 0 ) { echo '📺 觀看中'; } else { echo '&nbsp;'; } ?></span>
-                    <span class="smacg-prog-pct"><?php echo $prog_pct; ?>%</span>
+                    <span class="smacg-prog-label">
+                        <?php
+                        if ( $is_full ) {
+                            echo '🎉 已全破！';
+                        } elseif ( ! $has_total && $ep_aired > 0 ) {
+                            echo '📡 連載中（已播 ' . esc_html( $ep_aired ) . ' 集）';
+                        } elseif ( ! $has_total ) {
+                            echo '📡 連載中';
+                        } elseif ( $prog_val > 0 ) {
+                            echo '📺 觀看中';
+                        } else {
+                            echo '&nbsp;';
+                        }
+                        ?>
+                    </span>
+                    <?php if ( $has_total ) : ?>
+                        <span class="smacg-prog-pct"><?php echo $prog_pct; ?>%</span>
+                    <?php else : ?>
+                        <span class="smacg-prog-pct">—</span>
+                    <?php endif; ?>
                 </div>
-                <div class="smacg-prog-bar-wrap">
-                    <div class="smacg-prog-bar" style="width:<?php echo esc_attr( $prog_pct ); ?>%"></div>
-                </div>
+
+                <?php if ( $has_total ) : ?>
+                    <div class="smacg-prog-bar-wrap">
+                        <div class="smacg-prog-bar" style="width:<?php echo esc_attr( $prog_pct ); ?>%"></div>
+                    </div>
+                <?php endif; ?>
+
                 <div class="smacg-prog-controls">
                     <button class="smacg-prog-btn" data-action="progress" data-value="-1">−</button>
                     <span class="smacg-prog-display">
                         <span class="smacg-prog-current"><?php echo esc_html( $prog_val ); ?></span>
                         <span class="smacg-prog-sep"> / </span>
-                        <span class="smacg-prog-total"><?php echo esc_html( $episodes ); ?></span>
+                        <span class="smacg-prog-total"><?php echo esc_html( $display_total ); ?></span>
                         <span class="smacg-prog-unit"> 集</span>
                     </span>
                     <button class="smacg-prog-btn" data-action="progress" data-value="1">＋</button>
                 </div>
             </div>
             <div class="smacg-track-sep"></div>
-            <?php endif; ?>
+
 
             <div class="smacg-action-group">
                 <button class="smacg-icon-btn smacg-fav-btn <?php echo ( $user_anime_entry['favorited'] ?? false ) ? 'is-active' : ''; ?>" data-action="favorite" title="收藏">
-                    <i class="fa-<?php echo ( $user_anime_entry['favorited'] ?? false ) ? 'solid' : 'regular'; ?> fa-bookmark"></i>
+                    <span class="smacg-ico"><?php echo ( $user_anime_entry['favorited'] ?? false ) ? '⭐' : '☆'; ?></span>
                 </button>
                 <button class="smacg-icon-btn smacg-clear-btn <?php echo ( $user_anime_entry['fullcleared'] ?? false ) ? 'is-active' : ''; ?>" data-action="fullclear" title="全破">
-                    <i class="fa-solid fa-trophy"></i>
+                    <span class="smacg-ico">🏆</span>
                 </button>
                 <button class="smacg-icon-btn smacg-share-btn"
                         data-action="share"
                         data-title="<?php echo esc_attr( $display_title ); ?>"
                         data-url="<?php echo esc_attr( get_permalink() ); ?>"
                         title="分享">
-                    <i class="fa-solid fa-share-nodes"></i>
+                    <span class="smacg-ico">🔗</span>
                 </button>
             </div>
 
