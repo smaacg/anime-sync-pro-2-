@@ -225,22 +225,41 @@ while ( have_posts() ) :
         }
     }
 
-    $auto_crunchyroll_item = null;
-    foreach ( $streaming_list as $sl ) {
-        $sl_site = strtolower( trim( $sl['site'] ?? '' ) );
-        if ( $sl_site !== 'crunchyroll' || isset( $tw_streaming_keys['crunchyroll'] ) ) {
-            continue;
+    /* ── 攤平 streaming 資料：相容舊格式（一維）與新格式（taiwan/overseas）── */
+    $streaming_flat = [];
+    if ( isset( $streaming_list['taiwan'] ) || isset( $streaming_list['overseas'] ) ) {
+        // 新格式
+        $streaming_flat = array_merge(
+            is_array( $streaming_list['taiwan'] ?? null )   ? $streaming_list['taiwan']   : [],
+            is_array( $streaming_list['overseas'] ?? null ) ? $streaming_list['overseas'] : []
+        );
+    } else {
+        // 舊格式（一維陣列）
+        foreach ( $streaming_list as $sl ) {
+            if ( is_array( $sl ) && isset( $sl['site'] ) ) {
+                $streaming_flat[] = $sl;
+            }
         }
-
-        $auto_crunchyroll_item = [
-            'key'       => 'crunchyroll',
-            'label'     => $tw_stream_labels['crunchyroll'],
-            'url'       => trim( $sl['url'] ?? '' ),
-            'icon_url'  => $provider_icon_base . $provider_icon_map['crunchyroll'],
-            'icon_only' => true,
-        ];
-        break;
     }
+
+    /* ── 海外串流（從 AniList 自動抓的，台灣不可看的平台）── */
+    $overseas_streams = [];
+    if ( isset( $streaming_list['overseas'] ) && is_array( $streaming_list['overseas'] ) ) {
+        $overseas_streams = $streaming_list['overseas'];
+    } else {
+        // 舊格式：用平台名稱黑名單把 Crunchyroll/Funimation/HIDIVE/VRV 歸到海外
+        $os_blacklist = [ 'crunchyroll', 'funimation', 'hidive', 'vrv', 'hulu', 'wakanim' ];
+        foreach ( $streaming_flat as $sl ) {
+            $sl_site = strtolower( trim( $sl['site'] ?? '' ) );
+            if ( in_array( $sl_site, $os_blacklist, true ) ) {
+                $overseas_streams[] = $sl;
+            }
+        }
+    }
+
+    /* ⚠️ 不再自動把 Crunchyroll 補到台灣區（台灣根本看不到 Crunchyroll） */
+    $auto_crunchyroll_item = null;
+
 
     $start_date = $format_date( $get_meta( 'anime_start_date' ) );
     $end_date   = $format_date( $get_meta( 'anime_end_date' ) );
@@ -1206,10 +1225,12 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                     </section>
                 <?php endif; ?>
 <?php /* ── 串流平台 ── */ ?>
-<?php if ( ! empty( $tw_streaming_items ) || $auto_crunchyroll_item ) : ?>
+<?php if ( ! empty( $tw_streaming_items ) || ! empty( $overseas_streams ) ) : ?>
     <section class="asd-section" id="asd-sec-stream">
         <h2 class="asd-section-title">📺 串流平台</h2>
 
+        <?php /* 台灣地區（手填 ACF 欄位） */ ?>
+        <?php if ( ! empty( $tw_streaming_items ) ) : ?>
         <div class="asd-stream-region asd-stream-region--tw">
             <div class="asd-stream-region-head">
                 <span class="asd-stream-dot asd-stream-dot--tw"></span><span>台灣地區</span>
@@ -1235,24 +1256,63 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
                         </span>
                     <?php endif; ?>
                 <?php endforeach; ?>
-
-                <?php if ( $auto_crunchyroll_item ) :
-                    $cr_label = $auto_crunchyroll_item['label'];
-                    $cr_url   = $auto_crunchyroll_item['url'];
-                    $cr_icon  = $auto_crunchyroll_item['icon_url'];
-                ?>
-                    <?php if ( $cr_url ) : ?>
-                        <a href="<?php echo esc_url( $cr_url ); ?>" target="_blank" rel="noopener noreferrer" class="asd-stream-btn asd-stream-btn--icon-only asd-stream-btn--auto" title="<?php echo esc_attr( $cr_label ); ?>">
-                            <img src="<?php echo esc_url( $cr_icon ); ?>" alt="<?php echo esc_attr( $cr_label ); ?>" class="asd-stream-icon">
-                        </a>
-                    <?php else : ?>
-                        <span class="asd-stream-btn asd-stream-btn--icon-only asd-stream-btn--auto asd-stream-btn--no-link" title="<?php echo esc_attr( $cr_label ); ?>">
-                            <img src="<?php echo esc_url( $cr_icon ); ?>" alt="<?php echo esc_attr( $cr_label ); ?>" class="asd-stream-icon">
-                        </span>
-                    <?php endif; ?>
-                <?php endif; ?>
             </div>
         </div>
+        <?php endif; ?>
+
+<?php /* 海外平台（從 AniList 自動抓的） */ ?>
+<?php if ( ! empty( $overseas_streams ) ) :
+    /* 海外平台 site 名稱 → icon 檔對照（AniList 回傳的 site 是英文）*/
+$overseas_icon_map = [
+    'crunchyroll'        => 'crunchyroll_icon.webp',
+    'funimation'         => 'funimation_icon.webp',
+    'netflix'            => 'netflix_icon.webp',
+    'hidive'             => 'hidive_icon.webp',
+    'vrv'                => 'vrv_icon.webp',
+    'hulu'               => 'disneyplus_icon.webp',
+    'wakanim'            => 'wakanim_icon.webp',
+    'amazon prime video' => 'amazon_prime_video_icon.webp',
+    'disney plus'        => 'disneyplus_icon.webp',
+    'bilibili'           => 'bilibili_icon.webp',
+    'iqiyi'              => 'iqiyi_icon.webp',
+];
+?>
+<div class="asd-stream-region asd-stream-region--os" style="margin-top:16px;">
+    <div class="asd-stream-region-head">
+        <span class="asd-stream-dot asd-stream-dot--os" style="background:#888;"></span>
+        <span>海外平台</span>
+        <span style="font-size:12px;color:var(--asd-text-muted);margin-left:8px;">（台灣可能無法觀看）</span>
+    </div>
+    <div class="asd-stream-list">
+        <?php foreach ( $overseas_streams as $os ) :
+            $os_site = trim( $os['site'] ?? '' );
+            $os_url  = trim( $os['url']  ?? '' );
+            if ( $os_site === '' || $os_url === '' ) continue;
+
+            $os_key  = strtolower( $os_site );
+            $os_icon = isset( $overseas_icon_map[ $os_key ] )
+                ? $provider_icon_base . $overseas_icon_map[ $os_key ]
+                : '';
+        ?>
+            <a href="<?php echo esc_url( $os_url ); ?>"
+               target="_blank" rel="noopener noreferrer"
+               class="asd-stream-btn<?php echo $os_icon ? ' asd-stream-btn--icon-only' : ''; ?> asd-stream-btn--os"
+               title="<?php echo esc_attr( $os_site ); ?>">
+                <?php if ( $os_icon ) : ?>
+                    <img src="<?php echo esc_url( $os_icon ); ?>"
+                         alt="<?php echo esc_attr( $os_site ); ?>"
+                         class="asd-stream-icon"
+                         onerror="this.onerror=null;this.outerHTML='<span class=\'asd-stream-label\'><?php echo esc_js( $os_site ); ?></span>';">
+                <?php else : ?>
+                    <span class="asd-stream-label"><?php echo esc_html( $os_site ); ?></span>
+                <?php endif; ?>
+            </a>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+
     </section>
 <?php endif; ?>
 
