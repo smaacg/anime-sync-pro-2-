@@ -1702,16 +1702,73 @@ private function fetch_mb_artist( string $name ): array {
     }
 
     private function parse_streaming_links( array $links ): array {
-        $streaming_sites = [ 'Crunchyroll', 'Funimation', 'Netflix', 'Amazon Prime Video', 'Disney Plus', 'Bilibili', 'HIDIVE', 'VRV' ];
-        $result = [];
+
+        // ── 台灣官方授權平台（依 URL domain 判斷，最準確）──
+        $taiwan_domains = [
+            'ani.gamer.com.tw' => '巴哈姆特動畫瘋',
+            'gamer.com.tw'     => '巴哈姆特動畫瘋',
+            'bilibili.tv'      => 'Bilibili 國際版',
+            'kktv.me'          => 'KKTV',
+            'video.friday.tw'  => 'friDay 影音',
+            'muse.live'        => 'Muse 木棉花',
+            'ani-one.asia'     => 'Ani-One Asia',
+            'iq.com'           => 'iQIYI 國際版',
+        ];
+
+        // ── 海外平台（台灣不可看，明確歸類為 overseas）──
+        $overseas_sites = [
+            'Crunchyroll', 'Funimation', 'HIDIVE', 'VRV',
+            'Hulu', 'Wakanim',
+        ];
+
+        // ── 跨區平台（AniList 沒區分授權地區，預設視為海外）──
+        $regional_sites = [
+            'Netflix', 'Disney Plus', 'Amazon Prime Video', 'Bilibili',
+        ];
+
+        $result = [ 'taiwan' => [], 'overseas' => [] ];
+        $seen   = [];
+
         foreach ( $links as $link ) {
-            if ( in_array( $link['site'] ?? '', $streaming_sites, true ) ) {
-                $result[] = [
-                    'site' => $link['site'] ?? '',
-                    'url'  => $link['url']  ?? '',
-                ];
+            $site = trim( (string) ( $link['site'] ?? '' ) );
+            $url  = trim( (string) ( $link['url']  ?? '' ) );
+            $type = strtoupper( (string) ( $link['type'] ?? '' ) );
+
+            if ( $url === '' ) continue;
+            // 只取 STREAMING 類型；type 為空也保留（AniList 早期資料可能沒填）
+            if ( $type !== '' && $type !== 'STREAMING' ) continue;
+
+            $key = strtolower( $site . '|' . $url );
+            if ( isset( $seen[ $key ] ) ) continue;
+            $seen[ $key ] = true;
+
+            // 1. 先用 URL domain 比對台灣白名單
+            $host    = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
+            $matched = false;
+            foreach ( $taiwan_domains as $tw_domain => $display_name ) {
+                if ( $host === $tw_domain || str_ends_with( $host, '.' . $tw_domain ) ) {
+                    $result['taiwan'][] = [ 'site' => $display_name, 'url' => $url ];
+                    $matched = true;
+                    break;
+                }
             }
+            if ( $matched ) continue;
+
+            // 2. 海外平台白名單
+            if ( in_array( $site, $overseas_sites, true ) ) {
+                $result['overseas'][] = [ 'site' => $site, 'url' => $url ];
+                continue;
+            }
+
+            // 3. 跨區平台 → 一律視為海外
+            if ( in_array( $site, $regional_sites, true ) ) {
+                $result['overseas'][] = [ 'site' => $site, 'url' => $url ];
+                continue;
+            }
+
+            // 4. 其他不認識的平台 → 不收錄（避免雜訊）
         }
+
         return $result;
     }
 
