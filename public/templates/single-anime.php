@@ -1312,7 +1312,10 @@ $overseas_icon_map = [
 </div>
 <?php endif; ?>
 
-
+      <?php /* ── 免責聲明 ── */ ?>
+        <p class="asd-stream-disclaimer" style="margin-top:16px;font-size:0.85em;color:var(--asd-text-muted,#888);line-height:1.6;">
+            ⚠️ 串流連結可能因平台授權異動而失效，建議以官方平台公告為準。
+        </p>
     </section>
 <?php endif; ?>
 
