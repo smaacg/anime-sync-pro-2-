@@ -260,99 +260,94 @@ class Anime_Sync_YourAnimes_Fetcher {
 
     /**
      * 解析串流連結
-     * 只取第一個「線上看 / 播出平台」區塊
+     * 全頁掃描所有 <a href>，靠 host 與 YouTube alt 判斷
+     * （YourAnimes 為 Next.js CSR/SSR，無傳統 h2/h3 標題可定位區塊）
      */
     private function parse_streams( $html ) {
         $streams = array();
 
-        // 嘗試擷取「線上看」或「播出平台」區塊（到下一個 h2/h3 為止）
-        $section = '';
-        if ( preg_match( '#(線上看|播出平台).*?(?=<h[23]|$)#sui', $html, $m ) ) {
-            $section = $m[0];
-        } else {
-            // 如果抓不到區塊，就用整個 HTML（保險用）
-            $section = $html;
-        }
-
         $platform_map = $this->platform_map();
         $youtube_map  = $this->youtube_alt_map();
 
-        // 抓所有 <a href="..."> 連結（含內部 img 的 alt）
-        if ( preg_match_all( '#<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>#si', $section, $matches, PREG_SET_ORDER ) ) {
+        // Ani-One 中文官方優先
+        $ani_one_chinese = null;
+        $ani_one_first   = null;
 
-            // Ani-One 中文官方優先：先掃一遍找出中文官方版
-            $ani_one_chinese = null;
-            $ani_one_first   = null;
+        // 全頁掃描所有 <a href="...">...</a>
+        if ( ! preg_match_all( '#<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>#si', $html, $matches, PREG_SET_ORDER ) ) {
+            return $streams;
+        }
 
-            foreach ( $matches as $match ) {
-                $href  = $match[1];
-                $inner = $match[2];
+        foreach ( $matches as $match ) {
+            $href  = $match[1];
+            $inner = $match[2];
 
-                // 解析 host
-                $host = parse_url( $href, PHP_URL_HOST );
-                if ( ! $host ) {
+            // 解析 host
+            $host = parse_url( $href, PHP_URL_HOST );
+            if ( ! $host ) {
+                continue;
+            }
+            $host = strtolower( $host );
+            $host = preg_replace( '#^www\.#', '', $host );
+
+            // YouTube 連結：靠 alt 判斷頻道
+            if ( strpos( $host, 'youtube.com' ) !== false || strpos( $host, 'youtu.be' ) !== false ) {
+                $alt = '';
+                if ( preg_match( '#alt=["\']([^"\']+)["\']#i', $inner, $am ) ) {
+                    $alt = $am[1];
+                }
+                if ( empty( $alt ) ) {
+                    $alt = wp_strip_all_tags( $inner );
+                }
+                if ( empty( $alt ) ) {
                     continue;
                 }
-                $host = strtolower( $host );
-                $host = preg_replace( '#^www\.#', '', $host );
 
-                // YouTube 連結：靠 alt 判斷頻道
-                if ( strpos( $host, 'youtube.com' ) !== false || strpos( $host, 'youtu.be' ) !== false ) {
-                    $alt = '';
-                    if ( preg_match( '#alt=["\']([^"\']+)["\']#i', $inner, $am ) ) {
-                        $alt = $am[1];
-                    }
-                    if ( empty( $alt ) ) {
-                        // 用 a 標籤的純文字當備案
-                        $alt = wp_strip_all_tags( $inner );
-                    }
-
-                    foreach ( $youtube_map as $acf_key => $keywords ) {
-                        foreach ( $keywords as $kw ) {
-                            if ( stripos( $alt, $kw ) !== false ) {
-                                // Ani-One 特殊處理：優先中文官方
-                                if ( $acf_key === 'ani_one' ) {
-                                    if ( stripos( $alt, '中文官方' ) !== false || stripos( $alt, '中文' ) !== false ) {
-                                        $ani_one_chinese = $href;
-                                    } elseif ( $ani_one_first === null ) {
-                                        $ani_one_first = $href;
-                                    }
-                                    break 2;
-                                }
-
-                                // 其他 YouTube：取第一個出現的
-                                if ( ! isset( $streams[ $acf_key ] ) ) {
-                                    $streams[ $acf_key ] = $href;
+                foreach ( $youtube_map as $acf_key => $keywords ) {
+                    foreach ( $keywords as $kw ) {
+                        if ( stripos( $alt, $kw ) !== false ) {
+                            // Ani-One 特殊處理：優先中文官方
+                            if ( $acf_key === 'ani_one' ) {
+                                if ( stripos( $alt, '中文官方' ) !== false || stripos( $alt, '中文' ) !== false ) {
+                                    $ani_one_chinese = $href;
+                                } elseif ( $ani_one_first === null ) {
+                                    $ani_one_first = $href;
                                 }
                                 break 2;
                             }
+
+                            // 其他 YouTube：取第一個出現的
+                            if ( ! isset( $streams[ $acf_key ] ) ) {
+                                $streams[ $acf_key ] = $href;
+                            }
+                            break 2;
                         }
                     }
-                    continue;
                 }
+                continue;
+            }
 
-                // 一般平台：靠 host 判斷
-                foreach ( $platform_map as $needle => $acf_key ) {
-                    if ( strpos( $host, $needle ) !== false ) {
-                        // 取第一個出現的（去重）
-                        if ( ! isset( $streams[ $acf_key ] ) ) {
-                            $streams[ $acf_key ] = $href;
-                        }
-                        break;
+            // 一般平台：靠 host 判斷
+            foreach ( $platform_map as $needle => $acf_key ) {
+                if ( strpos( $host, $needle ) !== false ) {
+                    if ( ! isset( $streams[ $acf_key ] ) ) {
+                        $streams[ $acf_key ] = $href;
                     }
+                    break;
                 }
             }
+        }
 
-            // Ani-One 最終決定：優先中文官方，否則第一個
-            if ( $ani_one_chinese ) {
-                $streams['ani_one'] = $ani_one_chinese;
-            } elseif ( $ani_one_first ) {
-                $streams['ani_one'] = $ani_one_first;
-            }
+        // Ani-One 最終決定：優先中文官方，否則第一個
+        if ( $ani_one_chinese ) {
+            $streams['ani_one'] = $ani_one_chinese;
+        } elseif ( $ani_one_first ) {
+            $streams['ani_one'] = $ani_one_first;
         }
 
         return $streams;
     }
+
 
     /**
      * 寫入 ACF 欄位（覆蓋既有 URL 並自動勾選 checkbox）
@@ -384,4 +379,3 @@ class Anime_Sync_YourAnimes_Fetcher {
         return $updated;
     }
 }
-
