@@ -618,9 +618,10 @@ class Anime_Sync_ACF_Fields {
         ] );
     }
 
-    // =========================================================================
+      // =========================================================================
     // 群組 8：台灣在地資訊
     // ★ 修改：get_tw_platforms() 全改 underscore key，移除 str_replace
+    // ★ 新增：anime_youranimes_url 欄位（YourAnimes 同步來源網址）
     // =========================================================================
     private function register_taiwan_info(): void {
 
@@ -718,6 +719,16 @@ class Anime_Sync_ACF_Fields {
                         'instructions'  => '請人工填入台灣播出時間（例：每週六 23:00 Netflix）。',
                         'required'      => 0,
                         'wrapper'       => [ 'width' => '100' ],
+                    ],
+                    [
+                        'key'           => 'field_anime_youranimes_url',
+                        'label'         => 'YourAnimes 網址',
+                        'name'          => 'anime_youranimes_url',
+                        'type'          => 'url',
+                        'instructions'  => '貼上 YourAnimes 動畫頁網址（例：https://youranimes.tw/animes/5480/onair），點下方按鈕同步台灣串流連結。同步會覆蓋既有 URL，並自動勾選對應平台。',
+                        'required'      => 0,
+                        'placeholder'   => 'https://youranimes.tw/animes/XXXX/onair',
+                        'wrapper'       => [ 'width' => '100', 'class' => 'anime-youranimes-url-field' ],
                     ],
                 ]
             ),
