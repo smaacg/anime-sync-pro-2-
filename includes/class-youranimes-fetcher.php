@@ -385,4 +385,3 @@ class Anime_Sync_YourAnimes_Fetcher {
     }
 }
 
-new Anime_Sync_YourAnimes_Fetcher();
