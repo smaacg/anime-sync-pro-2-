@@ -2,31 +2,18 @@
 /**
  * Plugin Name: Anime Sync Pro
  * Description: 從 AniList、Bangumi 自動同步動畫資料。
- * Version:     1.0.6
+ * Version:     1.0.7
  * Author:      SmaACG
  * Requires PHP: 8.0
  * Text Domain: anime-sync-pro
  *
- * Bug fixes / features in this version:
- *   ACD – 新增 anime_series_tax taxonomy（系列分類）
- *         系列分析（get_series_tree、analyze_series、assign_series_taxonomy）
- *         季度批次匯入分頁修正
- *         Tab 4 系列分析互動介面
- *         Tab 5 人氣排行互動介面
- *         前端節流（每 10 部暫停 10 秒）
- *         import_single() 新增第三參數 $source
- *   ACF – fetch_animethemes() 加入 videos.audio，audio_url 存入 themes
- *         enrich_anime_data() Staff/Cast 改為 Bangumi 直接取代
- *         get_full_anime_data() Staff/Cast 改為 Bangumi 優先取代
- *         重新同步 Bangumi 按鈕改為原生 Meta Box
- *         新增 wp_ajax_anime_resync_bangumi
- *         USER_AGENT 統一常數
- *         新增台灣串流平台個別 URL 欄位
- *         新增 anime_faq_json 手動 FAQ 欄位
- *   EDR – 新增 Editorial Routing：
- *         文章內容路由 /news/{channel}/{slug}/
- *         /review/{channel}/{slug}/
- *         /feature/{channel}/{slug}/
+ * Changelog:
+ *   1.0.7 — 新增使用者追蹤狀態系統（巴哈級規模）
+ *           - wp_anime_user_status 主表（取代 user_meta JSON）
+ *           - wp_anime_user_status_stats 彙總表（排行榜預計算）
+ *           - REST API: /smileacg/v1/user-status/{anime_id}
+ *           - Cron: 每 15 分鐘重算彙總表
+ *   1.0.6 — 系列分類、ACF 欄位擴充、Editorial Routing
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -36,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ============================================================
 // 1. 常數定義
 // ============================================================
-define( 'ANIME_SYNC_PRO_VERSION',  '1.0.6' );
+define( 'ANIME_SYNC_PRO_VERSION',  '1.0.7' );
 define( 'ANIME_SYNC_PRO_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_URL',      plugin_dir_url( __FILE__ ) );
 define( 'ANIME_SYNC_PRO_BASENAME', plugin_basename( __FILE__ ) );
@@ -243,6 +230,10 @@ register_deactivation_hook( __FILE__, function () {
 		Anime_Sync_Cron_Manager::deactivate();
 	}
 
+	if ( class_exists( 'Anime_Sync_User_Status_Cron' ) ) {
+		Anime_Sync_User_Status_Cron::unschedule();
+	}
+
 	if ( class_exists( 'Anime_Sync_Installer' ) ) {
 		( new Anime_Sync_Installer() )->deactivate();
 	}
@@ -288,6 +279,16 @@ add_action( 'plugins_loaded', function () {
 		new Anime_Sync_Rating_Manager();
 	}
 
+	// 6-3-2. 初始化使用者追蹤狀態系統（巴哈級規模）
+	if ( class_exists( 'Anime_Sync_User_Status_Manager' ) ) {
+		new Anime_Sync_User_Status_Manager();
+	}
+
+	// 6-3-3. 初始化追蹤狀態彙總 cron
+	if ( class_exists( 'Anime_Sync_User_Status_Cron' ) ) {
+		new Anime_Sync_User_Status_Cron();
+	}
+
 	// 6-4. 後台 + Cron 環境
 	if ( is_admin() || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
 
@@ -312,7 +313,7 @@ add_action( 'plugins_loaded', function () {
 			: null;
 
 		if ( is_admin() && class_exists( 'Anime_Sync_Admin' ) ) {
-			new Anime_Sync_Admin( $import_manager ); // $import_manager 可以是 null，Admin 內部自行判斷
+			new Anime_Sync_Admin( $import_manager );
 		}
 
 		if ( $import_manager && class_exists( 'Anime_Sync_Cron_Manager' ) ) {
@@ -334,13 +335,6 @@ add_action( 'plugins_loaded', function () {
 				}
 			);
 		}
-
-		// --------------------------------------------------------
-		// 6-5. 已移除重複的 wp_ajax_anime_resync_bangumi 註冊
-		//      與重複的 admin_enqueue_scripts 註冊
-		//      兩者統一由 Anime_Sync_Admin 建構子與
-		//      enqueue_admin_assets() 處理，避免 nonce 衝突
-		// --------------------------------------------------------
 	}
 
 } );
@@ -357,7 +351,6 @@ add_action( 'init', function () {
 
 // ============================================================
 // 8. 同步 post_title → anime_title_chinese
-//    後台手動修改標題時自動更新 meta，確保前端顯示一致
 // ============================================================
 add_action( 'save_post_anime', function ( int $post_id, WP_Post $post, bool $update ) {
 
