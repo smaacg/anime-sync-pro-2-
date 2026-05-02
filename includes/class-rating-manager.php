@@ -3,6 +3,11 @@
  * Rating Manager Class
  * 負責 WeixiaoACG+ 評分系統的核心邏輯、資料庫讀寫、REST API
  *
+ * Bug fixes:
+ *   #1 加權平均：改用 SUM(score * weight) / SUM(weight)，讓 weight 真正生效
+ *   #2 健壯性：get_user_weight() 補上 get_userdata() null check
+ *   #3 防刷：api_submit_rating() 加上每分鐘最多 5 次的 rate limit
+ *
  * @package Anime_Sync_Pro
  */
 
@@ -22,6 +27,12 @@ class Anime_Sync_Rating_Manager {
      */
     private int $min_votes = 5;
 
+    /**
+     * Bug #3：評分頻率限制（每分鐘 5 次）
+     */
+    private const RATE_LIMIT_MAX    = 5;
+    private const RATE_LIMIT_PERIOD = MINUTE_IN_SECONDS;
+
     public function __construct() {
         global $wpdb;
         $this->table = $wpdb->prefix . 'anime_ratings';
@@ -35,7 +46,7 @@ class Anime_Sync_Rating_Manager {
     private function register_rest_routes(): void {
         add_action( 'rest_api_init', function () {
 
-            // GET  /wp-json/smileacg/v1/ratings/{anime_id}
+            // GET / POST  /wp-json/smileacg/v1/ratings/{anime_id}
             register_rest_route( 'smileacg/v1', '/ratings/(?P<anime_id>\d+)', [
                 [
                     'methods'             => 'GET',
@@ -146,17 +157,30 @@ class Anime_Sync_Rating_Manager {
     // ================================================================
 
     public function api_submit_rating( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-        $anime_id       = (int) $request->get_param( 'anime_id' );
-        $user_id        = get_current_user_id();
-        $score_story    = (float) $request->get_param( 'score_story' );
-        $score_music    = (float) $request->get_param( 'score_music' );
-        $score_anim     = (float) $request->get_param( 'score_animation' );
-        $score_voice    = (float) $request->get_param( 'score_voice' );
+        $anime_id    = (int) $request->get_param( 'anime_id' );
+        $user_id     = get_current_user_id();
+        $score_story = (float) $request->get_param( 'score_story' );
+        $score_music = (float) $request->get_param( 'score_music' );
+        $score_anim  = (float) $request->get_param( 'score_animation' );
+        $score_voice = (float) $request->get_param( 'score_voice' );
 
         // 驗證 anime post 是否存在
         if ( get_post_type( $anime_id ) !== 'anime' ) {
             return new WP_Error( 'invalid_anime', '找不到此動畫', [ 'status' => 404 ] );
         }
+
+        // ── Bug #3 修正：防刷頻率限制 ─────────────────────────────────
+        $rate_key   = 'asp_rate_user_' . $user_id;
+        $rate_count = (int) get_transient( $rate_key );
+        if ( $rate_count >= self::RATE_LIMIT_MAX ) {
+            return new WP_Error(
+                'rate_limited',
+                '評分過於頻繁，請稍候 1 分鐘後再試',
+                [ 'status' => 429 ]
+            );
+        }
+        set_transient( $rate_key, $rate_count + 1, self::RATE_LIMIT_PERIOD );
+        // ──────────────────────────────────────────────────────────────
 
         // 計算各分類平均作為總分
         $score_overall = round( ( $score_story + $score_music + $score_anim + $score_voice ) / 4, 2 );
@@ -205,6 +229,9 @@ class Anime_Sync_Rating_Manager {
             );
         }
 
+        // Bug #1：清除全站平均快取，下次重算
+        delete_transient( 'asp_global_avg' );
+
         // 重新計算並更新 post meta（供排行榜使用）
         $this->update_post_meta_scores( $anime_id );
 
@@ -224,15 +251,17 @@ class Anime_Sync_Rating_Manager {
         global $wpdb;
         $limit = (int) $request->get_param( 'limit' );
 
+        // ── Bug #1 修正：用 weight 加權的平均（SUM(score*weight)/SUM(weight)）─
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT
                 anime_id,
                 COUNT(*) AS vote_count,
-                AVG(score_overall) AS avg_overall,
-                AVG(score_story) AS avg_story,
-                AVG(score_music) AS avg_music,
-                AVG(score_animation) AS avg_animation,
-                AVG(score_voice) AS avg_voice
+                SUM(weight) AS total_weight,
+                SUM(score_overall   * weight) / NULLIF(SUM(weight), 0) AS avg_overall,
+                SUM(score_story     * weight) / NULLIF(SUM(weight), 0) AS avg_story,
+                SUM(score_music     * weight) / NULLIF(SUM(weight), 0) AS avg_music,
+                SUM(score_animation * weight) / NULLIF(SUM(weight), 0) AS avg_animation,
+                SUM(score_voice     * weight) / NULLIF(SUM(weight), 0) AS avg_voice
              FROM {$this->table}
              GROUP BY anime_id
              HAVING vote_count >= 1
@@ -240,6 +269,7 @@ class Anime_Sync_Rating_Manager {
              LIMIT %d",
             $limit
         ) );
+        // ──────────────────────────────────────────────────────────────
 
         $global_avg = $this->get_global_average();
         $result     = [];
@@ -277,18 +307,21 @@ class Anime_Sync_Rating_Manager {
     public function get_stats( int $anime_id ): array {
         global $wpdb;
 
+        // ── Bug #1 修正：用 weight 加權的平均 ──────────────────────────
         $row = $wpdb->get_row( $wpdb->prepare(
             "SELECT
-                COUNT(*)          AS vote_count,
-                AVG(score_overall)   AS avg_overall,
-                AVG(score_story)     AS avg_story,
-                AVG(score_music)     AS avg_music,
-                AVG(score_animation) AS avg_animation,
-                AVG(score_voice)     AS avg_voice
+                COUNT(*) AS vote_count,
+                SUM(weight) AS total_weight,
+                SUM(score_overall   * weight) / NULLIF(SUM(weight), 0) AS avg_overall,
+                SUM(score_story     * weight) / NULLIF(SUM(weight), 0) AS avg_story,
+                SUM(score_music     * weight) / NULLIF(SUM(weight), 0) AS avg_music,
+                SUM(score_animation * weight) / NULLIF(SUM(weight), 0) AS avg_animation,
+                SUM(score_voice     * weight) / NULLIF(SUM(weight), 0) AS avg_voice
              FROM {$this->table}
              WHERE anime_id = %d",
             $anime_id
         ) );
+        // ──────────────────────────────────────────────────────────────
 
         if ( ! $row || (int) $row->vote_count === 0 ) {
             return [
@@ -381,26 +414,45 @@ class Anime_Sync_Rating_Manager {
     // ================================================================
 
     private function get_global_average(): float {
+        // Bug #4 加碼：加上 transient 快取，避免每次都跑全表 AVG
+        $cached = get_transient( 'asp_global_avg' );
+        if ( $cached !== false ) {
+            return (float) $cached;
+        }
+
         global $wpdb;
         $avg = (float) $wpdb->get_var(
             "SELECT AVG(score_overall) FROM {$this->table}"
         );
-        return $avg > 0 ? $avg : 7.0; // 預設基準 7.0
+        $avg = $avg > 0 ? $avg : 7.0; // 預設基準 7.0
+
+        set_transient( 'asp_global_avg', $avg, 10 * MINUTE_IN_SECONDS );
+        return $avg;
     }
 
     // ================================================================
     // 使用者權重計算
     // 帳號 >= 30天 且 評分 >= 10 部 → ×1.5
-    // 其餘新用戶 → ×0.5
+    // 新用戶 (< 7 天)             → ×0.5
+    // 其餘                         → ×1.0
     // ================================================================
 
     private function get_user_weight( int $user_id ): float {
+        // ── Bug #2 修正：補上 get_userdata() null check ─────────────────
+        $user = get_userdata( $user_id );
+        if ( ! $user || empty( $user->user_registered ) ) {
+            return 1.0;
+        }
+
+        $reg_date = strtotime( $user->user_registered );
+        if ( $reg_date === false ) {
+            return 1.0;
+        }
+        // ──────────────────────────────────────────────────────────────
+
+        $days_old = ( time() - $reg_date ) / DAY_IN_SECONDS;
+
         global $wpdb;
-
-        $user       = get_userdata( $user_id );
-        $reg_date   = strtotime( $user->user_registered );
-        $days_old   = ( time() - $reg_date ) / DAY_IN_SECONDS;
-
         $rated_count = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(DISTINCT anime_id) FROM {$this->table} WHERE user_id = %d",
             $user_id
