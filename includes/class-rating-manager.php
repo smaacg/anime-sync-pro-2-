@@ -7,6 +7,10 @@
  *   #1 加權平均：改用 SUM(score * weight) / SUM(weight)，讓 weight 真正生效
  *   #2 健壯性：get_user_weight() 補上 get_userdata() null check
  *   #3 防刷：api_submit_rating() 加上每分鐘最多 5 次的 rate limit
+ *   #4 效能：get_global_average() 加上 10 分鐘 transient 快取
+ *   #5 健壯性：api_submit_rating() 檢查 $wpdb->insert/update 失敗，寫入 error log
+ *   #7 效能：update_post_meta_scores() 回傳 stats，避免重複呼叫 get_stats()
+ *   #8 邏輯：api_get_site_ranking() 撈 3 倍資料後 PHP 重新依 weighted 排序
  *
  * @package Anime_Sync_Pro
  */
@@ -32,6 +36,16 @@ class Anime_Sync_Rating_Manager {
      */
     private const RATE_LIMIT_MAX    = 5;
     private const RATE_LIMIT_PERIOD = MINUTE_IN_SECONDS;
+
+    /**
+     * Bug #4：全站平均快取時間
+     */
+    private const GLOBAL_AVG_CACHE_TTL = 10 * MINUTE_IN_SECONDS;
+
+    /**
+     * Bug #8：排行榜撈取倍數（撈這個倍數後 PHP 用 weighted 重新排序）
+     */
+    private const RANKING_FETCH_MULTIPLIER = 3;
 
     public function __construct() {
         global $wpdb;
@@ -192,9 +206,10 @@ class Anime_Sync_Rating_Manager {
         $now      = current_time( 'mysql' );
         $existing = $this->get_user_rating( $anime_id, $user_id );
 
+        // ── Bug #5 修正：寫入結果檢查 ─────────────────────────────────
         if ( $existing ) {
             // 修改既有評分
-            $wpdb->update(
+            $result = $wpdb->update(
                 $this->table,
                 [
                     'score_story'     => $score_story,
@@ -211,7 +226,7 @@ class Anime_Sync_Rating_Manager {
             );
         } else {
             // 新增評分
-            $wpdb->insert(
+            $result = $wpdb->insert(
                 $this->table,
                 [
                     'anime_id'        => $anime_id,
@@ -229,16 +244,39 @@ class Anime_Sync_Rating_Manager {
             );
         }
 
+        if ( $result === false ) {
+            // 寫入失敗：記錄錯誤並回傳 500
+            if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
+                Anime_Sync_Error_Logger::error(
+                    'Rating DB write failed',
+                    [
+                        'anime_id'  => $anime_id,
+                        'user_id'   => $user_id,
+                        'operation' => $existing ? 'update' : 'insert',
+                        'db_error'  => $wpdb->last_error,
+                    ]
+                );
+            }
+
+            return new WP_Error(
+                'db_write_failed',
+                '儲存評分時發生錯誤，請稍後再試',
+                [ 'status' => 500 ]
+            );
+        }
+        // ──────────────────────────────────────────────────────────────
+
         // Bug #1：清除全站平均快取，下次重算
         delete_transient( 'asp_global_avg' );
 
-        // 重新計算並更新 post meta（供排行榜使用）
-        $this->update_post_meta_scores( $anime_id );
+        // ── Bug #7 修正：一次呼叫，同時拿到 stats ───────────────────
+        $stats = $this->update_post_meta_scores( $anime_id );
+        // ──────────────────────────────────────────────────────────────
 
         return rest_ensure_response( [
             'success'  => true,
             'message'  => $existing ? '評分已更新' : '評分成功',
-            'stats'    => $this->get_stats( $anime_id ),
+            'stats'    => $stats,
             'my_score' => $this->get_user_rating( $anime_id, $user_id ),
         ] );
     }
@@ -251,7 +289,10 @@ class Anime_Sync_Rating_Manager {
         global $wpdb;
         $limit = (int) $request->get_param( 'limit' );
 
-        // ── Bug #1 修正：用 weight 加權的平均（SUM(score*weight)/SUM(weight)）─
+        // ── Bug #8 修正：撈 N 倍數量，PHP 端用 weighted 重新排序 ─────
+        $fetch_limit = $limit * self::RANKING_FETCH_MULTIPLIER;
+
+        // ── Bug #1 修正：用 weight 加權的平均 ──────────────────────────
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT
                 anime_id,
@@ -267,7 +308,7 @@ class Anime_Sync_Rating_Manager {
              HAVING vote_count >= 1
              ORDER BY avg_overall DESC
              LIMIT %d",
-            $limit
+            $fetch_limit
         ) );
         // ──────────────────────────────────────────────────────────────
 
@@ -275,13 +316,16 @@ class Anime_Sync_Rating_Manager {
         $result     = [];
 
         foreach ( $rows as $row ) {
+            $post = get_post( (int) $row->anime_id );
+            if ( ! $post || $post->post_status !== 'publish' ) {
+                continue;
+            }
+
             $weighted = $this->calc_weighted_score(
                 (float) $row->avg_overall,
                 (int)   $row->vote_count,
                 $global_avg
             );
-            $post = get_post( (int) $row->anime_id );
-            if ( ! $post || $post->post_status !== 'publish' ) continue;
 
             $result[] = [
                 'anime_id'      => (int) $row->anime_id,
@@ -296,6 +340,11 @@ class Anime_Sync_Rating_Manager {
                 'avg_voice'     => round( (float) $row->avg_voice, 2 ),
             ];
         }
+
+        // ── Bug #8 修正：PHP 端依 weighted score 重新排序 ─────────────
+        usort( $result, fn( $a, $b ) => $b['score'] <=> $a['score'] );
+        $result = array_slice( $result, 0, $limit );
+        // ──────────────────────────────────────────────────────────────
 
         return rest_ensure_response( $result );
     }
@@ -414,7 +463,7 @@ class Anime_Sync_Rating_Manager {
     // ================================================================
 
     private function get_global_average(): float {
-        // Bug #4 加碼：加上 transient 快取，避免每次都跑全表 AVG
+        // ── Bug #4 修正：transient 快取 10 分鐘 ──────────────────────
         $cached = get_transient( 'asp_global_avg' );
         if ( $cached !== false ) {
             return (float) $cached;
@@ -426,8 +475,9 @@ class Anime_Sync_Rating_Manager {
         );
         $avg = $avg > 0 ? $avg : 7.0; // 預設基準 7.0
 
-        set_transient( 'asp_global_avg', $avg, 10 * MINUTE_IN_SECONDS );
+        set_transient( 'asp_global_avg', $avg, self::GLOBAL_AVG_CACHE_TTL );
         return $avg;
+        // ──────────────────────────────────────────────────────────────
     }
 
     // ================================================================
@@ -469,11 +519,13 @@ class Anime_Sync_Rating_Manager {
 
     // ================================================================
     // 更新 post meta，供排行榜頁面直接讀取
+    // Bug #7 修正：回傳 stats，避免呼叫端再次呼叫 get_stats()
     // ================================================================
 
-    private function update_post_meta_scores( int $anime_id ): void {
+    private function update_post_meta_scores( int $anime_id ): array {
         $stats = $this->get_stats( $anime_id );
         update_post_meta( $anime_id, 'anime_score_site',       $stats['score'] ?? '' );
         update_post_meta( $anime_id, 'anime_score_site_count', $stats['vote_count'] ?? 0 );
+        return $stats;
     }
 }
