@@ -3,6 +3,7 @@
  * Installer Class
  *
  * @package Anime_Sync_Pro
+ * @version 1.1.0 — 新增 anime_user_status + anime_user_status_stats 兩張表（巴哈級規模）
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -41,7 +42,11 @@ class Anime_Sync_Installer {
 
         $charset_collate = $wpdb->get_charset_collate();
 
-        // 審核佇列資料表
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+        // ────────────────────────────────────────────
+        // 表 1：審核佇列
+        // ────────────────────────────────────────────
         $queue_table = $wpdb->prefix . 'anime_review_queue';
         $queue_sql   = "CREATE TABLE IF NOT EXISTS {$queue_table} (
             id          BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -58,8 +63,11 @@ class Anime_Sync_Installer {
             KEY status (status),
             KEY created_at (created_at)
         ) {$charset_collate};";
+        dbDelta( $queue_sql );
 
-        // 錯誤日誌資料表
+        // ────────────────────────────────────────────
+        // 表 2：錯誤日誌
+        // ────────────────────────────────────────────
         $logs_table = $wpdb->prefix . 'anime_sync_logs';
         $logs_sql   = "CREATE TABLE IF NOT EXISTS {$logs_table} (
             id         BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -71,11 +79,11 @@ class Anime_Sync_Installer {
             KEY level (level),
             KEY created_at (created_at)
         ) {$charset_collate};";
-
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        dbDelta( $queue_sql );
         dbDelta( $logs_sql );
-                // 評分資料表
+
+        // ────────────────────────────────────────────
+        // 表 3：評分資料表
+        // ────────────────────────────────────────────
         $ratings_table = $wpdb->prefix . 'anime_ratings';
         $ratings_sql   = "CREATE TABLE IF NOT EXISTS {$ratings_table} (
             id               BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -95,6 +103,56 @@ class Anime_Sync_Installer {
             KEY score_overall (score_overall)
         ) {$charset_collate};";
         dbDelta( $ratings_sql );
+
+        // ────────────────────────────────────────────
+        // 表 4：使用者追蹤狀態（取代 user_meta 'anime_user_data' JSON）
+        // 巴哈級規模設計：百萬會員、五千萬筆紀錄
+        // ────────────────────────────────────────────
+        $user_status_table = $wpdb->prefix . 'anime_user_status';
+        $user_status_sql   = "CREATE TABLE IF NOT EXISTS {$user_status_table} (
+            id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id       BIGINT(20) UNSIGNED NOT NULL,
+            anime_id      BIGINT(20) UNSIGNED NOT NULL,
+            status        TINYINT UNSIGNED DEFAULT NULL,
+            progress      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            favorited     TINYINT(1) NOT NULL DEFAULT 0,
+            fullcleared   TINYINT(1) NOT NULL DEFAULT 0,
+            started_at    DATETIME DEFAULT NULL,
+            completed_at  DATETIME DEFAULT NULL,
+            note          VARCHAR(500) DEFAULT NULL,
+            is_private    TINYINT(1) NOT NULL DEFAULT 0,
+            created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY user_anime (user_id, anime_id),
+            KEY user_status (user_id, status, updated_at),
+            KEY user_favorited (user_id, favorited, updated_at),
+            KEY anime_status (anime_id, status),
+            KEY anime_favorited (anime_id, favorited),
+            KEY updated_at (updated_at)
+        ) {$charset_collate};";
+        dbDelta( $user_status_sql );
+
+        // ────────────────────────────────────────────
+        // 表 5：使用者追蹤狀態彙總（排行榜預計算）
+        // 由 cron 每 15 分鐘重算
+        // ────────────────────────────────────────────
+        $us_stats_table = $wpdb->prefix . 'anime_user_status_stats';
+        $us_stats_sql   = "CREATE TABLE IF NOT EXISTS {$us_stats_table} (
+            anime_id        BIGINT(20) UNSIGNED NOT NULL,
+            want_count      INT UNSIGNED NOT NULL DEFAULT 0,
+            watching_count  INT UNSIGNED NOT NULL DEFAULT 0,
+            completed_count INT UNSIGNED NOT NULL DEFAULT 0,
+            dropped_count   INT UNSIGNED NOT NULL DEFAULT 0,
+            favorited_count INT UNSIGNED NOT NULL DEFAULT 0,
+            total_count     INT UNSIGNED NOT NULL DEFAULT 0,
+            updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (anime_id),
+            KEY watching_count (watching_count),
+            KEY favorited_count (favorited_count),
+            KEY total_count (total_count)
+        ) {$charset_collate};";
+        dbDelta( $us_stats_sql );
     }
 
     /**
@@ -137,14 +195,13 @@ class Anime_Sync_Installer {
             if ( ! file_exists( $dir ) ) {
                 wp_mkdir_p( $dir );
                 file_put_contents( $dir . '/.htaccess', 'Options -Indexes' );
+                file_put_contents( $dir . '/index.php', '<?php // Silence is golden.' );
             }
         }
     }
 
     /**
-     * ✅ 修正：移除重複的 register_post_type 呼叫
      * CPT 已在 anime-sync-pro.php 的 init hook 中註冊
-     * 此處只排程刷新 rewrite rules
      */
     private function register_cpt_for_flush(): void {
         update_option( 'anime_sync_flush_rewrite', 1 );
