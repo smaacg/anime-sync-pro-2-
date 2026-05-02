@@ -1,136 +1,8 @@
 <?php
 /**
- * User Status Cron
- *
- * 每 15 分鐘重算 anime_user_status_stats 彙總表
- *
- * @package Anime_Sync_Pro
- * @version 1.0.0
- */
-
-if ( ! defined( 'ABSPATH' ) ) exit;
-
-class Anime_Sync_User_Status_Cron {
-
-    const HOOK     = 'anime_sync_recalc_user_status_stats';
-    const SCHEDULE = 'asp_every_15_minutes';
-
-    public function __construct() {
-        // 自訂 schedule
-        add_filter( 'cron_schedules', [ $this, 'add_schedule' ] );
-
-        // 註冊 cron handler
-        add_action( self::HOOK, [ $this, 'recalc_stats' ] );
-
-        // 啟用時排程（idempotent）
-        add_action( 'init', [ $this, 'maybe_schedule' ] );
-
-        // 提供手動觸發（admin / wp-cli）
-        add_action( 'wp_ajax_asp_recalc_user_status_stats', [ $this, 'ajax_manual_recalc' ] );
-    }
-
-    /** 加入「每 15 分鐘」排程 */
-    public function add_schedule( $schedules ) {
-        $schedules[ self::SCHEDULE ] = [
-            'interval' => 15 * MINUTE_IN_SECONDS,
-            'display'  => '每 15 分鐘（Anime Sync）',
-        ];
-        return $schedules;
-    }
-
-    /** 確保 cron 已被排程 */
-    public function maybe_schedule(): void {
-        if ( ! wp_next_scheduled( self::HOOK ) ) {
-            wp_schedule_event( time() + 60, self::SCHEDULE, self::HOOK );
-        }
-    }
-
-    /** 取消排程（外掛停用時呼叫） */
-    public static function unschedule(): void {
-        $ts = wp_next_scheduled( self::HOOK );
-        if ( $ts ) wp_unschedule_event( $ts, self::HOOK );
-    }
-
-    /**
-     * 重算彙總表（核心）
-     *
-     * 策略：用 INSERT ... SELECT ... ON DUPLICATE KEY UPDATE
-     * 一句 SQL 完成全表彙總，無需逐筆迴圈。
-     */
-    public function recalc_stats(): int {
-        global $wpdb;
-
-        $main_table  = $wpdb->prefix . 'anime_user_status';
-        $stats_table = $wpdb->prefix . 'anime_user_status_stats';
-
-        $start_time = microtime( true );
-
-        // 1. 把目前彙總表清空（用 TRUNCATE 速度最快、不留碎片）
-        // 注意：需要 DROP/CREATE 權限，TRUNCATE 通常 OK
-        $wpdb->query( "TRUNCATE TABLE {$stats_table}" );
-
-        // 2. 從主表 GROUP BY anime_id 重算所有計數
-        // status: 0=want, 1=watching, 2=completed, 3=dropped
-        $sql = "
-            INSERT INTO {$stats_table}
-                (anime_id, want_count, watching_count, completed_count, dropped_count, favorited_count, total_count)
-            SELECT
-                anime_id,
-                SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) AS want_count,
-                SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS watching_count,
-                SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END) AS completed_count,
-                SUM(CASE WHEN status = 3 THEN 1 ELSE 0 END) AS dropped_count,
-                SUM(favorited)                              AS favorited_count,
-                COUNT(*)                                    AS total_count
-            FROM {$main_table}
-            GROUP BY anime_id
-        ";
-
-        $rows_affected = $wpdb->query( $sql );
-
-        $duration = round( microtime( true ) - $start_time, 3 );
-
-        // 清除排行榜快取
-        $this->flush_ranking_cache();
-
-        // 紀錄
-        if ( class_exists( 'Anime_Sync_Error_Logger' ) ) {
-            Anime_Sync_Error_Logger::info( 'User status stats recalculated', [
-                'rows_affected' => (int) $rows_affected,
-                'duration_sec'  => $duration,
-            ] );
-        }
-
-        return (int) $rows_affected;
-    }
-
-    /** 手動觸發（管理員後台或 WP-CLI 用） */
-    public function ajax_manual_recalc(): void {
-        if ( ! current_user_can( 'manage_options' ) ) {
-            wp_send_json_error( [ 'message' => '權限不足' ], 403 );
-        }
-        check_ajax_referer( 'asp_recalc_stats', 'nonce' );
-
-        $count = $this->recalc_stats();
-        wp_send_json_success( [
-            'message' => "已重算 {$count} 部動畫的彙總",
-            'count'   => $count,
-        ] );
-    }
-
-    /** 清除所有排行榜快取（重算後讓使用者立刻看到新結果） */
-    private function flush_ranking_cache(): void {
-        $types = [ 'favorited', 'watching', 'completed', 'want', 'dropped', 'total' ];
-        $limits = [ 10, 20, 30, 50, 100 ];
-        foreach ( $types as $t ) {
-            foreach ( $limits as $l ) {
-                wp_cache_delete( "us_rank_{$t}_{$l}", 'anime_user_status' );
-            }
-        }
-    }
-}
-/**
  * User Status Manager
+ *
+ * 使用者追蹤狀態 CRUD + REST API + 快取
  *
  * @package Anime_Sync_Pro
  * @version 1.0.0
@@ -170,6 +42,10 @@ class Anime_Sync_User_Status_Manager {
         add_action( 'rest_api_init', [ $this, 'register_routes' ] );
     }
 
+    /* ──────────────────────────────────────────────
+     * REST 路由
+     * ────────────────────────────────────────────── */
+
     public function register_routes(): void {
         $ns = 'smileacg/v1';
 
@@ -203,6 +79,10 @@ class Anime_Sync_User_Status_Manager {
             ? true
             : new WP_Error( 'rest_forbidden', '請先登入', [ 'status' => 401 ] );
     }
+
+    /* ──────────────────────────────────────────────
+     * REST callback
+     * ────────────────────────────────────────────── */
 
     public function api_get_one( WP_REST_Request $req ) {
         $user_id  = get_current_user_id();
@@ -309,6 +189,10 @@ class Anime_Sync_User_Status_Manager {
 
         return rest_ensure_response( [ 'success' => true, 'message' => '已移除' ] );
     }
+
+    /* ──────────────────────────────────────────────
+     * 寫入方法（皆使用 ON DUPLICATE KEY UPDATE 原子 upsert）
+     * ────────────────────────────────────────────── */
 
     private function set_status( int $user_id, int $anime_id, string $status ): bool {
         if ( ! isset( self::STATUS_MAP[ $status ] ) ) return false;
@@ -453,6 +337,10 @@ class Anime_Sync_User_Status_Manager {
         return true;
     }
 
+    /* ──────────────────────────────────────────────
+     * 讀取方法（含快取）
+     * ────────────────────────────────────────────── */
+
     public function get_entry( int $user_id, int $anime_id, bool $use_cache = true ): array {
         if ( ! $user_id || ! $anime_id ) return $this->empty_entry();
 
@@ -535,6 +423,10 @@ class Anime_Sync_User_Status_Manager {
         wp_cache_set( $cache_key, $rows, self::CACHE_GROUP, 600 );
         return $rows;
     }
+
+    /* ──────────────────────────────────────────────
+     * 內部 helper
+     * ────────────────────────────────────────────── */
 
     private function normalize_row( array $row ): array {
         $status_int = $row['status'];
