@@ -165,8 +165,9 @@ class Anime_Sync_User_Status_Manager {
         }
 
         return rest_ensure_response( [
-            'success' => true,
-            'data'    => $this->get_entry( $user_id, $anime_id, false ),
+            'success'       => true,
+            'entry'         => $this->get_entry( $user_id, $anime_id, false ),
+            'points_earned' => 0,
         ] );
     }
 
