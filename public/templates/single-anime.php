@@ -505,12 +505,15 @@ $has_trailer = ! empty( $trailer_items );
 
     /* ── 追蹤資料 ── */
     $user_anime_entry = [ 'status' => null, 'progress' => 0, 'favorited' => false, 'fullcleared' => false ];
-    if ( is_user_logged_in() ) {
-        $uid       = get_current_user_id();
-        $user_data = json_decode( get_user_meta( $uid, 'anime_user_data', true ) ?: '{}', true );
-        if ( isset( $user_data[ $post_id ] ) ) {
-            $user_anime_entry = wp_parse_args( $user_data[ $post_id ], $user_anime_entry );
-        }
+    if ( $uid && class_exists( 'Anime_Sync_User_Status_Manager' ) ) {
+        $usm   = new Anime_Sync_User_Status_Manager();
+        $entry = $usm->get_entry( (int) $uid, (int) $post_id );
+        $user_anime_entry = [
+            'status'      => $entry['status'],
+            'progress'    => (int) $entry['progress'],
+            'favorited'   => (bool) $entry['favorited'],
+            'fullcleared' => (bool) $entry['fullcleared'],
+        ];
     }
 
     /* ── ✅ 使用者既有評分（注入給 JS，預設 5.0，前端 JS 會動態覆寫）── */
