@@ -239,13 +239,14 @@ class Anime_Sync_User_Status_Manager {
 
 
     private function adjust_progress( int $user_id, int $anime_id, int $delta ): bool {
-        $max = (int) get_post_meta( $anime_id, 'anime_episodes', true );
-        if ( $max <= 0 ) $max = 9999;
+        $total_ep = (int) get_post_meta( $anime_id, 'anime_episodes', true );
+        $max      = $total_ep > 0 ? $total_ep : 9999;
 
         global $wpdb;
         $table = $wpdb->prefix . 'anime_user_status';
         $now   = current_time( 'mysql' );
 
+        // 第一階段：原子 upsert（progress + started_at）
         $sql = $wpdb->prepare(
             "INSERT INTO {$table} (user_id, anime_id, progress, started_at)
              VALUES (%d, %d, GREATEST(0, %d), %s)
@@ -257,9 +258,35 @@ class Anime_Sync_User_Status_Manager {
 
         $result = $wpdb->query( $sql );
         if ( $result === false ) return false;
+
+        // 第二階段：若進度已加到滿，且已知總集數 → 自動標記為已看完
+        if ( $total_ep > 0 ) {
+            $current = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT progress FROM {$table} WHERE user_id = %d AND anime_id = %d",
+                $user_id, $anime_id
+            ) );
+
+            if ( $current >= $total_ep ) {
+                $wpdb->query( $wpdb->prepare(
+                    "UPDATE {$table}
+                     SET status       = %d,
+                         fullcleared  = 1,
+                         completed_at = COALESCE(completed_at, %s)
+                     WHERE user_id = %d AND anime_id = %d
+                       AND (status IS NULL OR status != %d)",
+                    self::STATUS_COMPLETED,
+                    $now,
+                    $user_id,
+                    $anime_id,
+                    self::STATUS_COMPLETED
+                ) );
+            }
+        }
+
         $this->flush_cache( $user_id, $anime_id );
         return true;
     }
+
 
     private function set_progress( int $user_id, int $anime_id, int $progress ): bool {
         $max = (int) get_post_meta( $anime_id, 'anime_episodes', true );
