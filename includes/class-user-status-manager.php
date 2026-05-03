@@ -203,16 +203,31 @@ class Anime_Sync_User_Status_Manager {
         $table = $wpdb->prefix . 'anime_user_status';
         $now   = current_time( 'mysql' );
 
+        // 點「已看完」時，自動補滿進度（取總集數）
+        $auto_progress = null;
+        if ( $status_int === self::STATUS_COMPLETED ) {
+            $total_ep = (int) get_post_meta( $anime_id, 'anime_episodes', true );
+            if ( $total_ep > 0 ) {
+                $auto_progress = $total_ep;
+            }
+        }
+
         $sql = $wpdb->prepare(
             "INSERT INTO {$table}
-                (user_id, anime_id, status, started_at, completed_at)
-             VALUES (%d, %d, %d, %s, %s)
+                (user_id, anime_id, status, progress, started_at, completed_at)
+             VALUES (%d, %d, %d, %d, %s, %s)
              ON DUPLICATE KEY UPDATE
                 status       = VALUES(status),
+                progress     = IF(VALUES(status) = %d AND VALUES(progress) > 0, VALUES(progress), progress),
                 started_at   = COALESCE(started_at, VALUES(started_at)),
                 completed_at = IF(VALUES(status) = %d, VALUES(completed_at), completed_at)",
-            $user_id, $anime_id, $status_int, $now,
+            $user_id,
+            $anime_id,
+            $status_int,
+            $auto_progress ?? 0,
+            $now,
             $status_int === self::STATUS_COMPLETED ? $now : null,
+            self::STATUS_COMPLETED,
             self::STATUS_COMPLETED
         );
 
@@ -221,6 +236,7 @@ class Anime_Sync_User_Status_Manager {
         $this->flush_cache( $user_id, $anime_id );
         return true;
     }
+
 
     private function adjust_progress( int $user_id, int $anime_id, int $delta ): bool {
         $max = (int) get_post_meta( $anime_id, 'anime_episodes', true );
