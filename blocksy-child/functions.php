@@ -283,23 +283,37 @@ add_action( 'wp_enqueue_scripts', function() {
         if (file_exists($p)) wp_enqueue_script('smaacg-main', SMAACG_THEME_URL.'/assets/js/main.js', ['smaacg-api'], filemtime($p), true);
     }
 
-    if (is_singular('anime')) {
-        foreach (['smaacg-anime-js'=>'anime.js','smacg-anime-status'=>'anime-status.js'] as $h=>$f) {
-            $p = SMAACG_THEME_DIR.'/assets/js/'.$f;
-            if (file_exists($p)) wp_enqueue_script($h, SMAACG_THEME_URL.'/assets/js/'.$f, ['smaacg-api'], filemtime($p), true);
-        }
-        wp_localize_script('smacg-anime-status','SmacgConfig',[
-            'apiUrl'    => esc_url_raw(rest_url('smileacg/v1/')),
-            'ajaxUrl'   => admin_url('admin-ajax.php'),
-            'nonce'     => wp_create_nonce('wp_rest'),
-            'ajaxNonce' => wp_create_nonce('smacg_nonce'),
-            'loggedIn'  => is_user_logged_in(),
-            'loginUrl'  => function_exists('um_get_core_page') ? um_get_core_page('login') : wp_login_url(get_permalink()),
-            'postId'    => get_the_ID(),
-            'permalink' => get_permalink(),
-            'title'     => get_the_title(),
-        ]);
+if (is_singular('anime')) {
+    foreach ([
+        'smaacg-anime-js'    => 'anime.js',
+        'smacg-anime-status' => 'anime-status.js',
+        'smacg-anime-rating' => 'anime-rating.js',  // ← 新增這行
+    ] as $h=>$f) {
+        $p = SMAACG_THEME_DIR.'/assets/js/'.$f;
+        if (file_exists($p)) wp_enqueue_script($h, SMAACG_THEME_URL.'/assets/js/'.$f, ['smaacg-api'], filemtime($p), true);
     }
+    wp_localize_script('smacg-anime-status','SmacgConfig',[
+        'apiUrl'    => esc_url_raw(rest_url('smileacg/v1/')),
+        'ajaxUrl'   => admin_url('admin-ajax.php'),
+        'nonce'     => wp_create_nonce('wp_rest'),
+        'ajaxNonce' => wp_create_nonce('smacg_nonce'),
+        'loggedIn'  => is_user_logged_in(),
+        'loginUrl'  => function_exists('um_get_core_page') ? um_get_core_page('login') : wp_login_url(get_permalink()),
+        'postId'    => get_the_ID(),
+        'permalink' => get_permalink(),
+        'title'     => get_the_title(),
+    ]);
+    // ← 新增：把 SmacgConfig 也綁到 anime-rating，避免它讀不到
+    wp_localize_script('smacg-anime-rating','SmacgConfig',[
+        'apiUrl'    => esc_url_raw(rest_url('smileacg/v1/')),
+        'ajaxUrl'   => admin_url('admin-ajax.php'),
+        'nonce'     => wp_create_nonce('wp_rest'),
+        'ajaxNonce' => wp_create_nonce('smacg_nonce'),
+        'loggedIn'  => is_user_logged_in(),
+        'postId'    => get_the_ID(),
+    ]);
+}
+
 
     if (is_page_template('page-ranking.php')) {
         $p = SMAACG_THEME_DIR.'/assets/js/ranking.js';
