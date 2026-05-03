@@ -63,18 +63,28 @@ document.addEventListener('DOMContentLoaded', function () {
     const shareClose  = document.getElementById('smacg-share-close');
     const copyBtn     = document.getElementById('smacg-copy-link');
 
-    /* ── API 呼叫 ── */
+    /* ── 工具：呼叫 API ── */
     function callApi(action, value) {
-        if (!loggedIn) { requireLogin(); return Promise.reject('not_logged_in'); }
-        return fetch(apiBase + 'anime-update', {
+        if (!loggedIn) {
+            requireLogin();
+            return Promise.reject('not_logged_in');
+        }
+        return fetch(apiBase + 'user-status/' + postId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
-            body: JSON.stringify({ post_id: postId, action: action, value: value }),
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': nonce,
+            },
+            body: JSON.stringify({
+                action:  action,
+                value:   value,
+            }),
         }).then(function (res) {
             if (!res.ok) throw new Error('API error ' + res.status);
             return res.json();
         });
     }
+
 
     /* ── 積分 Toast ── */
     function showPointToast(points) {
@@ -323,25 +333,42 @@ document.addEventListener('DOMContentLoaded', function () {
     const nonce    = cfg.ajaxNonce         || '';
     const submitBtn = document.getElementById('wacg-submit-btn');
 
-    /* ── 從伺服器注入的既有評分初始化 slider ── */
-    const serverRating = window.SmacgUserRating || {};
-    const sliderKeys   = ['story', 'music', 'animation', 'voice'];
+    /* ── Slider 初始化（支援動態載入評分覆蓋 LiteSpeed 快取） ── */
+    const sliderKeys = ['story', 'music', 'animation', 'voice'];
 
+    /* 套用評分到滑桿 UI（可重複呼叫，給 fetch 完成後使用） */
+    function applyRatingToSliders(rating) {
+        rating = rating || {};
+        sliderKeys.forEach(function (key) {
+            const slider = document.getElementById('slider-' + key);
+            const valEl  = document.getElementById('slider-' + key + '-val');
+            if (!slider) return;
+            const v = (rating[key] !== undefined) ? parseFloat(rating[key]) : parseFloat(slider.value);
+            if (!isNaN(v)) {
+                slider.value = v;
+                if (valEl) valEl.textContent = v.toFixed(1);
+            }
+        });
+    }
+
+    /* 初次渲染：用 PHP 注入的預設值（通常是 5） */
+    applyRatingToSliders(window.SmacgUserRating || {});
+
+    /* 綁定拖動事件（只綁一次） */
     sliderKeys.forEach(function (key) {
         const slider = document.getElementById('slider-' + key);
         const valEl  = document.getElementById('slider-' + key + '-val');
         if (!slider) return;
-
-        /* 優先用伺服器回傳的值，否則維持 HTML 預設值 5 */
-        const initVal = (serverRating[key] !== undefined) ? serverRating[key] : parseFloat(slider.value);
-        slider.value  = initVal;
-        if (valEl) valEl.textContent = parseFloat(initVal).toFixed(1);
-
-        /* 拖動即時更新 */
         slider.addEventListener('input', function () {
             if (valEl) valEl.textContent = parseFloat(this.value).toFixed(1);
         });
     });
+
+    /* 監聽動態載入的真實評分 → 覆蓋滑桿 */
+    document.addEventListener('smacg:userRatingReady', function (e) {
+        applyRatingToSliders(e.detail || window.SmacgUserRating || {});
+    });
+
 
     /* ── 送出 ── */
     ratingForm.addEventListener('submit', function (e) {
