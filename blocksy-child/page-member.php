@@ -140,10 +140,90 @@ foreach ( $role_candidates as $role_slug ) {
 }
 
 /**
- * 追蹤 / 評分 / 積分 log
+ * 追蹤清單（從 wp_anime_user_status 表讀）
  */
-$watchlist  = smacg_decode_user_json_meta( $user_id, 'smacg_watchlist' );
-$ratings    = smacg_decode_user_json_meta( $user_id, 'smacg_ratings' );
+$watchlist = [];
+if ( class_exists( 'Anime_Sync_User_Status_Manager' ) ) {
+    $usm  = new Anime_Sync_User_Status_Manager();
+    $list = $usm->get_user_list( $user_id );
+
+    // status int → string，並映射到會員頁用的命名
+    $status_map = [
+        'want'      => 'planned',   // 想看
+        'watching'  => 'watching',  // 追番中
+        'completed' => 'completed', // 已看完
+        'dropped'   => 'dropped',   // 棄坑
+    ];
+
+    foreach ( $list as $entry ) {
+        $pid = (int) ( $entry['anime_id'] ?? 0 );
+        if ( ! $pid ) continue;
+
+        $raw_status = $entry['status'] ?? '';
+        $status     = $status_map[ $raw_status ] ?? '';
+
+        // 全破等同已看完
+        if ( ! empty( $entry['fullcleared'] ) ) {
+            $status = 'completed';
+        }
+
+        // 若沒狀態、沒收藏、沒全破，跳過（純空白資料）
+        if ( $status === '' && empty( $entry['favorited'] ) && empty( $entry['fullcleared'] ) ) {
+            continue;
+        }
+
+        $watchlist[] = [
+            'post_id'     => $pid,
+            'status'      => $status ?: 'planned',  // 純收藏者預設 planned，但 favorited 旗標仍保留
+            'progress'    => (int) ( $entry['progress'] ?? 0 ),
+            'score'       => 0,  // 之後從 wp_anime_ratings 補
+            'favorited'   => (bool) ( $entry['favorited'] ?? false ),
+            'fullcleared' => (bool) ( $entry['fullcleared'] ?? false ),
+        ];
+    }
+}
+
+/**
+ * 評分（從 wp_anime_ratings 表讀）
+ */
+$ratings = [];
+global $wpdb;
+$ratings_table = $wpdb->prefix . 'anime_ratings';
+if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $ratings_table ) ) ) {
+    $rating_rows = $wpdb->get_results( $wpdb->prepare(
+        "SELECT anime_id, score_overall, score_story, score_music, score_animation, score_voice, updated_at
+         FROM {$ratings_table}
+         WHERE user_id = %d
+         ORDER BY updated_at DESC",
+        $user_id
+    ) );
+
+    $rating_lookup = [];
+    foreach ( (array) $rating_rows as $r ) {
+        $score_100 = (int) round( (float) $r->score_overall * 10 );
+        $rating_lookup[ (int) $r->anime_id ] = $score_100;
+
+        $ratings[] = [
+            'post_id'  => (int) $r->anime_id,
+            'score'    => $score_100,  // 0–100 給會員頁用
+            'rated_at' => $r->updated_at,
+        ];
+    }
+
+    // 把分數合併進 watchlist
+    if ( ! empty( $rating_lookup ) ) {
+        foreach ( $watchlist as &$w ) {
+            if ( isset( $rating_lookup[ $w['post_id'] ] ) ) {
+                $w['score'] = $rating_lookup[ $w['post_id'] ];
+            }
+        }
+        unset( $w );
+    }
+}
+
+/**
+ * 積分 log（保留舊的 user_meta 來源）
+ */
 $points_log = smacg_decode_user_json_meta( $user_id, 'smacg_points_log' );
 
 /**
