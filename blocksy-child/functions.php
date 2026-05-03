@@ -3,14 +3,14 @@
  * 微笑動漫 Child Theme — functions.php
  *
  * @package SmileACG
- * @version 1.4.2
+ * @version 1.5.0
  */
 defined( 'ABSPATH' ) || exit;
 
 /* ============================================================
    常數
    ============================================================ */
-define( 'SMAACG_VERSION',    '1.4.2' );
+define( 'SMAACG_VERSION',    '1.5.0' );
 define( 'SMAACG_THEME_URL',  get_stylesheet_directory_uri() );
 define( 'SMAACG_THEME_DIR',  get_stylesheet_directory() );
 define( 'SMAACG_PLUGIN_URL', plugins_url( 'smaacg-core' ) );
@@ -77,7 +77,7 @@ add_filter( 'wp_nav_menu_objects', function($items,$args) {
     return $items;
 }, 10, 2 );
 
-/* 防止 LiteSpeed / CDN 快取 UM 用戶個人頁（含 302 redirect）*/
+/* 防止 LiteSpeed / CDN 快取 UM 用戶個人頁 */
 add_action('template_redirect', function() {
     if (function_exists('um_is_core_page') && um_is_core_page('user')) {
         header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
@@ -86,7 +86,6 @@ add_action('template_redirect', function() {
         header('Surrogate-Control: no-store');
     }
 }, 1);
-
 
 /* ============================================================
    自訂 Nav Walker
@@ -139,13 +138,37 @@ add_action( 'wp_enqueue_scripts', function() {
 }, 1 );
 
 /* ============================================================
-   樣式載入
+   ★ 改:Font Awesome — 提到最前面，優先級 5（早於所有樣式）
+   ============================================================ */
+add_action( 'wp_enqueue_scripts', function() {
+    wp_enqueue_style(
+        'smaacg-fa6',
+        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
+        [],
+        '6.5.0'
+    );
+}, 5 );
+
+/* ============================================================
+   ★ 改:樣式載入 — 整理結構，並把 anime 頁面 CSS 整合
    ============================================================ */
 add_action( 'wp_enqueue_scripts', function() {
 
-    wp_enqueue_style('blocksy-parent', get_template_directory_uri().'/style.css', [], wp_get_theme('blocksy')->get('Version'));
-    wp_enqueue_style('smaacg-fonts','https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700;800&display=swap',[],null);
+    /* ── 基礎樣式 ── */
+    wp_enqueue_style(
+        'blocksy-parent',
+        get_template_directory_uri().'/style.css',
+        ['smaacg-fa6'],
+        wp_get_theme('blocksy')->get('Version')
+    );
+    wp_enqueue_style(
+        'smaacg-fonts',
+        'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700;800&display=swap',
+        [],
+        null
+    );
 
+    /* ── 共用樣式 ── */
     foreach ([
         'smaacg-glass' => ['glass.css', ['blocksy-parent']],
         'smaacg-style' => ['style.css',  ['smaacg-glass']],
@@ -154,6 +177,7 @@ add_action( 'wp_enqueue_scripts', function() {
         if (file_exists($p)) wp_enqueue_style($h, SMAACG_THEME_URL.'/assets/css/'.$f, $dep, filemtime($p));
     }
 
+    /* ── 條件式頁面樣式 ── */
     $is_um_user = function_exists('um_is_core_page') && (um_is_core_page('user') || get_query_var('um_user'));
     $cond = [];
     if ( is_page('news')   || is_page_template('page-news.php') )       $cond['smaacg-news']       = 'news.css';
@@ -167,9 +191,10 @@ add_action( 'wp_enqueue_scripts', function() {
     if ( is_page(['about','contact','disclaimer','sources','privacy','terms','join']) || is_page_template('page-join.php') )
                                                                          $cond['smaacg-static']     = 'static.css';
     if ( is_page_template('page-member.php') || $is_um_user )           $cond['smaacg-member']     = 'member.css';
-    $is_account_page = is_page(1527) || is_page('account') || 
-                         (function_exists('um_is_core_page') && um_is_core_page('account')) ||
-                         (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/account') !== false);
+
+    $is_account_page = is_page(1527) || is_page('account') ||
+                       (function_exists('um_is_core_page') && um_is_core_page('account')) ||
+                       (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/account') !== false);
     if ( $is_account_page ) $cond['smaacg-account'] = 'account.css';
 
     foreach ($cond as $h => $f) {
@@ -177,28 +202,66 @@ add_action( 'wp_enqueue_scripts', function() {
         if (file_exists($p)) wp_enqueue_style($h, SMAACG_THEME_URL.'/assets/css/'.$f, ['smaacg-style'], filemtime($p));
     }
 
+    /* ── ★ 改:Anime Single 頁面樣式（整合載入順序） ── */
     if ( is_singular('anime') ) {
+
+        // 1) Plugin 主樣式 anime-single.css
         $anime_css = WP_PLUGIN_DIR.'/anime-sync-pro/public/assets/css/anime-single.css';
-        if (file_exists($anime_css))
-            wp_enqueue_style('smaacg-anime', plugins_url('anime-sync-pro/public/assets/css/anime-single.css'), ['smaacg-style'], filemtime($anime_css));
+        if (file_exists($anime_css)) {
+            wp_enqueue_style(
+                'smaacg-anime',
+                plugins_url('anime-sync-pro/public/assets/css/anime-single.css'),
+                ['smaacg-style','smaacg-fa6'],   // ★ 確保 FA 先載
+                filemtime($anime_css)
+            );
+        }
+
+        // 2) ★ 新增:追蹤列獨立樣式 track-bar.css
+        $tb_css = SMAACG_THEME_DIR.'/assets/css/track-bar.css';
+        if (file_exists($tb_css)) {
+            wp_enqueue_style(
+                'smacg-track-bar',
+                SMAACG_THEME_URL.'/assets/css/track-bar.css',
+                ['smaacg-anime'],   // ★ 必須在 anime-single.css 之後載入以覆寫
+                filemtime($tb_css)
+            );
+        }
+
+        // 3) anime-status.css（如果有）
         $p = SMAACG_THEME_DIR.'/assets/css/anime-status.css';
-        if (file_exists($p))
-            wp_enqueue_style('smacg-anime-status', SMAACG_THEME_URL.'/assets/css/anime-status.css', ['smaacg-style'], filemtime($p));
+        if (file_exists($p)) {
+            wp_enqueue_style(
+                'smacg-anime-status',
+                SMAACG_THEME_URL.'/assets/css/anime-status.css',
+                ['smacg-track-bar'],
+                filemtime($p)
+            );
+        }
     }
 
+    /* ── 後台同步樣式 ── */
     $p = SMAACG_THEME_DIR.'/assets/css/admin-sync.css';
     if (file_exists($p)) wp_enqueue_style('smaacg-admin-sync', SMAACG_THEME_URL.'/assets/css/admin-sync.css', ['smaacg-style'], filemtime($p));
 
 }, 10 );
 
-add_action( 'wp_enqueue_scripts', function() {
-    wp_enqueue_style('smaacg-fa6','https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',[],'6.5.0');
-}, 20 );
-
 add_action( 'admin_enqueue_scripts', function() {
     $p = SMAACG_THEME_DIR.'/assets/css/admin-sync.css';
     if (file_exists($p)) wp_enqueue_style('smaacg-admin', SMAACG_THEME_URL.'/assets/css/admin-sync.css', [], filemtime($p));
 } );
+
+/* ============================================================
+   ★ 改:LiteSpeed / 快取外掛排除 Font Awesome（避免被合併破壞）
+   ============================================================ */
+add_filter('litespeed_optm_css_minify', function($content) {
+    return $content;
+}, 10);
+
+add_filter('litespeed_optimize_css_excludes', function($excludes) {
+    $excludes[] = 'cdnjs.cloudflare.com/ajax/libs/font-awesome';
+    $excludes[] = 'fontawesome';
+    return $excludes;
+});
 
 /* ============================================================
    JS 載入
@@ -226,7 +289,7 @@ add_action( 'wp_enqueue_scripts', function() {
             if (file_exists($p)) wp_enqueue_script($h, SMAACG_THEME_URL.'/assets/js/'.$f, ['smaacg-api'], filemtime($p), true);
         }
         wp_localize_script('smacg-anime-status','SmacgConfig',[
-            'apiUrl'    => esc_url_raw(rest_url('smacg/v1/')),
+            'apiUrl'    => esc_url_raw(rest_url('smileacg/v1/')),
             'ajaxUrl'   => admin_url('admin-ajax.php'),
             'nonce'     => wp_create_nonce('wp_rest'),
             'ajaxNonce' => wp_create_nonce('smacg_nonce'),
@@ -323,7 +386,7 @@ add_action('widgets_init', function() {
    Ultimate Member 整合
    ============================================================ */
 
-/* ① 強制載入 UM JS（page-member.php 沒有 shortcode，需手動觸發）*/
+/* ① 強制載入 UM JS */
 add_action('wp_enqueue_scripts', function() {
     if (!function_exists('um_is_core_page')) return;
     $is_um = um_is_core_page('user') || get_query_var('um_user') || um_is_core_page('account');
@@ -345,7 +408,7 @@ add_action('wp_enqueue_scripts', function() {
     }
 }, 20);
 
-/* ① 自訂會員頁模板（只攔截 user 個人頁）*/
+/* ② 自訂會員頁模板 */
 add_filter('template_include', function($tpl) {
     if (!function_exists('um_is_core_page')) return $tpl;
     if (um_is_core_page('user') || get_query_var('um_user')) {
@@ -355,7 +418,7 @@ add_filter('template_include', function($tpl) {
     return $tpl;
 }, 99);
 
-/* ② 停用 UM 前端樣式（僅個人資料頁，保留其他 UM 頁的樣式）*/
+/* ③ 停用 UM 前端樣式（個人資料頁） */
 add_action('wp_enqueue_scripts', function() {
     if (!function_exists('um_is_core_page')) return;
     if ((um_is_core_page('user') || get_query_var('um_user')) && !um_is_core_page('account')) {
@@ -365,34 +428,22 @@ add_action('wp_enqueue_scripts', function() {
     }
 }, 99);
 
-/* ③ 隱藏 UM 後台 shortcode 警告 */
+/* ④ 隱藏 UM 後台警告 */
 add_action('admin_notices', function() {
     $s = get_current_screen();
     if ($s && (strpos($s->id,'um_')!==false || strpos($s->id,'ultimate-member')!==false || $s->id==='toplevel_page_um-options'))
         remove_all_actions('admin_notices');
 }, 1);
 
-/* ④ UM modal nonce 刷新
-   ★ 重要：JS 端絕對不寫入 um_request，
-     因為 um_request 是 UM honeypot 欄位，
-     寫入非空值會觸發 wp_die('Hello, spam bot!')
-   ★ 只刷新 _wpnonce 即可
-   ============================================================ */
-
-/* 停用 UM 登入 nonce 驗證（modal 快取環境下 nonce 容易失效）*/
+/* ⑤ 停用 UM 登入 nonce 驗證 */
 add_filter( 'um_login_allow_nonce_verification', '__return_false' );
-
 
 /* ⑥ UM 全站中文化 */
 add_filter('gettext', function($t,$o,$d) {
     if ($d !== 'ultimate-member') return $t;
     static $map = [
-        /* ── 系統錯誤 ── */
-        'An error has been encountered. Probably page was cached. Please try again.'
-            => '發生錯誤，頁面可能已被快取，請重新整理後再試一次。',
-        /* ── 登入 ── */
-        'Username or E-mail'=>'使用者名稱或電子郵件',
-        'Username or Email' =>'使用者名稱或電子郵件',
+        'An error has been encountered. Probably page was cached. Please try again.' => '發生錯誤，頁面可能已被快取，請重新整理後再試一次。',
+        'Username or E-mail'=>'使用者名稱或電子郵件','Username or Email' =>'使用者名稱或電子郵件',
         'Password'=>'密碼','Keep me signed in'=>'保持登入狀態',
         'Sign Up'=>'註冊','Forgot your password?'=>'忘記密碼？',
         'Log In'=>'登入','Login'=>'登入',
@@ -400,34 +451,33 @@ add_filter('gettext', function($t,$o,$d) {
         'The email you entered is incorrect'   =>'電子郵件輸入有誤',
         'The password you entered is incorrect'=>'密碼輸入有誤',
         'Invalid username or email'=>'使用者名稱或電子郵件有誤',
-        'Invalid username'         =>'無效的使用者名稱',
-        'Invalid email address'    =>'無效的電子郵件',
-        'Incorrect password'       =>'密碼不正確',
-        'This account has been blocked'          =>'此帳號已被封鎖',
-        'This account is awaiting approval'      =>'此帳號正在等待審核',
+        'Invalid username'=>'無效的使用者名稱',
+        'Invalid email address'=>'無效的電子郵件',
+        'Incorrect password'=>'密碼不正確',
+        'This account has been blocked'=>'此帳號已被封鎖',
+        'This account is awaiting approval'=>'此帳號正在等待審核',
         'Your account has not been activated yet'=>'你的帳號尚未啟用',
         'A user could not be found with this email address'=>'找不到使用此電子郵件的使用者',
-        'Your account was updated successfully.'         =>'你的帳號已成功更新。',
-        'Your account has been updated successfully.'    =>'你的帳號已成功更新。',
+        'Your account was updated successfully.'=>'你的帳號已成功更新。',
+        'Your account has been updated successfully.'=>'你的帳號已成功更新。',
         'Changes saved successfully.'=>'變更已成功儲存。',
-        /* ── 表單欄位 ── */
         'Username'=>'使用者名稱','E-mail'=>'電子郵件','Email'=>'電子郵件',
         'Confirm Password'=>'確認密碼','Already have an account?'=>'已有帳號？','Register'=>'註冊',
-        'Your %s must contain at least %d characters'    =>'你的%s至少需要 %d 個字元',
+        'Your %s must contain at least %d characters'=>'你的%s至少需要 %d 個字元',
         'Your %s must contain at least one uppercase letter'=>'你的%s至少需要一個大寫字母',
         'Your %s must contain at least one lowercase letter'=>'你的%s至少需要一個小寫字母',
-        'Your %s must contain at least one number'          =>'你的%s至少需要一個數字',
+        'Your %s must contain at least one number'=>'你的%s至少需要一個數字',
         'Your %s must contain at least one special character'=>'你的%s至少需要一個特殊符號',
         'Your password must contain at least %d characters' =>'你的密碼至少需要 %d 個字元',
         'Your password must contain at least %d characters.'=>'你的密碼至少需要 %d 個字元。',
-        'Your password must contain at least one capital letter'    =>'你的密碼至少需要一個大寫字母',
-        'Your password must contain at least one capital letter.'   =>'你的密碼至少需要一個大寫字母。',
-        'Your password must contain at least one uppercase letter'  =>'你的密碼至少需要一個大寫字母',
-        'Your password must contain at least one lowercase letter'  =>'你的密碼至少需要一個小寫字母',
-        'Your password must contain at least one number'            =>'你的密碼至少需要一個數字',
-        'Your password must contain at least one special character' =>'你的密碼至少需要一個特殊符號',
+        'Your password must contain at least one capital letter'=>'你的密碼至少需要一個大寫字母',
+        'Your password must contain at least one capital letter.'=>'你的密碼至少需要一個大寫字母。',
+        'Your password must contain at least one uppercase letter'=>'你的密碼至少需要一個大寫字母',
+        'Your password must contain at least one lowercase letter'=>'你的密碼至少需要一個小寫字母',
+        'Your password must contain at least one number'=>'你的密碼至少需要一個數字',
+        'Your password must contain at least one special character'=>'你的密碼至少需要一個特殊符號',
         'Your username must contain at least %d characters'=>'你的使用者名稱至少需要 %d 個字元',
-        'Your username must contain at least 3 characters' =>'你的使用者名稱至少需要 3 個字元',
+        'Your username must contain at least 3 characters'=>'你的使用者名稱至少需要 3 個字元',
         'password'=>'密碼','username'=>'使用者名稱','Password strength'=>'密碼強度',
         'Very Weak'=>'非常弱','Weak'=>'弱','Medium'=>'中等','Strong'=>'強','Very Strong'=>'非常強',
         'Mismatch'=>'密碼不一致','Please enter your password again'=>'請再次輸入密碼',
@@ -435,18 +485,17 @@ add_filter('gettext', function($t,$o,$d) {
         'Password is too short'=>'密碼太短','Password is too weak'=>'密碼強度不足',
         'Forgot Password'=>'忘記密碼','Reset Password'=>'重設密碼',
         'Send Reset Link'=>'發送重設連結','Back to login'=>'返回登入','Back to Login'=>'返回登入',
-        /* ── 個人資料 ── */
         'About'=>'關於','Posts'=>'文章','Comments'=>'留言','Friends'=>'朋友',
         'Photos'=>'相片','Videos'=>'影片','Groups'=>'群組','Forums'=>'論壇',
-        'Change your cover photo' =>'更換封面照片','Upload a cover photo'=>'上傳封面照片',
-        'Remove cover photo'      =>'移除封面照片','Change your profile photo'=>'更換個人頭像',
-        'Upload a profile photo'  =>'上傳個人頭像','Remove profile photo'=>'移除個人頭像',
+        'Change your cover photo'=>'更換封面照片','Upload a cover photo'=>'上傳封面照片',
+        'Remove cover photo'=>'移除封面照片','Change your profile photo'=>'更換個人頭像',
+        'Upload a profile photo'=>'上傳個人頭像','Remove profile photo'=>'移除個人頭像',
         '( max: %s/MB )'=>'（最大：%s MB）','( max: %s MB )'=>'（最大：%s MB）',
         'Drop image here or click to upload'=>'拖曳圖片至此或點擊上傳',
-        'Drop file here or click to upload' =>'拖曳檔案至此或點擊上傳',
+        'Drop file here or click to upload'=>'拖曳檔案至此或點擊上傳',
         'Change Photo'=>'更換照片','Upload Photo'=>'上傳照片',
         'Tell us a bit about yourself...'=>'介紹一下你自己…',
-        'Tell us a bit about yourself…'  =>'介紹一下你自己…',
+        'Tell us a bit about yourself…'=>'介紹一下你自己…',
         'Biography'=>'個人簡介','No biography yet.'=>'尚未填寫個人簡介。',
         'Edit my profile'=>'編輯個人資料','Edit Profile'=>'編輯個人資料',
         'First Name'=>'名字','Last Name'=>'姓氏','Display Name'=>'顯示名稱',
@@ -458,9 +507,9 @@ add_filter('gettext', function($t,$o,$d) {
         'All visitors'=>'全部使用者','All members'=>'所有會員',
         'Logged in users'=>'已登入的使用者','Only me'=>'只有我自己',
         'Show my last login?'=>'顯示我的最後登入時間？','Show last login'=>'顯示最後登入時間',
-        'Download your data'   =>'下載你的資料','Request Data Export'=>'請求資料匯出',
-        'Export Data'          =>'匯出資料','Erase your data'=>'清除你的資料',
-        'Delete Account'       =>'刪除帳號','Delete my account'=>'刪除我的帳號',
+        'Download your data'=>'下載你的資料','Request Data Export'=>'請求資料匯出',
+        'Export Data'=>'匯出資料','Erase your data'=>'清除你的資料',
+        'Delete Account'=>'刪除帳號','Delete my account'=>'刪除我的帳號',
         'Current Password'=>'目前密碼','New Password'=>'新密碼','Confirm New Password'=>'確認新密碼',
         'Change Password'=>'更改密碼','Update Password'=>'更新密碼',
         'Submit'=>'送出','Save Changes'=>'儲存變更','Save'=>'儲存','Update'=>'更新',
@@ -469,34 +518,20 @@ add_filter('gettext', function($t,$o,$d) {
         'General'=>'一般','Account'=>'帳號','Profile'=>'個人資料','Delete'=>'刪除帳號',
         'Member Since'=>'加入時間','Role'=>'角色','Logout'=>'登出','Log Out'=>'登出',
         'Hide my profile from directory'=>'在目錄中隱藏我的個人資料',
-        'Show my last login?'=>'顯示我的最後登入時間？',
-        'Download your data'=>'下載你的資料',
         'Enter your current password to confirm a new export of your personal data.'=>'請輸入目前的密碼以確認匯出你的個人資料。',
         'Request data'=>'請求資料',
         'Erase of your data'=>'刪除你的資料',
         'Enter your current password to confirm the erasure of your personal data.'=>'請輸入目前的密碼以確認刪除你的個人資料。',
-        'Privacy'=>'隱私權',
-        'Password'=>'密碼',
         'Are you sure you want to delete your account?'=>'你確定要刪除你的帳號嗎？',
         'This will erase all of your account data from the site.'=>'這將會清除你在本站的所有帳號資料。',
         'To delete your account enter your password below.'=>'請在下方輸入密碼以確認刪除帳號。',
         'Are you sure you want to delete your account? This will erase all of your account data from the site. To delete your account enter your password below.'=>'你確定要刪除你的帳號嗎？這將會清除你在本站的所有帳號資料。請在下方輸入密碼以確認刪除帳號。',
         'Are you sure you want to delete your account? This will erase all of your account data from the site. To delete your account, click on the button below.'=>'你確定要刪除你的帳號嗎？這將會清除你在本站的所有帳號資料。請點擊下方按鈕以確認刪除帳號。',
-        'Upload photo'=>'上傳頭像',
-        'Change photo'=>'更換頭像',
-        'Remove photo'=>'移除頭像',
-        'Upload a cover photo'=>'上傳封面照片',
-        'Change cover'=>'更換封面',
-        'Remove cover'=>'移除封面',
-        'Cancel'=>'取消',
-        'Update Account'=>'更新帳號',
-        'Change Password'=>'更改密碼',
-        'Update Password'=>'更新密碼',
-        'Update Privacy'=>'更新隱私設定',
+        'Upload photo'=>'上傳頭像','Change photo'=>'更換頭像','Remove photo'=>'移除頭像',
+        'Change cover'=>'更換封面','Remove cover'=>'移除封面',
+        'Update Account'=>'更新帳號','Update Privacy'=>'更新隱私設定',
         'Avoid indexing my profile by search engines'=>'避免搜尋引擎索引我的個人資料',
-        'View profile'=>'查看個人資料',
-        'Delete my account'=>'刪除我的帳號',
-        'Are you sure?'=>'你確定嗎？',
+        'View profile'=>'查看個人資料','Are you sure?'=>'你確定嗎？',
     ];
     return $map[$o] ?? $t;
 }, 10, 3);
@@ -512,8 +547,7 @@ add_action('wp_footer', function() { ?>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var s = {
-            'An error has been encountered. Probably page was cached. Please try again.':
-                '發生錯誤，頁面可能已被快取，請重新整理後再試一次。',
+            'An error has been encountered. Probably page was cached. Please try again.': '發生錯誤，頁面可能已被快取，請重新整理後再試一次。',
             'Your password must contain at least one capital letter'   :'你的密碼至少需要一個大寫字母',
             'Your password must contain at least one uppercase letter' :'你的密碼至少需要一個大寫字母',
             'Your password must contain at least one lowercase letter' :'你的密碼至少需要一個小寫字母',
@@ -526,8 +560,7 @@ add_action('wp_footer', function() { ?>
         };
         function fix(el) {
             Object.keys(s).forEach(function(en) {
-                if (el.textContent.indexOf(en) !== -1)
-                    el.textContent = el.textContent.replace(en, s[en]);
+                if (el.textContent.indexOf(en) !== -1) el.textContent = el.textContent.replace(en, s[en]);
             });
         }
         new MutationObserver(function(ms) {
@@ -536,15 +569,12 @@ add_action('wp_footer', function() { ?>
                     if (n.nodeType !== 1) return;
                     n.querySelectorAll('.um-field-error,.um-notice,.um-error,.um-form-message').forEach(fix);
                     if (n.classList && (
-                        n.classList.contains('um-field-error') ||
-                        n.classList.contains('um-notice') ||
-                        n.classList.contains('um-error') ||
-                        n.classList.contains('um-form-message')
+                        n.classList.contains('um-field-error') || n.classList.contains('um-notice') ||
+                        n.classList.contains('um-error')       || n.classList.contains('um-form-message')
                     )) fix(n);
                 });
             });
         }).observe(document.body, {childList: true, subtree: true});
-        /* 個人頁空白提示 */
         document.querySelectorAll('.um-profile-note,.um-empty-profile,[class*="um-profile"]').forEach(function(el) {
             if (el.innerHTML.indexOf('Your profile is looking a little empty') !== -1)
                 el.innerHTML = el.innerHTML.replace(
@@ -826,7 +856,7 @@ function weixiao_external_link_redirect_js(): void {
     </script><?php
 }
 
-/* 登入後跳轉到首頁，避免 /user/{username}/ 被 page-member.php 擋住 */
+/* 登入後跳轉 */
 add_action( 'um_on_login_before_redirect', function( $user_id ) {
     um_fetch_user( $user_id );
     if ( um_user( 'after_login' ) === 'redirect_profile' ) {
@@ -848,13 +878,11 @@ add_action('wp_ajax_nopriv_smaacg_ajax_register', function() {
     if (email_exists($email)) wp_send_json_error(['msg' => '此電子郵件已被註冊']);
     $user_id = wp_create_user($username, $password, $email);
     if (is_wp_error($user_id)) wp_send_json_error(['msg' => $user_id->get_error_message()]);
-    // 設定 UM 預設 role 與 account status
     if (function_exists('um_fetch_user')) {
         update_user_meta($user_id, 'account_status', 'approved');
         $user = new WP_User($user_id);
         $user->set_role('subscriber');
     }
-    // 自動登入
     wp_set_current_user($user_id);
     wp_set_auth_cookie($user_id, false, is_ssl());
     wp_send_json_success(['msg' => '註冊成功！', 'redirect' => home_url('/')]);
@@ -869,12 +897,12 @@ add_action( 'um_after_user_account_updated', function( $user_id, $args ) {
     }
 }, 10, 2 );
 
-/* 讓 /account/ 頁面的頭像可以點擊更換（強制 editing 模式）*/
+/* /account/ 頁面強制 editing 模式 */
 add_action( 'um_account_page_load', function() {
     UM()->fields()->editing = true;
 }, 1 );
 
-/* 會員頁頭像上傳（原生 file input 直接呼叫 UM AJAX）*/
+/* 會員頁頭像上傳 */
 add_action('wp_footer', function() {
     if (!function_exists('um_is_core_page')) return;
     if (!um_is_core_page('user') && !get_query_var('um_user')) return;
@@ -882,9 +910,7 @@ add_action('wp_footer', function() {
     $timestamp = time();
     $nonce     = wp_create_nonce('um_upload_nonce-' . $timestamp);
     ?>
-    <input type="file" id="mc-avatar-file-input"
-           accept="image/jpeg,image/png,image/gif,image/webp"
-           style="display:none;" />
+    <input type="file" id="mc-avatar-file-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;" />
     <script>
     (function($){
         var userId    = <?php echo (int)$user_id; ?>;
@@ -892,20 +918,15 @@ add_action('wp_footer', function() {
         var timestamp = <?php echo (int)$timestamp; ?>;
         var ajaxUrl   = <?php echo json_encode(admin_url('admin-ajax.php')); ?>;
 
-        // 點擊頭像觸發 file input
         document.addEventListener('DOMContentLoaded', function() {
-            var imgWrap  = document.querySelector('.mc-avatar-img-wrap');
+            var imgWrap   = document.querySelector('.mc-avatar-img-wrap');
             var fileInput = document.getElementById('mc-avatar-file-input');
             if (!imgWrap || !fileInput) return;
 
-            imgWrap.addEventListener('click', function() {
-                fileInput.click();
-            });
+            imgWrap.addEventListener('click', function() { fileInput.click(); });
 
             fileInput.addEventListener('change', function() {
-                var file = fileInput.files[0];
-                if (!file) return;
-
+                var file = fileInput.files[0]; if (!file) return;
                 var overlay = document.getElementById('mc-avatar-overlay');
                 if (overlay) overlay.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
@@ -922,15 +943,10 @@ add_action('wp_footer', function() {
                 formData.append('allowed_types', 'jpg,jpeg,png,gif,webp');
                 formData.append('file', file);
 
-                fetch(ajaxUrl, {
-                    method: 'POST',
-                    body: formData,
-                    credentials: 'same-origin'
-                })
+                fetch(ajaxUrl, { method: 'POST', body: formData, credentials: 'same-origin' })
                 .then(function(r){ return r.json(); })
                 .then(function(data){
                     if (data.success) {
-                        // 上傳成功，觸發裁切或直接更新頭像
                         var imgUrl = data.data && data.data.url ? data.data.url : null;
                         if (imgUrl) {
                             var avatarImg = document.getElementById('mc-avatar-img');
@@ -952,8 +968,6 @@ add_action('wp_footer', function() {
                     alert('上傳時發生錯誤，請稍後再試');
                     if (overlay) overlay.innerHTML = '<i class="fa-solid fa-camera"></i>';
                 });
-
-                // 重設 input 讓同一張圖可以重複選
                 fileInput.value = '';
             });
         });
@@ -961,4 +975,35 @@ add_action('wp_footer', function() {
     </script>
     <?php
 }, 998);
+
+
+/* ============================================================
+   ★ 新增:取得當前使用者對某動畫的評分（給前端 fetch 用）
+   原因:LiteSpeed 全頁快取會讓登入者的評分被快取版蓋掉，
+        所以改由 JS 在頁面載入後即時抓 user_meta
+   ============================================================ */
+add_action('wp_ajax_smacg_get_my_rating', function() {
+    $post_id = isset($_REQUEST['post_id']) ? absint($_REQUEST['post_id']) : 0;
+    if ($post_id <= 0) {
+        wp_send_json_error(['msg' => 'invalid post_id'], 400);
+    }
+    $uid = get_current_user_id();
+    if (!$uid) {
+        wp_send_json_error(['msg' => 'not logged in'], 401);
+    }
+
+    $detail = get_user_meta($uid, "smacg_rating_detail_{$post_id}", true);
+    if (!is_array($detail)) {
+        wp_send_json_success(['rated' => false]);
+    }
+
+    wp_send_json_success([
+        'rated'     => true,
+        'story'     => (float) ($detail['story']     ?? 5),
+        'music'     => (float) ($detail['music']     ?? 5),
+        'animation' => (float) ($detail['animation'] ?? 5),
+        'voice'     => (float) ($detail['voice']     ?? 5),
+        'avg'       => (float) ($detail['avg']       ?? 5),
+    ]);
+});
 
