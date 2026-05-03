@@ -77,15 +77,19 @@ add_filter( 'wp_nav_menu_objects', function($items,$args) {
     return $items;
 }, 10, 2 );
 
-/* 防止 LiteSpeed / CDN 快取 UM 用戶個人頁 */
+/* 防止 LiteSpeed / CDN 快取 UM 用戶個人頁 + 自訂會員頁 */
 add_action('template_redirect', function() {
-    if (function_exists('um_is_core_page') && um_is_core_page('user')) {
+    $is_um_page = function_exists('um_is_core_page') && um_is_core_page('user');
+    $is_member  = is_page_template('page-member.php');
+    
+    if ($is_um_page || $is_member) {
         header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
         header('Pragma: no-cache');
         header('X-LiteSpeed-Cache-Control: no-cache');
         header('Surrogate-Control: no-store');
     }
 }, 1);
+
 
 /* ============================================================
    自訂 Nav Walker
