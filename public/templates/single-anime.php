@@ -888,21 +888,25 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
             <div class="smacg-track-sep"></div>
 
 
-            <div class="smacg-action-group">
-                <button class="smacg-icon-btn smacg-fav-btn <?php echo ( $user_anime_entry['favorited'] ?? false ) ? 'is-active' : ''; ?>" data-action="favorite" title="收藏">
-                    <span class="smacg-ico"><?php echo ( $user_anime_entry['favorited'] ?? false ) ? '⭐' : '☆'; ?></span>
-                </button>
-                <button class="smacg-icon-btn smacg-clear-btn <?php echo ( $user_anime_entry['fullcleared'] ?? false ) ? 'is-active' : ''; ?>" data-action="fullclear" title="全破">
-                    <span class="smacg-ico">🏆</span>
-                </button>
-                <button class="smacg-icon-btn smacg-share-btn"
-                        data-action="share"
-                        data-title="<?php echo esc_attr( $display_title ); ?>"
-                        data-url="<?php echo esc_attr( get_permalink() ); ?>"
-                        title="分享">
-                    <span class="smacg-ico">🔗</span>
-                </button>
-            </div>
+<div class="smacg-action-group">
+    <button class="smacg-icon-btn smacg-fav-btn <?php echo ( $user_anime_entry['favorited'] ?? false ) ? 'is-active' : ''; ?>" data-action="favorite" title="收藏">
+        <span class="smacg-ico"><?php echo ( $user_anime_entry['favorited'] ?? false ) ? '⭐' : '☆'; ?></span>
+        <span class="smacg-icon-label">收藏</span>
+    </button>
+    <button class="smacg-icon-btn smacg-clear-btn <?php echo ( $user_anime_entry['fullcleared'] ?? false ) ? 'is-active' : ''; ?>" data-action="fullclear" title="全破">
+        <span class="smacg-ico">🏆</span>
+        <span class="smacg-icon-label">全破</span>
+    </button>
+    <button class="smacg-icon-btn smacg-share-btn"
+            data-action="share"
+            data-title="<?php echo esc_attr( $display_title ); ?>"
+            data-url="<?php echo esc_attr( get_permalink() ); ?>"
+            title="分享">
+        <span class="smacg-ico">🔗</span>
+        <span class="smacg-icon-label">分享</span>
+    </button>
+</div>
+
 
         </div><!-- /.smacg-track-main -->
 
