@@ -159,10 +159,28 @@ document.addEventListener('DOMContentLoaded', function () {
     renderFav(state.favorited);
     renderClear(state.fullcleared);
 
-    /* ── 狀態按鈕 ── */
+      /* ── 狀態按鈕 ── */
     statusBtns.forEach(function (btn) {
         btn.addEventListener('click', function () {
             if (!loggedIn) { requireLogin(); return; }
+
+            // 🚫 未播出時擋掉「追番中 / 已看完」
+            if (btn.disabled) {
+                const tip = btn.getAttribute('title') || '尚未播出，無法操作';
+                if (typeof window.smacgShowToast === 'function') {
+                    window.smacgShowToast(tip);
+                } else if (pointToast) {
+                    pointToast.textContent = tip;
+                    pointToast.classList.remove('show');
+                    void pointToast.offsetWidth;
+                    pointToast.classList.add('show');
+                    setTimeout(function () { pointToast.classList.remove('show'); }, 1900);
+                } else {
+                    alert(tip);
+                }
+                return;
+            }
+
             const value     = btn.dataset.value;
             const newVal    = state.status === value ? 'none' : value;
             const oldStatus = state.status;
