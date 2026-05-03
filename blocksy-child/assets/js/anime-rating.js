@@ -408,12 +408,19 @@ document.addEventListener('DOMContentLoaded', function () {
     ratingForm.addEventListener('submit', function (e) {
         e.preventDefault();
 
-        const cfg     = window.SmacgConfig || {};
-        const postId  = parseInt(cfg.postId, 10) || 0;
-        const ajaxUrl = cfg.ajaxUrl || '/wp-admin/admin-ajax.php';
-        const nonce   = cfg.ajaxNonce || '';
+        const cfg    = window.SmacgConfig || {};
+        const postId = parseInt(cfg.postId, 10) || 0;
+        const apiUrl = cfg.apiUrl || '/wp-json/smileacg/v1/';
+        const nonce  = cfg.nonce  || '';
 
-        if (!postId) return;
+        if (!postId) {
+            alert('找不到動畫 ID');
+            return;
+        }
+        if (!cfg.loggedIn) {
+            alert('請先登入才能評分');
+            return;
+        }
 
         /* 讀取四個 slider 的值 */
         const story     = parseFloat(document.getElementById('slider-story')?.value     || 5);
@@ -421,66 +428,63 @@ document.addEventListener('DOMContentLoaded', function () {
         const animation = parseFloat(document.getElementById('slider-animation')?.value || 5);
         const voice     = parseFloat(document.getElementById('slider-voice')?.value     || 5);
 
-        /* 平均分 */
-        const avg = ((story + music + animation + voice) / 4);
-
         if (submitBtn) {
             submitBtn.disabled    = true;
             submitBtn.textContent = '送出中…';
         }
 
-        fetch(ajaxUrl, {
+        fetch(apiUrl + 'ratings/' + postId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                action:  'smacg_submit_rating_detail',
-                nonce:   nonce,
-                post_id: postId,
-                story:   story.toFixed(1),
-                music:   music.toFixed(1),
-                animation: animation.toFixed(1),
-                voice:   voice.toFixed(1),
-                score:   avg.toFixed(2),
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce':   nonce,
+            },
+            body: JSON.stringify({
+                score_story:     story,
+                score_music:     music,
+                score_animation: animation,
+                score_voice:     voice,
             }),
         })
         .then(function (res) { return res.json(); })
         .then(function (data) {
             if (data.success) {
                 if (submitBtn) {
-                    submitBtn.textContent = '✅ 評分完成！';
+                    submitBtn.textContent = '✅ ' + (data.message || '評分完成！');
                     submitBtn.style.background = 'var(--asd-score-al, #02a9ff)';
                 }
 
-                /* 更新頁面上的顯示數值 */
-                const mainScore = data.data?.avg;
-                if (mainScore) {
+                /* 更新頁面上的顯示數值 — 用 data.stats（新 API） */
+                const stats = data.stats || {};
+                const score = stats.score;
+                if (score) {
                     document.querySelectorAll('.wacg-score-main, .wacg-hero-score').forEach(function (el) {
-                        el.textContent = parseFloat(mainScore).toFixed(1);
+                        el.textContent = parseFloat(score).toFixed(1);
                     });
                 }
-                if (data.data?.story)     { const el = document.querySelector('.wacg-cat-story');     if (el) el.textContent = parseFloat(data.data.story).toFixed(1); }
-                if (data.data?.music)     { const el = document.querySelector('.wacg-cat-music');     if (el) el.textContent = parseFloat(data.data.music).toFixed(1); }
-                if (data.data?.animation) { const el = document.querySelector('.wacg-cat-animation'); if (el) el.textContent = parseFloat(data.data.animation).toFixed(1); }
-                if (data.data?.voice)     { const el = document.querySelector('.wacg-cat-voice');     if (el) el.textContent = parseFloat(data.data.voice).toFixed(1); }
-                if (data.data?.count)     { const el = document.querySelector('.wacg-vote-count');    if (el) el.textContent = data.data.count + ' 人評分'; }
-
+                if (stats.avg_story)     { const el = document.querySelector('.wacg-cat-story');     if (el) el.textContent = parseFloat(stats.avg_story).toFixed(1); }
+                if (stats.avg_music)     { const el = document.querySelector('.wacg-cat-music');     if (el) el.textContent = parseFloat(stats.avg_music).toFixed(1); }
+                if (stats.avg_animation) { const el = document.querySelector('.wacg-cat-animation'); if (el) el.textContent = parseFloat(stats.avg_animation).toFixed(1); }
+                if (stats.avg_voice)     { const el = document.querySelector('.wacg-cat-voice');     if (el) el.textContent = parseFloat(stats.avg_voice).toFixed(1); }
+                if (stats.vote_count)    { const el = document.querySelector('.wacg-vote-count');    if (el) el.textContent = stats.vote_count; }
             } else {
+                /* WP_Error 回應 */
+                const msg = data.message || '評分失敗';
                 if (submitBtn) {
                     submitBtn.disabled    = false;
-                    submitBtn.textContent = '❌ ' + (data.data?.msg || '送出失敗，請重試');
-                    setTimeout(function () {
-                        submitBtn.textContent = '送出評分';
-                        submitBtn.style.background = '';
-                    }, 3000);
+                    submitBtn.textContent = '送出評分';
                 }
+                alert(msg);
             }
         })
-        .catch(function () {
+        .catch(function (err) {
+            console.error('評分送出失敗:', err);
             if (submitBtn) {
                 submitBtn.disabled    = false;
-                submitBtn.textContent = '網路錯誤，請重試';
-                setTimeout(function () { submitBtn.textContent = '送出評分'; }, 3000);
+                submitBtn.textContent = '送出評分';
             }
+            alert('評分送出失敗，請稍後再試');
         });
     });
+
 })();
