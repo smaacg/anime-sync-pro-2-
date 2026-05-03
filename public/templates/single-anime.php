@@ -506,6 +506,8 @@ $has_trailer = ! empty( $trailer_items );
     /* ── 追蹤資料（從新表 wp_anime_user_status 讀） ── */
     $uid              = get_current_user_id();
     $user_anime_entry = [ 'status' => null, 'progress' => 0, 'favorited' => false, 'fullcleared' => false ];
+        /* ── 未播出動畫：禁用部分按鈕 ── */
+    $is_not_aired = ( $status === 'NOT_YET_RELEASED' );
     if ( $uid && class_exists( 'Anime_Sync_User_Status_Manager' ) ) {
         $usm   = new Anime_Sync_User_Status_Manager();
         $entry = $usm->get_entry( (int) $uid, (int) $post_id );
@@ -827,12 +829,24 @@ window.SmacgUserRating = <?php echo wp_json_encode( $user_rating ); ?>;
 
         <div class="smacg-track-main">
 
-            <div class="smacg-status-group">
-                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'want'      ? 'is-active' : ''; ?>" data-action="status" data-value="want"      title="想看"><span class="smacg-ico">🔖</span><span>想看</span></button>
-                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'watching'  ? 'is-active' : ''; ?>" data-action="status" data-value="watching"  title="追番中"><span class="smacg-ico">▶</span><span>追番中</span></button>
-                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'completed' ? 'is-active' : ''; ?>" data-action="status" data-value="completed" title="已看完"><span class="smacg-ico">✓</span><span>已看完</span></button>
-                <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'dropped'   ? 'is-active' : ''; ?>" data-action="status" data-value="dropped"   title="棄坑"><span class="smacg-ico">✕</span><span>棄坑</span></button>
-            </div>
+<div class="smacg-status-group">
+    <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'want' ? 'is-active' : ''; ?>" data-action="status" data-value="want" title="想看"><span class="smacg-ico">🔖</span><span>想看</span></button>
+
+    <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'watching' ? 'is-active' : ''; ?>"
+            data-action="status" data-value="watching"
+            <?php echo $is_not_aired ? 'disabled aria-disabled="true" title="尚未播出，無法追番"' : 'title="追番中"'; ?>>
+        <span class="smacg-ico">▶</span><span>追番中</span>
+    </button>
+
+    <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'completed' ? 'is-active' : ''; ?>"
+            data-action="status" data-value="completed"
+            <?php echo $is_not_aired ? 'disabled aria-disabled="true" title="尚未播出，無法標記已看完"' : 'title="已看完"'; ?>>
+        <span class="smacg-ico">✓</span><span>已看完</span>
+    </button>
+
+    <button class="smacg-status-btn <?php echo ( $user_anime_entry['status'] ?? '' ) === 'dropped' ? 'is-active' : ''; ?>" data-action="status" data-value="dropped" title="棄坑"><span class="smacg-ico">✕</span><span>棄坑</span></button>
+</div>
+
 
             <div class="smacg-track-sep"></div>
 
