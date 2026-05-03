@@ -503,7 +503,8 @@ $has_trailer = ! empty( $trailer_items );
 
     $poster_fallback = $fallback_text( $display_title, 2 );
 
-    /* ── 追蹤資料 ── */
+    /* ── 追蹤資料（從新表 wp_anime_user_status 讀） ── */
+    $uid              = get_current_user_id();
     $user_anime_entry = [ 'status' => null, 'progress' => 0, 'favorited' => false, 'fullcleared' => false ];
     if ( $uid && class_exists( 'Anime_Sync_User_Status_Manager' ) ) {
         $usm   = new Anime_Sync_User_Status_Manager();
@@ -522,6 +523,7 @@ $has_trailer = ! empty( $trailer_items );
     /* ── 站台平均評分 ── */
     $site_score = $site_story = $site_music = $site_animation = $site_voice = 0.0;
     $site_count = 0;
+
 
     if ( class_exists( 'Anime_Sync_Rating_Manager' ) ) {
         $rating_manager = new Anime_Sync_Rating_Manager();
