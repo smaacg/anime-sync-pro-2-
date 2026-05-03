@@ -195,10 +195,18 @@ class Anime_Sync_User_Status_Manager {
      * 寫入方法（皆使用 ON DUPLICATE KEY UPDATE 原子 upsert）
      * ────────────────────────────────────────────── */
 
-    private function set_status( int $user_id, int $anime_id, string $status ): bool {
-        if ( ! isset( self::STATUS_MAP[ $status ] ) ) return false;
+private function set_status( int $user_id, int $anime_id, string $status ): bool {
+    if ( ! isset( self::STATUS_MAP[ $status ] ) ) return false;
 
-        $status_int = self::STATUS_MAP[ $status ];
+    // 🚫 未播出動畫只能點「想看」「棄坑」，不能點「追番中」「已看完」
+    if ( in_array( $status, [ 'watching', 'completed' ], true ) ) {
+        $airing = get_post_meta( $anime_id, 'anime_status', true );
+        if ( $airing === 'NOT_YET_RELEASED' ) {
+            return false;
+        }
+    }
+
+    $status_int = self::STATUS_MAP[ $status ];
         global $wpdb;
         $table = $wpdb->prefix . 'anime_user_status';
         $now   = current_time( 'mysql' );
