@@ -1,12 +1,16 @@
 <?php
 /**
- * 微笑動漫 — Taxonomy Seeder v4
+ * 微笑動漫 — Taxonomy Seeder v5
  * 路徑：wp-content/plugins/anime-sync-pro/setup-taxonomy.php
  *
  * 用途：
- * 1. 建立文章內容型 category：news / review / feature
- * 2. 建立文章頻道 taxonomy：channel
+ * 1. 建立文章內容型 category：announcement / news / review / feature
+ * 2. 建立文章頻道 taxonomy：channel（12 個頻道）
  * 3. 建立 anime 作品庫用 taxonomy term：genre / anime_season_tax / anime_format_tax
+ *
+ * v5 變更：
+ * - category 新增「公告 announcement」
+ * - channel 新增「聲優 voice-actor」「音樂 music」「周邊 merchandise」「活動 event」「業界 industry」
  *
  * 注意：
  * - 這支檔案只負責建立 term
@@ -67,7 +71,7 @@ function wx_upsert_term( string $name, string $taxonomy, array $args = [] ): int
 }
 
 echo '<!DOCTYPE html><html><head><meta charset="utf-8">';
-echo '<title>微笑動漫 Taxonomy Seeder v4</title>';
+echo '<title>微笑動漫 Taxonomy Seeder v5</title>';
 echo '<style>
 	body {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -86,8 +90,8 @@ echo '<style>
 </style>';
 echo '</head><body>';
 
-echo '<h1>微笑動漫 Taxonomy Seeder v4</h1>';
-echo '<p class="note">這版會建立文章內容型 category、文章頻道 channel，以及作品庫 taxonomy term。</p>';
+echo '<h1>微笑動漫 Taxonomy Seeder v5</h1>';
+echo '<p class="note">v5 新增「公告」category 與 5 個 channel（聲優 / 音樂 / 周邊 / 活動 / 業界）</p>';
 
 
 // =========================================================
@@ -96,9 +100,10 @@ echo '<p class="note">這版會建立文章內容型 category、文章頻道 cha
 echo '<h2>文章內容型（category）</h2>';
 
 $editorial_categories = [
-	[ '新聞', 'news' ],
-	[ '評論', 'review' ],
-	[ '專題', 'feature' ],
+	[ '公告', 'announcement' ],
+	[ '新聞', 'news'         ],
+	[ '評論', 'review'       ],
+	[ '專題', 'feature'      ],
 ];
 
 foreach ( $editorial_categories as [ $name, $slug ] ) {
@@ -113,13 +118,18 @@ echo '<h2>文章頻道（channel）</h2>';
 echo '<p class="note">需先由外掛註冊 channel taxonomy，否則這裡會顯示 taxonomy 不存在。</p>';
 
 $channels = [
-	[ '動漫',    'anime'    ],
-	[ '漫畫',    'manga'    ],
-	[ '輕小說',  'novel'    ],
-	[ '遊戲',    'game'     ],
-	[ 'VTuber',  'vtuber'   ],
-	[ 'Cosplay', 'cosplay'  ],
-	[ 'AI工具',  'ai-tools' ],
+	[ '動漫',    'anime'        ],
+	[ '漫畫',    'manga'        ],
+	[ '輕小說',  'novel'        ],
+	[ '遊戲',    'game'         ],
+	[ 'VTuber',  'vtuber'       ],
+	[ 'Cosplay', 'cosplay'      ],
+	[ 'AI工具',  'ai-tools'     ],
+	[ '聲優',    'voice-actor'  ],
+	[ '音樂',    'music'        ],
+	[ '周邊',    'merchandise'  ],
+	[ '活動',    'event'        ],
+	[ '業界',    'industry'     ],
 ];
 
 foreach ( $channels as [ $name, $slug ] ) {
@@ -212,7 +222,7 @@ foreach ( $formats as [ $name, $slug ] ) {
 	wx_upsert_term( $name, 'anime_format_tax', [ 'slug' => $slug ] );
 }
 
-update_option( 'smileacg_taxonomy_v4_done', current_time( 'mysql' ) );
+update_option( 'smileacg_taxonomy_v5_done', current_time( 'mysql' ) );
 
 echo '<hr>';
 echo '<h2 style="color:green">✅ 完成</h2>';
