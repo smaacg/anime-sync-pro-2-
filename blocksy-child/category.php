@@ -1,324 +1,325 @@
 <?php
 /**
- * 微笑動漫 — 分類頁模板 FINAL v3
- * 路徑：wp-content/themes/blocksy-child/category.php
+ * Category / Channel Archive Template
+ * 服務 URL：
+ *   /news/  /review/  /feature/  /announcement/
+ *   /news/anime/  /news/voice-actor/  /review/game/  ...
+ *
+ * Path: wp-content/themes/blocksy-child/category.php
  */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 get_header();
 
-$current_cat = get_queried_object();
-$slug        = $current_cat->slug ?? '';
-$cat_name    = $current_cat->name ?? '';
-$cat_desc    = $current_cat->description ?? '';
-$paged       = max( 1, get_query_var('paged') );
-$per_page    = 12;
+// ── 取得目前 archive 的 term ──
+$queried        = get_queried_object();
+$current_term   = ( $queried instanceof WP_Term ) ? $queried : null;
+$current_tax    = $current_term ? $current_term->taxonomy : '';
+$current_termid = $current_term ? $current_term->term_id  : 0;
+$current_slug   = $current_term ? $current_term->slug     : '';
 
-// ── 分類設定 ──────────────────────────────────────────────────
-$cat_config = [
-    'news'     => [ 'icon' => '📰', 'color' => '#e74c3c', 'desc' => '最新動漫資訊，第一手掌握業界動態' ],
-    'review'   => [ 'icon' => '⭐', 'color' => '#f39c12', 'desc' => '動漫觀後心得，分享你的感受與評價' ],
-    'feature'  => [ 'icon' => '🔍', 'color' => '#8e44ad', 'desc' => '深度專題分析，帶你了解動漫產業' ],
-    'anime'    => [ 'icon' => '🎬', 'color' => '#3498db', 'desc' => '動漫情報專區，涵蓋最新動畫資訊' ],
-    'manga'    => [ 'icon' => '📚', 'color' => '#27ae60', 'desc' => '漫畫情報專區，連載、單行本最新消息' ],
-    'novel'    => [ 'icon' => '📖', 'color' => '#16a085', 'desc' => '輕小說情報，新刊與改編消息一手掌握' ],
-    'music'    => [ 'icon' => '🎵', 'color' => '#e91e63', 'desc' => '動漫音樂專區，OP、ED、原聲帶情報' ],
-    'games'    => [ 'icon' => '🎮', 'color' => '#2c3e50', 'desc' => '遊戲情報專區，手遊、主機、PC 最新資訊' ],
-    'esports'  => [ 'icon' => '🏆', 'color' => '#e67e22', 'desc' => '電競賽事資訊，賽事、戰隊、比賽結果' ],
-    'vtuber'   => [ 'icon' => '🎭', 'color' => '#9b59b6', 'desc' => 'VTuber 情報，出道、直播、活動最新消息' ],
-    'cosplay'  => [ 'icon' => '👘', 'color' => '#e91e63', 'desc' => 'Cosplay 專區，攝影作品與活動紀錄' ],
-    'merch'    => [ 'icon' => '🛍️', 'color' => '#e74c3c', 'desc' => '動漫周邊情報，模型、限定、預購資訊' ],
-    'travel'   => [ 'icon' => '✈️', 'color' => '#1abc9c', 'desc' => '聖地巡禮指南，取景地與旅遊心得分享' ],
-    'ai-tools' => [ 'icon' => '🤖', 'color' => '#34495e', 'desc' => 'AI 工具介紹，繪圖、影片、寫作工具評測' ],
-    'rankings' => [ 'icon' => '📊', 'color' => '#c0392b', 'desc' => '動漫排行榜，人氣、評分、銷量即時排名' ],
+// ── 頁面標題 / 副標題（依分類動態顯示） ──
+$page_titles = [
+    'announcement' => [ '本站公告', '官方訊息・系統公告・重要通知' ],
+    'news'         => [ '最新動漫資訊', '聲優消息・新番公告・活動報導・業界動態，每日更新' ],
+    'review'       => [ '動漫評論', '深度解析・心得分享・作品評價' ],
+    'feature'      => [ '專題報導', '深度專題・年度回顧・主題企劃' ],
 ];
+if ( 'category' === $current_tax && isset( $page_titles[ $current_slug ] ) ) {
+    $hero_title    = $page_titles[ $current_slug ][0];
+    $hero_subtitle = $page_titles[ $current_slug ][1];
+    $hero_badge    = $current_term->name;
+} elseif ( $current_term ) {
+    $hero_title    = single_term_title( '', false );
+    $hero_subtitle = $current_term->description ?: '相關文章列表';
+    $hero_badge    = $current_term->name;
+} else {
+    $hero_title    = '所有文章';
+    $hero_subtitle = '';
+    $hero_badge    = '文章';
+}
 
-$config      = $cat_config[ $slug ] ?? [ 'icon' => '📁', 'color' => '#555', 'desc' => '' ];
-$icon        = $config['icon'];
-$color       = $config['color'];
-$description = $cat_desc ?: $config['desc'];
+// ── 共用：依目前 archive 過濾 tax_query ──
+$archive_tax_query = [];
+if ( $current_term ) {
+    $archive_tax_query[] = [
+        'taxonomy' => $current_tax,
+        'field'    => 'term_id',
+        'terms'    => $current_termid,
+    ];
+}
 
-// ── 文章查詢 ──────────────────────────────────────────────────
-$args = [
-    'cat'            => $current_cat->term_id,
-    'posts_per_page' => $per_page,
-    'paged'          => $paged,
-    'post_status'    => 'publish',
-];
-$query      = new WP_Query( $args );
-$total      = $query->found_posts;
-$post_count = $query->post_count;
+// ── 輪播：本分類最新 5 篇 ──
+$carousel_query = new WP_Query( [
+    'post_type'           => 'post',
+    'posts_per_page'      => 5,
+    'post_status'         => 'publish',
+    'ignore_sticky_posts' => true,
+    'tax_query'           => $archive_tax_query,
+] );
+
+// ── 熱門：本分類留言數最多 5 篇 ──
+$popular_query = new WP_Query( [
+    'post_type'           => 'post',
+    'posts_per_page'      => 5,
+    'post_status'         => 'publish',
+    'ignore_sticky_posts' => true,
+    'orderby'             => 'comment_count',
+    'order'               => 'DESC',
+    'tax_query'           => $archive_tax_query,
+] );
+
+// ── 熱門標籤（全站）──
+$popular_tags = get_tags( [
+    'orderby'    => 'count',
+    'order'      => 'DESC',
+    'number'     => 15,
+    'hide_empty' => true,
+] );
+
+// ── Filter Tabs：
+// 在 category 頁顯示 channel 列表；在 channel 頁顯示 category 列表
+$filter_label  = '';
+$filter_terms  = [];
+$filter_all_url = '';
+if ( 'category' === $current_tax ) {
+    // 例如在 /news/ 顯示所有 channel
+    $filter_label  = '頻道';
+    $filter_terms  = get_terms( [ 'taxonomy' => 'channel', 'hide_empty' => true ] );
+    $filter_all_url = get_term_link( $current_term );
+} elseif ( 'channel' === $current_tax ) {
+    // 例如在 /news/anime/ 顯示「全部新聞 / 評論 / 專題」
+    $filter_label  = '類型';
+    $filter_terms  = get_categories( [
+        'slug'       => [ 'announcement', 'news', 'review', 'feature' ],
+        'hide_empty' => false,
+    ] );
+    $filter_all_url = get_term_link( $current_term );
+}
 ?>
 
-<style>
-/* ── Reset & Base ── */
-.cat-page { max-width: 1200px; margin: 0 auto; padding: 0 20px 60px; }
+<!-- 額外載入本頁專用 CSS / JS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+<link rel="stylesheet" href="<?php echo esc_url( get_stylesheet_directory_uri() . '/css/news.css' ); ?>" />
 
-/* ── Hero ── */
-.cat-hero {
-    background: linear-gradient(135deg, <?php echo $color; ?>22, <?php echo $color; ?>11);
-    border-left: 5px solid <?php echo $color; ?>;
-    border-radius: 12px;
-    padding: 40px;
-    margin: 30px 0;
-    display: flex;
-    align-items: center;
-    gap: 24px;
-}
-.cat-hero-icon { font-size: 56px; line-height: 1; }
-.cat-hero-info h1 { margin: 0 0 8px; font-size: 2rem; color: #1a1a2e; }
-.cat-hero-info p  { margin: 0 0 12px; color: #555; font-size: 1rem; line-height: 1.6; }
-.cat-hero-meta    { display: flex; gap: 16px; flex-wrap: wrap; }
-.cat-hero-meta span {
-    background: <?php echo $color; ?>;
-    color: #fff;
-    padding: 4px 14px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-/* ── Grid ── */
-.cat-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 24px;
-    margin-top: 32px;
-}
-
-/* ── Card ── */
-.cat-card {
-    background: #fff;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 2px 12px rgba(0,0,0,.08);
-    transition: transform .25s, box-shadow .25s;
-    display: flex;
-    flex-direction: column;
-}
-.cat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 28px rgba(0,0,0,.14);
-}
-.cat-card a { text-decoration: none; color: inherit; }
-
-.cat-card-thumb {
-    width: 100%;
-    aspect-ratio: 16/9;
-    object-fit: cover;
-    display: block;
-    background: #f0f0f0;
-}
-.cat-card-thumb-placeholder {
-    width: 100%;
-    aspect-ratio: 16/9;
-    background: linear-gradient(135deg, <?php echo $color; ?>22, <?php echo $color; ?>44);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 3rem;
-}
-
-.cat-card-body  { padding: 20px; flex: 1; display: flex; flex-direction: column; }
-.cat-card-cats  { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.cat-card-cat {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: <?php echo $color; ?>;
-    background: <?php echo $color; ?>18;
-    padding: 3px 10px;
-    border-radius: 12px;
-    text-transform: uppercase;
-    letter-spacing: .5px;
-}
-.cat-card-title {
-    font-size: 1.05rem;
-    font-weight: 700;
-    line-height: 1.5;
-    color: #1a1a2e;
-    margin: 0 0 10px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-.cat-card-excerpt {
-    font-size: 0.88rem;
-    color: #666;
-    line-height: 1.6;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    flex: 1;
-}
-.cat-card-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid #f0f0f0;
-    font-size: 0.8rem;
-    color: #999;
-}
-.cat-card-date { display: flex; align-items: center; gap: 4px; }
-.cat-card-read {
-    color: <?php echo $color; ?>;
-    font-weight: 600;
-    font-size: 0.82rem;
-}
-
-/* ── Featured Card ── */
-.cat-card-featured {
-    grid-column: 1 / -1;
-    flex-direction: row;
-}
-.cat-card-featured .cat-card-thumb,
-.cat-card-featured .cat-card-thumb-placeholder {
-    width: 45%;
-    aspect-ratio: unset;
-    min-height: 240px;
-    flex-shrink: 0;
-}
-.cat-card-featured .cat-card-body { padding: 28px; }
-.cat-card-featured .cat-card-title { font-size: 1.4rem; -webkit-line-clamp: 3; }
-.cat-card-featured .cat-card-excerpt { -webkit-line-clamp: 4; }
-
-/* ── Empty ── */
-.cat-empty {
-    text-align: center;
-    padding: 80px 20px;
-    color: #999;
-}
-.cat-empty-icon { font-size: 4rem; margin-bottom: 16px; }
-
-/* ── Pagination ── */
-.cat-pagination {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 48px;
-    flex-wrap: wrap;
-}
-.cat-pagination a,
-.cat-pagination span {
-    padding: 8px 16px;
-    border-radius: 8px;
-    border: 2px solid #eee;
-    color: #333;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: all .2s;
-}
-.cat-pagination a:hover { border-color: <?php echo $color; ?>; color: <?php echo $color; ?>; }
-.cat-pagination .current {
-    background: <?php echo $color; ?>;
-    border-color: <?php echo $color; ?>;
-    color: #fff;
-}
-
-/* ── Responsive ── */
-@media (max-width: 768px) {
-    .cat-hero { flex-direction: column; text-align: center; padding: 28px 20px; }
-    .cat-hero-meta { justify-content: center; }
-    .cat-card-featured { flex-direction: column; }
-    .cat-card-featured .cat-card-thumb,
-    .cat-card-featured .cat-card-thumb-placeholder { width: 100%; min-height: 200px; aspect-ratio: 16/9; }
-    .cat-grid { grid-template-columns: 1fr; }
-}
-</style>
-
-<div class="cat-page">
-
-    <!-- Hero -->
-    <div class="cat-hero">
-        <div class="cat-hero-icon"><?php echo $icon; ?></div>
-        <div class="cat-hero-info">
-            <h1><?php echo esc_html( $cat_name ); ?></h1>
-            <?php if ( $description ) : ?>
-                <p><?php echo esc_html( $description ); ?></p>
-            <?php endif; ?>
-            <div class="cat-hero-meta">
-                <span>共 <?php echo $total; ?> 篇文章</span>
-                <?php if ( $paged > 1 ) : ?>
-                    <span>第 <?php echo $paged; ?> 頁</span>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-
-    <!-- 文章列表 -->
-    <?php if ( $query->have_posts() ) : ?>
-        <div class="cat-grid">
-        <?php
-        $is_first = true;
-        while ( $query->have_posts() ) :
-            $query->the_post();
-            $post_id    = get_the_ID();
-            $permalink  = get_permalink();
-            $title      = get_the_title();
-            $excerpt    = get_the_excerpt();
-            $date       = get_the_date('Y.m.d');
-            $thumb      = get_the_post_thumbnail_url( $post_id, $is_first ? 'large' : 'medium' );
-            $cats       = get_the_category();
-        ?>
-            <article class="cat-card <?php echo $is_first ? 'cat-card-featured' : ''; ?>">
-                <a href="<?php echo esc_url( $permalink ); ?>">
-                    <?php if ( $thumb ) : ?>
-                        <img class="cat-card-thumb" src="<?php echo esc_url( $thumb ); ?>" alt="<?php echo esc_attr( $title ); ?>" loading="<?php echo $is_first ? 'eager' : 'lazy'; ?>">
-                    <?php else : ?>
-                        <div class="cat-card-thumb-placeholder"><?php echo $icon; ?></div>
-                    <?php endif; ?>
-                </a>
-                <div class="cat-card-body">
-                    <?php if ( $cats ) : ?>
-                        <div class="cat-card-cats">
-                            <?php foreach ( array_slice( $cats, 0, 2 ) as $cat ) : ?>
-                                <span class="cat-card-cat"><?php echo esc_html( $cat->name ); ?></span>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-                    <h2 class="cat-card-title">
-                        <a href="<?php echo esc_url( $permalink ); ?>"><?php echo esc_html( $title ); ?></a>
-                    </h2>
-                    <?php if ( $excerpt ) : ?>
-                        <p class="cat-card-excerpt"><?php echo esc_html( $excerpt ); ?></p>
-                    <?php endif; ?>
-                    <div class="cat-card-footer">
-                        <span class="cat-card-date">📅 <?php echo $date; ?></span>
-                        <span class="cat-card-read">閱讀更多 →</span>
-                    </div>
-                </div>
-            </article>
-        <?php
-            $is_first = false;
-        endwhile;
-        wp_reset_postdata();
-        ?>
-        </div>
-
-        <!-- 分頁 -->
-        <div class="cat-pagination">
-            <?php
-            echo paginate_links([
-                'total'     => $query->max_num_pages,
-                'current'   => $paged,
-                'prev_text' => '← 上一頁',
-                'next_text' => '下一頁 →',
-                'type'      => 'list',
-                'before_page_number' => '',
-            ]);
-            ?>
-        </div>
-
-    <?php else : ?>
-        <div class="cat-empty">
-            <div class="cat-empty-icon"><?php echo $icon; ?></div>
-            <p>這個分類還沒有文章，敬請期待！</p>
-        </div>
+<!-- ===== PAGE HERO ===== -->
+<div class="page-hero">
+  <div class="container">
+    <div class="page-badge"><i class="fa-solid fa-newspaper"></i> <?php echo esc_html( $hero_badge ); ?></div>
+    <h1 class="page-title"><?php echo esc_html( $hero_title ); ?></h1>
+    <?php if ( $hero_subtitle ) : ?>
+      <p class="page-subtitle"><?php echo esc_html( $hero_subtitle ); ?></p>
     <?php endif; ?>
-
+  </div>
 </div>
 
-<?php get_footer(); ?>
+<!-- ===== MAIN ===== -->
+<main class="container" style="padding: 32px 0 64px;">
+
+  <!-- ── 海報輪播 ── -->
+  <?php if ( $carousel_query->have_posts() ) : ?>
+  <div class="news-carousel-wrap">
+    <div class="swiper news-swiper">
+      <div class="swiper-wrapper">
+        <?php while ( $carousel_query->have_posts() ) : $carousel_query->the_post();
+          $cats      = get_the_category();
+          $cat_label = ! empty( $cats ) ? esc_html( $cats[0]->name ) : '最新';
+
+          $carousel_img_url = '';
+          if ( has_post_thumbnail() ) {
+              $carousel_img_url = get_the_post_thumbnail_url( get_the_ID(), 'large' );
+          } else {
+              preg_match( '/<img[^>]+src=["\']([^"\']+)["\']/', get_the_content(), $m );
+              if ( ! empty( $m[1] ) ) $carousel_img_url = $m[1];
+          }
+        ?>
+        <div class="swiper-slide">
+          <a href="<?php the_permalink(); ?>" class="swiper-slide-inner">
+            <?php if ( $carousel_img_url ) : ?>
+              <div class="swiper-slide-bg" style="background-image: url('<?php echo esc_url( $carousel_img_url ); ?>');"></div>
+              <img class="carousel-main-img"
+                   src="<?php echo esc_url( $carousel_img_url ); ?>"
+                   alt="<?php echo esc_attr( get_the_title() ); ?>"
+                   loading="lazy" />
+            <?php else : ?>
+              <div class="carousel-no-img">📰</div>
+            <?php endif; ?>
+
+            <div class="swiper-slide-caption">
+              <div class="swiper-slide-tag"><?php echo $cat_label; ?></div>
+              <div class="swiper-slide-title"><?php the_title(); ?></div>
+              <div class="swiper-slide-meta">
+                <i class="fa-regular fa-clock"></i> <?php echo get_the_date( 'Y-m-d' ); ?>
+                &nbsp;·&nbsp;
+                <i class="fa-regular fa-user"></i> <?php the_author(); ?>
+              </div>
+            </div>
+          </a>
+        </div>
+        <?php endwhile; wp_reset_postdata(); ?>
+      </div>
+      <div class="swiper-pagination"></div>
+      <div class="swiper-button-prev"></div>
+      <div class="swiper-button-next"></div>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- ── Filter Tabs（頻道 / 類型切換） ── -->
+  <?php if ( ! empty( $filter_terms ) ) : ?>
+  <div class="news-filter">
+    <a href="<?php echo esc_url( $filter_all_url ); ?>" class="news-filter-btn active">全部</a>
+    <?php foreach ( $filter_terms as $t ) :
+      // 在 category 頁，這裡列出的是 channel：連到 /{current_cat}/{channel}/ 才符合 editorial routing
+      if ( 'category' === $current_tax ) {
+          $tab_url = home_url( '/' . $current_slug . '/' . $t->slug . '/' );
+      } else {
+          // 在 channel 頁，列的是 category：連到 /{cat}/{current_channel}/
+          $tab_url = home_url( '/' . $t->slug . '/' . $current_slug . '/' );
+      }
+    ?>
+      <a href="<?php echo esc_url( $tab_url ); ?>" class="news-filter-btn">
+        <?php echo esc_html( $t->name ); ?>
+      </a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
+  <div class="news-layout">
+
+    <!-- ── 主要新聞區（使用主迴圈，由 WordPress 自動篩文章） ── -->
+    <div class="news-main-grid">
+
+      <?php if ( have_posts() ) : ?>
+        <div class="news-card-list">
+          <?php while ( have_posts() ) : the_post();
+            $cats      = get_the_category();
+            $cat_label = ! empty( $cats ) ? esc_html( $cats[0]->name ) : '文章';
+          ?>
+          <a href="<?php the_permalink(); ?>" class="news-card glass">
+            <div class="news-card-img">
+              <?php if ( has_post_thumbnail() ) : ?>
+                <?php the_post_thumbnail( 'medium', [ 'alt' => get_the_title(), 'loading' => 'lazy' ] ); ?>
+              <?php else :
+                preg_match( '/<img[^>]+src=["\']([^"\']+)["\']/', get_the_content(), $cm );
+                if ( ! empty( $cm[1] ) ) : ?>
+                  <img src="<?php echo esc_url( $cm[1] ); ?>"
+                       alt="<?php echo esc_attr( get_the_title() ); ?>"
+                       loading="lazy" />
+                <?php else : ?>
+                  <span class="news-card-placeholder">📰</span>
+                <?php endif; ?>
+              <?php endif; ?>
+            </div>
+            <div class="news-card-body">
+              <div class="news-card-tag"><?php echo $cat_label; ?></div>
+              <div class="news-card-title"><?php the_title(); ?></div>
+              <div class="news-card-meta">
+                <i class="fa-regular fa-clock"></i> <?php echo get_the_date( 'Y-m-d' ); ?>
+              </div>
+            </div>
+          </a>
+          <?php endwhile; ?>
+        </div>
+
+        <!-- ── 分頁（自動跟主查詢） ── -->
+        <div class="news-pagination">
+          <?php
+          the_posts_pagination( [
+              'prev_text' => '<i class="fa-solid fa-chevron-left"></i>',
+              'next_text' => '<i class="fa-solid fa-chevron-right"></i>',
+              'end_size'  => 2,
+              'mid_size'  => 1,
+          ] );
+          ?>
+        </div>
+
+      <?php else : ?>
+        <div class="news-empty glass">
+          <i class="fa-regular fa-newspaper"></i>
+          <p>目前沒有文章，請稍後再來查看。</p>
+        </div>
+      <?php endif; ?>
+
+    </div>
+
+    <!-- ── 側欄 ── -->
+    <aside class="news-sidebar">
+
+      <!-- 熱門新聞 -->
+      <div class="sidebar-widget glass">
+        <div class="sidebar-widget-title">
+          <i class="fa-solid fa-fire" style="color:#f97316;"></i> 熱門文章
+        </div>
+        <?php if ( $popular_query->have_posts() ) :
+          $pop_i = 0;
+          while ( $popular_query->have_posts() ) : $popular_query->the_post();
+            $pop_i++;
+            $is_top = $pop_i <= 3 ? 'top-3' : '';
+        ?>
+        <a href="<?php the_permalink(); ?>" class="sidebar-list-item">
+          <div class="sidebar-item-num <?php echo $is_top; ?>"><?php echo $pop_i; ?></div>
+          <div>
+            <div class="sidebar-item-title"><?php the_title(); ?></div>
+            <div class="sidebar-item-date">
+              <?php echo human_time_diff( get_the_time( 'U' ), current_time( 'timestamp' ) ); ?>前
+            </div>
+          </div>
+        </a>
+        <?php endwhile; wp_reset_postdata(); ?>
+        <?php endif; ?>
+      </div>
+
+      <!-- 熱門標籤 -->
+      <?php if ( ! empty( $popular_tags ) ) : ?>
+      <div class="sidebar-widget glass">
+        <div class="sidebar-widget-title">
+          <i class="fa-solid fa-tags" style="color:var(--accent-blue);"></i> 熱門標籤
+        </div>
+        <div class="tag-cloud">
+          <?php foreach ( $popular_tags as $tag ) : ?>
+          <a href="<?php echo esc_url( get_tag_link( $tag->term_id ) ); ?>" class="tag-pill">
+            #<?php echo esc_html( $tag->name ); ?>
+          </a>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <!-- 訂閱快報 -->
+      <div class="sidebar-widget glass subscribe-box">
+        <div class="sidebar-widget-title">
+          <i class="fa-solid fa-bell" style="color:var(--accent-blue);"></i> 訂閱快報
+        </div>
+        <p class="subscribe-desc">每週精選重要動漫資訊，直送你的信箱</p>
+        <input type="email" class="subscribe-input" placeholder="your@email.com" />
+        <button class="btn btn-primary subscribe-btn">訂閱</button>
+      </div>
+
+    </aside>
+  </div>
+</main>
+
+<!-- Swiper JS -->
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  if ( document.querySelector('.news-swiper') ) {
+    new Swiper('.news-swiper', {
+      loop:       true,
+      autoplay:   { delay: 5000, disableOnInteraction: false },
+      speed:      700,
+      effect:     'fade',
+      fadeEffect: { crossFade: true },
+      pagination: { el: '.swiper-pagination', clickable: true },
+      navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
+      a11y:       { enabled: true },
+    });
+  }
+})();
+</script>
+
+<?php
+get_footer();
