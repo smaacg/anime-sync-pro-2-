@@ -1,12 +1,17 @@
 <?php
 /**
- * Editorial Routing
+ * Editorial Routing v2
  *
  * 文章內容層專用：
  * - 註冊 channel taxonomy（綁定 post）
  * - 提供 /news/anime/post-slug/ 類型網址
  * - 提供 /review/manga/post-slug/ 類型網址
  * - 提供 /feature/game/post-slug/ 類型網址
+ * - 提供 /announcement/post-slug/ 等獨立公告路由
+ *
+ * v2 變更：
+ * - CONTENT_TYPES 新增 announcement
+ * - CHANNELS 新增 voice-actor / music / merchandise / event / industry
  *
  * @package Anime_Sync_Pro
  */
@@ -21,6 +26,7 @@ class Anime_Sync_Editorial_Routing {
 	 * 允許的文章內容型態（category slug）
 	 */
 	private const CONTENT_TYPES = [
+		'announcement',
 		'news',
 		'review',
 		'feature',
@@ -37,6 +43,11 @@ class Anime_Sync_Editorial_Routing {
 		'vtuber',
 		'cosplay',
 		'ai-tools',
+		'voice-actor',
+		'music',
+		'merchandise',
+		'event',
+		'industry',
 	];
 
 	public function __construct() {
@@ -132,10 +143,17 @@ class Anime_Sync_Editorial_Routing {
 			'index.php?post_type=post&name=$matches[3]&category_name=$matches[1]&channel=$matches[2]',
 			'top'
 		);
+
+		// /announcement/post-slug/  公告類沒有 channel 也要能訪問單篇
+		add_rewrite_rule(
+			'^(' . $content_regex . ')/([^/]+)/?$',
+			'index.php?post_type=post&name=$matches[2]&category_name=$matches[1]',
+			'top'
+		);
 	}
 
 	/**
-	 * 文章 permalink 改寫成 /news/anime/post-slug/
+	 * 文章 permalink 改寫成 /news/anime/post-slug/ 或 /announcement/post-slug/
 	 */
 	public function filter_post_permalink( string $permalink, WP_Post $post, bool $leavename ): string {
 		if ( $post->post_type !== 'post' ) {
@@ -145,12 +163,18 @@ class Anime_Sync_Editorial_Routing {
 		$content_type = $this->get_primary_content_type_slug( $post->ID );
 		$channel      = $this->get_primary_channel_slug( $post->ID );
 
-		if ( $content_type === '' || $channel === '' ) {
+		if ( $content_type === '' ) {
 			return $permalink;
 		}
 
 		$post_slug = $leavename ? '%postname%' : $post->post_name;
 
+		// 公告類不強制要有 channel：/announcement/post-slug/
+		if ( $channel === '' ) {
+			return home_url( user_trailingslashit( "{$content_type}/{$post_slug}" ) );
+		}
+
+		// 一般文章：/news/anime/post-slug/
 		return home_url( user_trailingslashit( "{$content_type}/{$channel}/{$post_slug}" ) );
 	}
 
